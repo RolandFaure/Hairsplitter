@@ -18,3 +18,14 @@ void Read::add_overlap(long int o){
 size_t Read::size(){
     return sequence_.size();
 }
+
+void Read::new_backbone(std::pair<int, short> pair, size_t size){
+
+    if (pair.second < size){
+        backbone_seq.push_back(pair);
+    }
+    else{
+        throw std::logic_error("Problem in backbone");
+    }
+
+}

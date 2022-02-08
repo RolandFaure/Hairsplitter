@@ -38,7 +38,12 @@ int main(int argc, char *argv[])
     //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
     parse_PAF("/home/rfaure/Documents/these/overlap_filtering/alignments.paf", allOverlaps, allreads, indices, backbone_reads);
 
-    checkOverlaps(allreads, allOverlaps, backbone_reads);
+    vector<Partition> partitions;
+    checkOverlaps(allreads, allOverlaps, backbone_reads, partitions);
+
+    output_filtered_PAF("/home/rfaure/Documents/these/overlap_filtering/filtered_aln.paf", 
+                "/home/rfaure/Documents/these/overlap_filtering/alignments.paf",
+                allreads, partitions, indices);
 
     auto t2 = high_resolution_clock::now();
 

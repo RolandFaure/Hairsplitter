@@ -203,12 +203,104 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             backbones_reads.push_back(i);
         }
     }
-    backbones_reads = {0}; //just for fun now
+    //backbones_reads = {0}; //just for fun now
 
 
 }
 
+//input : original file of overlaps, allreads and partitions
+//output : the same file of overlaps, but with all spurious overlap filtered out
+void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<Partition> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices){
 
+    ifstream in(fileIn);
+    if (!in){
+        cout << "problem reading PAF file " << fileIn << endl;
+        throw std::invalid_argument( "Input file could not be read" );
+    }
+
+    ofstream out(fileOut);
+    if (!out){
+        cout << "problem opening " << fileOut << ". Do you have the right permissions ?" << endl;
+        throw std::invalid_argument( "Output file could not be written" );
+    }
+
+    string line;
+
+    while(getline(in, line)){
+
+        std::istringstream line2(line);
+        string field;
+        short fieldnumber = 0;
+
+        long int sequence1;
+        long int sequence2;
+
+        string name1;
+        string name2;
+
+        bool allgood = true;
+
+        while (std::getline(line2, field, '\t'))
+        {
+            if (fieldnumber == 0){
+                try{
+                    sequence1 = indices[field];
+                    name1 = field;
+                }
+                catch(...){
+                    allgood = false;
+                }
+            }
+            else if (fieldnumber == 5){
+                try{
+                    sequence2 = indices[field];
+                    name2 = field;
+                }
+                catch(...){
+                    allgood = false;
+                }
+            }
+            fieldnumber++;
+        }
+
+        //now that we have the two sequences, check if they were partitionned separately
+        bool goodOverlap = true;
+        if (allgood){
+            for (int backbone1 = 0 ; backbone1 < allreads[sequence1].backbone_seq.size() ; backbone1 ++){
+                for (int backbone2 = 0 ; backbone2 < allreads[sequence2].backbone_seq.size() ; backbone2 ++){
+                    int backbone = allreads[sequence1].backbone_seq[backbone1].first;
+                    if (backbone == allreads[sequence2].backbone_seq[backbone2].first){ //then they lean on the same backbone read
+                        if (name1[0] == name2[0]){
+                            if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
+                            != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
+                                cout << "comparing " << name1 << " " << name2 << endl;
+                                partitions[backbone].print();
+                                // partitions[backbone].getConfidence();
+                                // for (auto i : partitions[backbone].getConfidence()){
+                                //     cout << i << ",";
+                                // }
+                                // cout << endl;
+                                cout << partitions[backbone].getConfidence()[allreads[sequence2].backbone_seq[backbone2].second]<< ","<<
+                                partitions[backbone].getConfidence()[allreads[sequence1].backbone_seq[backbone1].second] << endl;
+                            }
+                        }
+                        if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
+                            != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
+                                goodOverlap = false;
+                                //cout << "not validating " << name1 << " vs " << name2 << endl;
+                        }
+
+                    }
+                }
+            }
+        }
+        if (goodOverlap){
+            out << line << endl;
+        }
+
+    }
+
+}
 
 
 

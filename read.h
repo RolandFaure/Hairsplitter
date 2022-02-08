@@ -2,10 +2,12 @@
 #define READ_H
 
 #include <vector>
+#include <list>
 //#include <thread>
 //#include <mutex>
 
 #include "sequence.h"
+#include "Partition.h"
 
 struct Overlap
 {
@@ -27,9 +29,11 @@ public:
 
     void add_overlap(long int o);
     size_t size();
-//private :
-
+    void new_backbone(std::pair<int, short> pair, size_t size);
     std::vector <long int> neighbors_; //list of long int referring to indices in allOverlaps
+
+//private :
+    std::vector <std::pair<int, short>> backbone_seq; //first element is the id of backbone read, second is the indice of neighbor
 
 };
 
