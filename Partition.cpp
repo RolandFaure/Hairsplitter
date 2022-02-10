@@ -109,6 +109,42 @@ void Partition::augmentPartition(vector<short>& supplementaryPartition){
     numberOfOccurences += 1;
 }
 
+//input : another partition to be merged into this one and short phased (worth 1 or -1) (are the 0 in front of the 0 or the 1 ?)
+//output : updated consensus partition
+//WARNING like above, the two partitions must be the same size
+void Partition::mergePartition(Partition p, short phased){
+
+    auto moreOther = p.getMore();
+    auto lessOther = p.getLess();
+
+    auto other = p.getPartition();
+
+    for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
+        if (mostFrequentBases[c] == 0){
+            mostFrequentBases[c] = other[c];
+            moreFrequence[c] = moreOther[c];
+            lessFrequence[c] = lessOther[c];
+        }
+        else if (phased*other[c] == mostFrequentBases[c]){ //the two partitions agree
+            moreFrequence[c] += moreOther[c];
+            lessFrequence[c] += lessOther[c];
+        }
+        else if (phased*other[c] != mostFrequentBases[c]){ //the two partitions disagree
+            moreFrequence[c] += lessOther[c];
+            lessFrequence[c] += moreOther[c];
+
+            //then the most popular base may have changed
+            if (lessFrequence[c] > moreFrequence[c]){
+                mostFrequentBases[c] *= -1;
+                auto stock = moreFrequence[c];
+                moreFrequence[c] = lessFrequence[c];
+                lessFrequence[c] = stock;
+            }
+        }
+    }
+}
+
+
 //returns the majoritary partition
 vector<short> Partition::getPartition(){
     return mostFrequentBases;
@@ -122,6 +158,14 @@ vector<float> Partition::getConfidence(){
     }
 
     return conf;
+}
+
+vector<int> Partition::getMore(){
+    return moreFrequence;
+}
+
+vector<int> Partition::getLess(){
+    return lessFrequence;
 }
 
 int Partition::number(){
@@ -141,7 +185,7 @@ void Partition::print(){
         }
         //cout << c << ",";
     }
-    cout << endl;
+    cout << " " << numberOfOccurences << endl;
 }
 
 int Partition::size(){

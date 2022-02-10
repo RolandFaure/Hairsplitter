@@ -273,15 +273,15 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                         if (name1[0] == name2[0]){
                             if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
                             != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
-                                cout << "comparing " << name1 << " " << name2 << endl;
-                                partitions[backbone].print();
+                                cout << "comparing badly " << name1 << " " << name2 << endl;
+                                // partitions[backbone].print();
                                 // partitions[backbone].getConfidence();
                                 // for (auto i : partitions[backbone].getConfidence()){
                                 //     cout << i << ",";
                                 // }
                                 // cout << endl;
-                                cout << partitions[backbone].getConfidence()[allreads[sequence2].backbone_seq[backbone2].second]<< ","<<
-                                partitions[backbone].getConfidence()[allreads[sequence1].backbone_seq[backbone1].second] << endl;
+                                // cout << partitions[backbone].getConfidence()[allreads[sequence2].backbone_seq[backbone2].second]<< ","<<
+                                // partitions[backbone].getConfidence()[allreads[sequence1].backbone_seq[backbone1].second] << endl;
                             }
                         }
                         if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 

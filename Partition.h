@@ -11,7 +11,10 @@ public :
     void print(); //little function to print the consensus
     std::vector<short> getPartition();
     std::vector<float> getConfidence();
-    void augmentPartition(std::vector<short> &newPar); 
+    std::vector<int> getMore();
+    std::vector<int> getLess();
+    void augmentPartition(std::vector<short> &newPar);
+    void mergePartition(Partition p, short phased); 
     int number();
     int size();
 

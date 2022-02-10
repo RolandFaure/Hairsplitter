@@ -1,5 +1,6 @@
 #include "check_overlaps.h"
 #include "edlib.h"
+#include "cluster_graph.h"
 
 #include <cmath>
 #include <algorithm>
@@ -22,8 +23,8 @@ using std::make_pair;
 //output : a partition for all backbone reads. All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<Partition> &partitions) {
 
-    // vector<char> seq1 = {'A', 'A', 'A', 'C', 'C', 'C', '-'};
-    // vector<char> seq2 = {'A', 'A', 'A', 'C', 'C', 'C', 'C'};
+    // vector<char> seq1 = {'A', 'A', 'A', 'A', 'A', 'A', '-', 'A', 'A', 'A', 'C', 'A', 'C', '-', 'A', 'A', 'A', 'C', 'A', 'C', '-'};
+    // vector<char> seq2 = {'A', 'A', 'A', 'A', 'A', 'C', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C'};
 
     // Partition par1(seq1);
     // vector <pair<Partition, int>> partitions = {make_pair(par1, 1)};
@@ -253,8 +254,9 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
             //go through the partitions to see if this suspicious position looks like smt we've seen before
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
-                bool close = distance(partitions[p], snps[position], meanDistance/2);
-                if (close){ //wow, they are very similar
+                distancePartition dis = distance(partitions[p], snps[position], meanDistance/2);
+                //test if this position is integrated into the partition with the SAME TEST as in the distance() function
+                if (float(dis.nmismatch)/(dis.nmismatch+dis.nmatch) <= meanDistance){ //wow, they are very similar
                     found = true;
                 }
             }
@@ -268,35 +270,56 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
         }
     }
 
-    //now deduce the partition
+    /*now cluster the different partitions, to achieve ( 1 partition = 1 actual division of the reads)
+     -> start by chisquaring two partitions to see if they correlate
+     -> then test if it is possible that "they are so different by chance"
+    */
 
-    //cout << "I have " << numberOfSuspectPostion << " suspect positions, and " << partitions[0].getPartition().size() << " reads " << endl;
-    float threshold = numberOfSuspectPostion*0.01 + 5*sqrt(numberOfSuspectPostion*0.01*0.98); //0.02 because this is what the chisquare test tells us
-    Partition bestPartition(partitions[0].getPartition().size());
-    int numberBestPartition = 0;
-    for (auto p = 0 ; p < partitions.size() ; p++){
-        Partition par = partitions[p];
-        // if (par.number() > threshold){ 
-        //     cout << "partition present " << par.number() << " times" << endl;
-        //     par.print();
-        //     cout << endl;
-        // }
-        if (par.number() > numberBestPartition){
-            numberBestPartition = par.number();
-            bestPartition = par;
-            //par.print();
+    vector<Partition> listOfFinalPartitions;
+
+    float threshold = 10;
+
+    for (auto p1 = 1 ; p1 < partitions.size() ; p1++){
+        
+        if (partitions[p1].number() > threshold){
+
+            bool different = true;
+            for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
+
+                bool same = distance(partitions[p1], listOfFinalPartitions[p2], 9, 2);
+                if (same){
+                    // adjMatrix[p1][p2] = dis.chisquare-9;
+                    // adjMatrix[p2][p1] = dis.chisquare-9;
+                    // cout << "those two partitions are the same : " << endl;
+                    // partitions[p1].print();
+                    // listOfFinalPartitions[p2].print();
+                    different = false;
+                }    
+                else {
+                    cout << "those two partitions are not the same : " << endl;
+                    partitions[p1].print();
+                    listOfFinalPartitions[p2].print();
+                }
+            }
+            if (different){
+                listOfFinalPartitions.push_back(partitions[p1]);
+            }
+
         }
-        // cout << "best partition : "<< endl;
-        // bestPartition.print();
     }
 
-    return bestPartition;
+    // cout << "I have " << numberOfSuspectPostion << " suspect positions, and " << partitions[0].getPartition().size() << " reads " << endl;
+    // for (auto p : listOfFinalPartitions){
+    //     p.print();
+    // }
+
+    return listOfFinalPartitions[0];
 
 }
 
-//input : two partitions
-//output : are these two partitions very close or not ?
-bool distance(Partition &par1, vector<char> &par2, float errorRate){
+//input : one partition and one list of chars
+//output : is the list of chars close to the partition ? If so, augment the partition. Return the chi-square of the difference in bases
+distancePartition distance(Partition &par1, vector<char> &par2, float errorRate){
 
     /*
     when computing the distance, there is not 5 letters but 2 : the two alleles, which are the two most frequent letters
@@ -325,6 +348,10 @@ bool distance(Partition &par1, vector<char> &par2, float errorRate){
         }
     }
     res.nonComparable = part1.size() - numberOfBases;
+
+    if (numberOfBases < 10){ //not comparable
+        return res;
+    }
 
     //determine first and second most frequent bases in par2
     char mostFrequent2 = 'A';
@@ -438,32 +465,196 @@ bool distance(Partition &par1, vector<char> &par2, float errorRate){
 
     //compute number of expected matches by chance
     int occurences[2] = {maxFrequence2, secondFrequence2};
-    res.easyMatches = maxFrequence*occurences[maxScoreIdx]*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases 
-                + (numberOfBases-maxFrequence)*(numberOfBases-occurences[maxScoreIdx])*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases;
+    // res.easyMatches = maxFrequence*occurences[maxScoreIdx]*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases 
+    //             + (numberOfBases-maxFrequence)*(numberOfBases-occurences[maxScoreIdx])*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases;
     
     //now compute the chi square
     int n = res.nmatch + res.nmismatch;
     float pmax1 = maxFrequence/numberOfBases;
     float pmax2 = float(occurences[maxScoreIdx]) / (maxFrequence2+secondFrequence2);
     if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
-        return false;
+        res.chisquare = 0;
+        return res;
     }
-    float chi_square = pow((matches00[maxScoreIdx]-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
+    //chi square test with 1 degree of freedom
+    res.chisquare = pow((matches00[maxScoreIdx]-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
                         + pow((matches01[maxScoreIdx]-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
                         + pow((matches10[maxScoreIdx]-pmax1*(1-pmax2)*n),2)/(pmax1*(1-pmax2)*n)
                         + pow((matches11[maxScoreIdx]-pmax1*pmax2*n),2)/(pmax1*pmax2*n);
-
-    //chi square test with 1 degree of freedom
-    if (chi_square > 7){
+    
+    if (float(res.nmismatch)/(res.nmismatch+res.nmatch) <= errorRate*2 ){
         // cout << "To compare : " << endl << seq1 << " ; " << seq1bis << endl << seq2 << " ; "<< seq2bis  << endl;
         // cout << "res : " << res.nmatch << "," << res.nmismatch << "," << res.nonComparable << ", easy matching : " << 
         //            chi_square << endl;
 
         par1.augmentPartition(newPartitions[maxScoreIdx]);
-        return true;
+        return res;
     }
     else {
+        return res;
+    }
+}
+
+//input : two partitions and thresholds for comparing the partitions
+//output : true if the two partitions are the same given the thresholds. In that case, merge partitions into par1
+bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshold_p){
+
+    /*
+    Two metrics are used to compare two partition : the chi to see if the two partition correlate when they are small
+                                                    the p when the partitions are bigger and you can do probabilities on them
+    */
+
+    float chi = 0;
+
+    vector<short> part1 = par1.getPartition();
+    vector<short> part2 = par2.getPartition();
+
+    vector<int> more1 = par1.getMore();
+    vector<int> less1 = par1.getLess();
+
+    vector<int> more2 = par2.getMore();
+    vector<int> less2 = par2.getLess();
+    
+    int maxFrequence = 0;
+    int maxFrequence2 = 0;
+    float numberOfBases = 0;
+    for (int c = 0 ; c < part1.size() ; c++){
+        if (part1[c] != 0 && part2[c] != 0){
+            if (part1[c] == 1){
+                maxFrequence += 1;
+            }
+            if (part2[c] == 1){
+                maxFrequence2 += 1;
+            }
+            numberOfBases++;
+        }
+    }
+
+    if (numberOfBases < 10){ //not comparable
         return false;
     }
+
+    float scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
+    short ndivergentPositions[2] = {0,0}; //number of positions where these two partitions could not have been so different by chance
+    //remember all types of matches for the chi square test
+    int matches00[2] = {0,0};
+    int matches01[2] = {0,0};
+    int matches10[2] = {0,0};
+    int matches11[2] = {0,0};
+
+    for (auto c = 0 ; c < part2.size() ; c++){
+
+        if (part2[c] == 1){
+
+            if (part1[c] == 1){
+                scores[0] += 1;
+                scores[1] -= 1;
+                matches11[0] += 1;
+                matches10[1] += 1;
+
+                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[1] < threshold_p){ //we can't make stats with <10 reads
+                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
+                    float probNot2 = less2[c]/(less2[c]+more2[c]);
+                    //if both positions are certain, this is bad
+                    if (probNot1 < 0.2 && probNot2 < 0.2){
+                        ndivergentPositions[1] += 1;
+                    }
+                }
+            }
+            else if (part1[c] == -1){
+                scores[0] -= 1;
+                scores[1] += 1;
+                matches01[0] += 1;
+                matches00[1] += 1;
+
+                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[0] < threshold_p){ //we can't make stats with <10 reads
+                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
+                    float probNot2 = less2[c]/(less2[c]+more2[c]);
+                    //if both positions are certain, this is bad
+                    if (probNot1 < 0.2 && probNot2 < 0.2){
+                        ndivergentPositions[0] += 1;
+                    }
+                }
+            }
+        }
+        else if (part2[c] == -1){
+
+            if (part1[c] == 1){
+                scores[0] -= 1;
+                scores[1] += 1;
+                matches10[0] += 1;
+                matches11[1] += 1;
+
+                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[0] < threshold_p){ //we can't make stats with <10 reads
+                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
+                    float probNot2 = less2[c]/(less2[c]+more2[c]);
+                    //if both positions are certain, this is bad
+                    if (probNot1 < 0.2 && probNot2 < 0.2){
+                        ndivergentPositions[0] += 1;
+                    }
+                }
+            }
+            else if (part1[c] == -1){
+                scores[0] += 1;
+                scores[1] -= 1;
+                matches00[0] += 1;
+                matches01[1] += 1;
+
+                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[1] < threshold_p){ //we can't make stats with <10 reads
+                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
+                    float probNot2 = less2[c]/(less2[c]+more2[c]);
+                    //if both positions are certain, this is bad
+                    if (probNot1 < 0.2 && probNot2 < 0.2){
+                        ndivergentPositions[1] += 1;
+                    }
+                }
+            }
+        }
+
+    }
+
+    //check if there are too many unenxplainable positions
+    if (ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p){
+        return false;
+    }
+
+    /*
+    now there aren't too many unexplainable postions. 
+    However, that could be due to little partitions on which we could not do stats. For those, do a chi-square
+    */
+
+    //now look at the best scores
+
+    auto maxScore = scores[0];
+    auto maxScoreIdx = 0; //can be either 0 or 1
+    
+    if (scores[1] > maxScore){
+        maxScore = scores[1];
+        maxScoreIdx = 1;
+    }
+
+    int occurences[2] = {maxFrequence2, numberOfBases-maxFrequence2};
+ 
+    //now compute the chi square
+    int n = numberOfBases;
+    float pmax1 = maxFrequence/numberOfBases;
+    float pmax2 = float(occurences[maxScoreIdx]) / numberOfBases;
+    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
+        chi = 0;
+    }
+    //chi square test with 1 degree of freedom
+    chi = pow((matches00[maxScoreIdx]-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
+                        + pow((matches01[maxScoreIdx]-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
+                        + pow((matches10[maxScoreIdx]-pmax1*(1-pmax2)*n),2)/(pmax1*(1-pmax2)*n)
+                        + pow((matches11[maxScoreIdx]-pmax1*pmax2*n),2)/(pmax1*pmax2*n);
+
+    //cout << "going chisquare : " << chi << endl;
+    bool same = (chi > thresholdChi);
+
+    if (same){
+        par1.mergePartition(par2, -maxScoreIdx*2+1);
+    }
+
+    return same ;
 }
 
