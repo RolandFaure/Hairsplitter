@@ -6,6 +6,7 @@
 #include "edlib.h"
 #include "input_output.h"
 #include "check_overlaps.h"
+#include "clipp.h" //library to build command line interfaces
 
 using std::cout;
 using std::endl;
@@ -13,9 +14,63 @@ using std::pair;
 using std::string;
 using std::vector;
 using namespace std::chrono;
+using namespace clipp;
 
 int main(int argc, char *argv[])
 {
+
+    string fastqfile, allfile, refFile, alnOnRefFile, outputFile;
+    auto cli = (
+            required("-f", "--fastq") & opt_value("fastqfile", fastqfile),
+            option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
+            option("-r", "--ref") & opt_value("refFile", refFile),
+            option("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
+            required("-o", "--output") & opt_value("output", outputFile)
+        );
+
+    if(!parse(argc, argv, cli)) {
+        cout << "Could not parse the arguments" << endl;
+        cout << make_man_page(cli, argv[0]);
+    }
+    else {
+        std::vector <Read> allreads; 
+        robin_hood::unordered_map<std::string, unsigned long int> indices;
+        vector<unsigned long int> backbone_reads;
+        std::vector <Overlap> allOverlaps;
+
+        auto t1 = high_resolution_clock::now();
+
+        parse_reads(fastqfile, allreads, indices);
+
+        if (allfile != "" ){            
+            //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
+            parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
+
+            vector<Partition> partitions;
+            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions);
+
+            output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
+        }
+        else if (refFile != ""){
+            parse_assembly(refFile, allreads, indices, backbone_reads);
+            parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
+
+            vector<Partition> partitions;
+            cout << "Checking overlaps" << endl;
+            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions);
+            cout << "Finished checking, now outputting" << endl;
+
+            output_filtered_PAF(outputFile, alnOnRefFile, allreads, partitions, indices);
+        }
+        else{
+            cout << "Could not parse the arguments" << endl;
+            cout << make_man_page(cli, argv[0]);
+        }
+
+        auto t2 = high_resolution_clock::now();
+
+        cout << "Finished in " << duration_cast<milliseconds>(t2-t1).count() << "ms"  << endl;
+    }
 
     string sequence1 = "ACTGGCTCGTTCGAAAGCTCGT";
     string sequence2 = "TTACTGGCTCATTCGAAACGCTCGT";
@@ -26,29 +81,6 @@ int main(int argc, char *argv[])
 
     // cout << edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD) << endl;  
 
-    std::vector <Read> allreads; 
-    robin_hood::unordered_map<std::string, unsigned long int> indices;
-    vector<unsigned long int> backbone_reads;
-
-    auto t1 = high_resolution_clock::now();
-    //parse_reads("/home/rfaure/Documents/these/overlap_filtering/mock2.fasta", allreads, indices);
-    parse_reads("/home/rfaure/Documents/these/overlap_filtering/reads.fq", allreads, indices);
-
-    std::vector <Overlap> allOverlaps;
-    //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
-    parse_PAF("/home/rfaure/Documents/these/overlap_filtering/alignments.paf", allOverlaps, allreads, indices, backbone_reads);
-
-    vector<Partition> partitions;
-    checkOverlaps(allreads, allOverlaps, backbone_reads, partitions);
-
-    output_filtered_PAF("/home/rfaure/Documents/these/overlap_filtering/filtered_aln.paf", 
-                "/home/rfaure/Documents/these/overlap_filtering/alignments.paf",
-                allreads, partitions, indices);
-
-    auto t2 = high_resolution_clock::now();
-
-    cout << "Finished in " << duration_cast<milliseconds>(t2-t1).count() << "ms"  << endl;
-
-
+    
     return 0;
 }

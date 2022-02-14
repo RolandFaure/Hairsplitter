@@ -20,6 +20,8 @@ using std::stoi;
 using robin_hood::unordered_map;
 using namespace std::chrono;
 
+//input : file containing all reads in fastq or fasta format
+//output : all reads stored in allreads
 void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
 
     char format = '@'; //a character to keep track of whether the input file is a fasta or a fastq
@@ -89,13 +91,87 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
 }
 
-void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbones_reads){
+//input : file containing an assembly in fasta format
+//output : the contigs appended to the end of allreads and marked as backbones
+void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbone_reads){
+
+    char format = '>';
+
+    ifstream in(fileAssembly);
+    if (!in){
+        cout << "problem reading files in index_reads, while trying to read " << fileAssembly << endl;
+        throw std::invalid_argument( "Input file could not be read" );
+    }
+
+    long int sequenceID = allreads.size(); //counting the number of sequences we have already seen 
+
+    string line;
+    vector<string> buffer;
+
+    while(getline(in, line)){
+
+        if (line[0] == format && buffer.size() > 0){
+            //then first we append the last read we saw
+            Read r(buffer[1]);
+            backbone_reads.push_back(sequenceID);
+            allreads.push_back(r);
+
+            ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
+            string nameOfSequence = "";
+            for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
+                if (buffer[0][i] == ' '){
+                    break;
+                }
+                else{
+                    nameOfSequence.push_back(buffer[0][i]);
+                }
+            }
+
+            ///link the minimap name to the index in allreads
+            indices[nameOfSequence] = sequenceID;
+            sequenceID++;
+
+            //then we reset the buffer
+            buffer = {line};
+        }
+        else {
+            buffer.push_back(line);
+        }
+
+    }
+
+    //now append the last read
+    Read r(buffer[1]);
+    backbone_reads.push_back(allreads.size());
+    allreads.push_back(r);
+
+
+    ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
+    string nameOfSequence = "";
+    for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
+        if (buffer[0][i] == ' '){
+            break;
+        }
+        else{
+            nameOfSequence.push_back(buffer[0][i]);
+        }
+    }
+    ///link the minimap name to the index in allreads
+    indices[nameOfSequence] = sequenceID;
+    sequenceID++;
+
+}
+
+//input : a file containing overlaps
+//output : the set of all overlaps, updated allreads with overlaps, and optionnaly a list of backbone reads
+void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbones_reads, bool computeBackbones){
 
     ifstream in(filePAF);
     if (!in){
         cout << "problem reading PAF file " << filePAF << endl;
         throw std::invalid_argument( "Input file could not be read" );
     }
+
 
     vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
 
@@ -193,14 +269,15 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 }
             }
         }
-
     }
 
 
-    //determine backbone_ reads
-    for (auto i = 0 ; i<backbonesReads.size() ; i++){
-        if (backbonesReads[i]){
-            backbones_reads.push_back(i);
+    //determine backbone_ reads if asked
+    if (computeBackbones){
+        for (auto i = 0 ; i<backbonesReads.size() ; i++){
+            if (backbonesReads[i]){
+                backbones_reads.push_back(i);
+            }
         }
     }
     //backbones_reads = {0}; //just for fun now
@@ -266,6 +343,7 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
         //now that we have the two sequences, check if they were partitionned separately
         bool goodOverlap = true;
         if (allgood){
+
             for (int backbone1 = 0 ; backbone1 < allreads[sequence1].backbone_seq.size() ; backbone1 ++){
                 for (int backbone2 = 0 ; backbone2 < allreads[sequence2].backbone_seq.size() ; backbone2 ++){
                     int backbone = allreads[sequence1].backbone_seq[backbone1].first;
@@ -273,7 +351,7 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                         if (name1[0] == name2[0]){
                             if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
                             != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
-                                cout << "comparing badly " << name1 << " " << name2 << endl;
+                                // cout << "comparing badly " << name1 << " " << name2 << endl;
                                 // partitions[backbone].print();
                                 // partitions[backbone].getConfidence();
                                 // for (auto i : partitions[backbone].getConfidence()){

@@ -23,7 +23,7 @@ using std::make_pair;
 //output : a partition for all backbone reads. All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<Partition> &partitions) {
 
-    // vector<char> seq1 = {'A', 'A', 'A', 'A', 'A', 'A', '-', 'A', 'A', 'A', 'C', 'A', 'C', '-', 'A', 'A', 'A', 'C', 'A', 'C', '-'};
+    // vector<char> seq1 = {'A', 'A', 'A', 'A', 'A', 'A', '?', 'A', 'A', 'A', 'C', 'A', 'C', '?', 'A', 'A', 'A', 'C', 'A', 'C', '?'};
     // vector<char> seq2 = {'A', 'A', 'A', 'A', 'A', 'C', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C'};
 
     // Partition par1(seq1);
@@ -35,7 +35,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     for (unsigned long int read : backbones_reads){
         if (allreads[read].neighbors_.size() > 0){
-            vector<vector<char>> snps (allreads[read].size(), vector<char>(allreads[read].neighbors_.size()+1, '-')); //vector containing list of position, with SNPs at each position
+            vector<vector<char>> snps (allreads[read].size(), vector<char>(allreads[read].neighbors_.size()+1, '?')); //vector containing list of position, with SNPs at each position
             //first build an MSA
             float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), partitions);
             // for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
@@ -70,7 +70,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     
     //first enter the sequence of the read in snps
     string readSequence = allreads[read].sequence_.str();
-    for (unsigned short i = 0 ; i < readSequence.size() ; i++){
+    for (auto i = 0 ; i < readSequence.size() ; i++){
         snps[i][numberOfNeighbors] = readSequence[i];
     }
 
@@ -152,7 +152,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                 numberOfInsertionsThere = 0;
             }
             else if (moveCodeToChar[result.alignment[i]] == 'I'){
-                snps[indexQuery][n] = '*';
+                snps[indexQuery][n] = '-';
                 indexQuery++;
                 numberOfInsertionsThere = 0;
             }
@@ -162,7 +162,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
                         insertionPos[100*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
                         numberOfInsertionsHere[indexQuery] += 1;
-                        snps.push_back(vector<char> (numberOfNeighbors+1, '*'));
+                        snps.push_back(vector<char> (numberOfNeighbors+1, '-'));
                         snps[snps.size()-1][n] = toBeAlgined2[indexTarget];
                     }
                     else{
@@ -179,33 +179,33 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
 
     //get rid of the * that are on inserted columns but between two -
-    for (auto n = 0 ; n < numberOfNeighbors+1 ; n++){
+    for (size_t n = 0 ; n < numberOfNeighbors+1 ; n++){
 
-        for (unsigned short i = 0 ; i < snps.size(); i++){
-
-            if (snps[i][n] == '-'){
+        for (auto i = 0 ; i < numberOfInsertionsHere.size(); i++){
+            //cout << "two : " << i << " " << snps.size() << endl; 
+            if (snps[i][n] == '?'){
+                //cout << "one : " << i << " "<< numberOfInsertionsHere.size() << " " << snps.size() << endl;
                 for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++){
-                    snps[insertionPos[100*i+insert]][n] = '-';
+                    snps[insertionPos[100*i+insert]][n] = '?';
                 }
             }
         }
     }
 
-
     //print snps (just for debugging)
-    vector<string> reads (numberOfNeighbors+1);
-    for (unsigned short i = 0 ; i < 100; i++){
+    // vector<string> reads (numberOfNeighbors+1);
+    // for (unsigned short i = 0 ; i < 100; i++){
         
-        for (short n = 0 ; n < numberOfNeighbors+1 ; n++){
-            reads[n] += snps[i][n];
-        }
-        for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++ ){
-            auto snpidx = insertionPos[100*i+insert];
-            for (short n = 0 ; n < numberOfNeighbors+1 ; n++){
-                reads[n] += snps[snpidx][n];
-            }
-        }
-    }
+    //     for (short n = 0 ; n < numberOfNeighbors+1 ; n++){
+    //         reads[n] += snps[i][n];
+    //     }
+    //     for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++ ){
+    //         auto snpidx = insertionPos[100*i+insert];
+    //         for (short n = 0 ; n < numberOfNeighbors+1 ; n++){
+    //             reads[n] += snps[snpidx][n];
+    //         }
+    //     }
+    // }
     // cout << "Here are the aligned reads : " << endl;
     // for (auto neighbor : reads){
     //     cout << neighbor << endl;
@@ -229,8 +229,8 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
     bases2content['C'] = 1; 
     bases2content['G'] = 2;
     bases2content['T'] = 3;
-    bases2content['*'] = 4;
-    bases2content['-'] = 5;
+    bases2content['-'] = 4;
+    bases2content['?'] = 5;
 
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
@@ -241,7 +241,7 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
        int numberOfReads = 0;
        for (short n = 0 ; n < snps[position].size() ; n++){
             char base = snps[position][n];
-            if (base != '-'){
+            if (base != '?'){
                 content[bases2content[base]] += 1;
                 numberOfReads += 1;
             }
@@ -296,9 +296,9 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
                     different = false;
                 }    
                 else {
-                    cout << "those two partitions are not the same : " << endl;
-                    partitions[p1].print();
-                    listOfFinalPartitions[p2].print();
+                    // cout << "those two partitions are not the same : " << endl;
+                    // partitions[p1].print();
+                    // listOfFinalPartitions[p2].print();
                 }
             }
             if (different){
@@ -332,14 +332,14 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
     bases2content['C'] = 1; 
     bases2content['G'] = 2;
     bases2content['T'] = 3;
-    bases2content['*'] = 4;
-    bases2content['-'] = 5;
+    bases2content['-'] = 4;
+    bases2content['?'] = 5;
     
-    int content2 [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '-'
+    int content2 [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '?'
     int maxFrequence = 0;
     float numberOfBases = 0;
     for (int c = 0 ; c < part1.size() ; c++){
-        if (part1[c] != 0 && par2[c] != '-'){
+        if (part1[c] != 0 && par2[c] != '?'){
             if (part1[c] == 1){
                 maxFrequence += 1;
             }
@@ -427,7 +427,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
                 res.nonComparable += 1;
             }
         }
-        else{ //if this is a '-' or an error
+        else{ //if this is a '?' or an error
             newPartitions[0].push_back(0);
             newPartitions[1].push_back(0);
             res.nonComparable += 1;
@@ -441,7 +441,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
     string seq2 = "";
     string seq2bis = "";
     for (int c = 0 ; c < part1.size() ; c++){
-        if (par2[c] != '-' && part1[c] != 0){
+        if (par2[c] != '?' && part1[c] != 0){
             if (par2[c] == mostFrequent2 || par2[c] == secondFrequent2){
                 seq1 += '1'+part1[c];
                 seq2 += par2[c];
