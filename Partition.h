@@ -15,6 +15,7 @@ public :
     std::vector<int> getLess();
     void augmentPartition(std::vector<short> &newPar);
     void mergePartition(Partition p, short phased); 
+    bool isInformative(float errorRate);
     int number();
     int size();
 

@@ -2,6 +2,7 @@
 
 #include "robin_hood.h"
 #include <iostream>
+#include <cmath>
 
 using std::vector;
 using std::string;
@@ -31,12 +32,12 @@ Partition::Partition(vector<char> & snp){
     bases2content['C'] = 1; 
     bases2content['G'] = 2;
     bases2content['T'] = 3;
-    bases2content['*'] = 4;
-    bases2content['-'] = 5;
+    bases2content['-'] = 4;
+    bases2content['?'] = 5;
 
     int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '-'
     for (int c = 0 ; c < snp.size() ; c++){
-        if (snp[c] != '-'){
+        if (snp[c] != '?'){
             content[bases2content[snp[c]]] += 1;
         }
     }
@@ -56,10 +57,10 @@ Partition::Partition(vector<char> & snp){
             secondFrequence2 = maxFrequence2;
             secondFrequent2 = mostFrequent2;
             maxFrequence2 = content[i];
-            mostFrequent2 = "ACGT*"[i];
+            mostFrequent2 = "ACGT-"[i];
         }
         else if (content[i] > secondFrequence2){
-            secondFrequent2 = "ACGT*"[i];
+            secondFrequent2 = "ACGT-"[i];
             secondFrequence2 = content[i];
         }
     }
@@ -79,6 +80,38 @@ Partition::Partition(vector<char> & snp){
     }
 
     numberOfOccurences = 1;
+
+}
+
+//output : whether or not the position is significatively different from "all reads in the same haplotype"
+bool Partition::isInformative(float errorRate){
+
+    int suspiciousReads [2] = {0,0}; //an array containing how many reads seriously deviate from the "all 1" or "all -1" theories
+
+    for (auto read = 0 ; read < mostFrequentBases.size() ; read++){
+
+        int readNumber = moreFrequence[read] + lessFrequence[read];
+        float threshold = 0.5*readNumber + 3*sqrt(readNumber*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
+        threshold = min(threshold, float(readNumber)-1);
+        
+        if (moreFrequence[read] > threshold){
+            if (mostFrequentBases[read] == -1){ //this deviates from the "all 1 theory"
+                suspiciousReads[0]++;
+            }
+            else if (mostFrequentBases[read] == 1){ //this deviates from the "all -1 theory"
+                suspiciousReads[1]++;
+            }
+        }
+
+    }
+
+    //if I have less than two suspicious reads, then this partition is not informative
+    if (suspiciousReads[0] < 2 || suspiciousReads[1] < 2){
+        return false;
+    }
+    else{
+        return true;
+    }
 
 }
 
@@ -181,7 +214,7 @@ void Partition::print(){
             cout << 0;
         }
         else {
-            cout << '*';
+            cout << '?';
         }
         //cout << c << ",";
     }

@@ -40,14 +40,17 @@ int main(int argc, char *argv[])
 
         auto t1 = high_resolution_clock::now();
 
+        cout << "Parsing reads..." << endl;
         parse_reads(fastqfile, allreads, indices);
 
         if (allfile != "" ){            
             //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
+            cout << "Parsing alignments..." << endl;
             parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
 
             vector<Partition> partitions;
             checkOverlaps(allreads, allOverlaps, backbone_reads, partitions);
+            cout << "Finished checking overlaps, now outputting" << endl;
 
             output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
         }

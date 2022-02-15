@@ -33,10 +33,13 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     // partitions[0].first.print();
 
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
+    int index = 0;
     for (unsigned long int read : backbones_reads){
-        if (allreads[read].neighbors_.size() > 0){
+        if (allreads[read].neighbors_.size() > 0 && index == 5){
+            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
             vector<vector<char>> snps (allreads[read].size(), vector<char>(allreads[read].neighbors_.size()+1, '?')); //vector containing list of position, with SNPs at each position
             //first build an MSA
+            cout << "Generating MSA" << endl;
             float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), partitions);
             // for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
             //     if (partitions[allreads[i].backbone_seq[b].first].getPartition().size() <= allreads[i].backbone_seq[b].second){
@@ -45,9 +48,11 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
             // }
 
             //then separate the MSA
+            cout << "Separating reads" << endl;
             Partition par = separate_reads(read, allOverlaps, allreads, snps, meanDistance);
             partitions.push_back(par);
         }
+        index++;
     }
 
 }
@@ -88,17 +93,20 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         string toBeAlgined2;
         int true_begin; //true_begin and true_end are there because input alignments are not expected to go to the end of the reads
         int true_end;
+        int start1 = 0;
         if (overlap.sequence1 == read){
             if (overlap.strand){ //if the two reads are on the same strand
                 //now adjust the positions to go to the end of the reads with true_begin and true_end
                 true_begin = min(overlap.position_1_1, overlap.position_2_1);
                 true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
-                toBeAlgined1 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
+                start1 = overlap.position_1_1-true_begin;
+                toBeAlgined1 = allreads[overlap.sequence1].sequence_.subseq(start1, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
                 toBeAlgined2 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
             }
             else {
                 true_begin = min(static_cast<size_t>(overlap.position_1_1), allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
                 true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, static_cast<size_t>(overlap.position_2_1));
+                start1 = overlap.position_1_1-true_begin;
                 toBeAlgined1 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
                 toBeAlgined2 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_end, overlap.position_2_2-overlap.position_2_1+true_end+true_begin).reverse_complement().str();
             }
@@ -111,14 +119,16 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
             if (overlap.strand){ //if the two reads are on the same strand
                 true_begin = min(overlap.position_1_1, overlap.position_2_1);
                 true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
+                start1 = overlap.position_2_1-true_begin;
                 toBeAlgined1 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
                 toBeAlgined2 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
             }
             else {
                 true_begin = min(static_cast<size_t>(overlap.position_1_1), allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
                 true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, static_cast<size_t>(overlap.position_2_1));
-                toBeAlgined1 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).reverse_complement().str();
-                toBeAlgined2 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
+                start1 = overlap.position_2_1-true_end;
+                toBeAlgined1 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
+                toBeAlgined2 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_end, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).reverse_complement().str();
             }
             true_begin = overlap.position_2_1-true_begin;
 
@@ -126,8 +136,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
             allreads[overlap.sequence1].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
         }
 
+        //cout << "Aligning " << toBeAlgined1.c_str() << " and " << toBeAlgined2.c_str() << endl;
+
         EdlibAlignResult result = edlibAlign(toBeAlgined1.c_str(), toBeAlgined1.size(), toBeAlgined2.c_str(), toBeAlgined2.size(),
                                         edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
+        //cout << "Aligned ! "<< endl;
 
         totalDistance += result.editDistance;
         totalLengthOfAlignment += result.alignmentLength;
@@ -141,7 +154,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
         //a loop going through the CIGAR and modifyning snps
         char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
-        int indexQuery = true_begin; //query corresponds to read
+        int indexQuery = start1; //query corresponds to read
         int indexTarget = 0; //target corresponds to the other read of the overlap
         int numberOfInsertionsThere = 0;
         for (int i = 0; i < result.alignmentLength; i++) {
@@ -172,11 +185,15 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                 }
                 indexTarget++;
             }
+            //cout << "out" << endl;
         }
+        //cout << "Added the alignment to snps" << endl;
 
         edlibFreeAlignResult(result);
 
     }
+
+    //cout << "Finished aligning" << endl;
 
     //get rid of the * that are on inserted columns but between two -
     for (size_t n = 0 ; n < numberOfNeighbors+1 ; n++){
@@ -194,7 +211,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     //print snps (just for debugging)
     // vector<string> reads (numberOfNeighbors+1);
-    // for (unsigned short i = 0 ; i < 100; i++){
+    // for (unsigned short i = 0 ; i < 50; i++){
         
     //     for (short n = 0 ; n < numberOfNeighbors+1 ; n++){
     //         reads[n] += snps[i][n];
@@ -211,7 +228,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //     cout << neighbor << endl;
     // }
 
-    //cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+    // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     return totalDistance/totalLengthOfAlignment;
 }
 
@@ -235,9 +252,10 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
     int numberOfSuspectPostion = 0;
+    int numberOfNeighbors = 0;
 
     for (int position = 0 ; position < snps.size() ; position++){
-       int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *
+       int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
        int numberOfReads = 0;
        for (short n = 0 ; n < snps[position].size() ; n++){
             char base = snps[position][n];
@@ -250,7 +268,6 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
         float threshold = 1 + numberOfReads*meanDistance/2 + 3*sqrt(numberOfReads*meanDistance/2*(1-meanDistance/2));
         if (*std::max_element(content, content+5) < numberOfReads-threshold){ //this position is suspect
             //cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
-        
             //go through the partitions to see if this suspicious position looks like smt we've seen before
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
@@ -258,6 +275,8 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
                 //test if this position is integrated into the partition with the SAME TEST as in the distance() function
                 if (float(dis.nmismatch)/(dis.nmismatch+dis.nmatch) <= meanDistance){ //wow, they are very similar
                     found = true;
+                    numberOfNeighbors++;
+                    break;
                 }
             }
             if (!found){
@@ -266,7 +285,7 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
             numberOfSuspectPostion += 1;
 
             //two suspect positions next to each other can be artificially correlated through alignement artefacts
-            position += 10;
+            position += 5;
         }
     }
 
@@ -277,17 +296,25 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
 
     vector<Partition> listOfFinalPartitions;
 
-    float threshold = 10;
+    float threshold = std::min(double(10), 0.1*numberOfSuspectPostion);
 
-    for (auto p1 = 1 ; p1 < partitions.size() ; p1++){
+    // cout << "Here are all the partitions : " << endl;
+    // for (auto p : partitions){
+    //     p.print();
+    // }
+    // cout << "threshold : " << threshold << endl;
+
+    for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
         
-        if (partitions[p1].number() > threshold){
+        if (partitions[p1].number() > threshold && partitions[p1].isInformative(meanDistance/2)){
 
+            cout << "informative partition : ";
+            partitions[p1].print();
             bool different = true;
             for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
 
-                bool same = distance(partitions[p1], listOfFinalPartitions[p2], 9, 2);
-                if (same){
+                bool same = distance(listOfFinalPartitions[p2], partitions[p1], 9, 2);
+                if (same){ //no need to merge the two partitions, they have already been merged by distance()
                     // adjMatrix[p1][p2] = dis.chisquare-9;
                     // adjMatrix[p2][p1] = dis.chisquare-9;
                     // cout << "those two partitions are the same : " << endl;
@@ -304,14 +331,23 @@ Partition separate_reads(long int read, std::vector <Overlap> &allOverlaps, std:
             if (different){
                 listOfFinalPartitions.push_back(partitions[p1]);
             }
-
         }
     }
 
-    // cout << "I have " << numberOfSuspectPostion << " suspect positions, and " << partitions[0].getPartition().size() << " reads " << endl;
+    //now we have the list of final partitions : there may be several if there are more than two copies
+    //Partition
+
+    if (listOfFinalPartitions.size() == 0){
+        Partition p(snps[0].size());
+        listOfFinalPartitions.push_back(p);
+    }
+
+    cout << "I end up with " << listOfFinalPartitions.size() << " partitions, deduced from " << partitions.size() << ". On average, one snps contribute to " << float(numberOfNeighbors)/numberOfSuspectPostion << " partitions" << endl; 
+    cout << "Length of backbone read " << snps.size() << ". I have " << numberOfSuspectPostion << " suspect positions, and " << listOfFinalPartitions[0].getPartition().size() << " reads " << endl;
     // for (auto p : listOfFinalPartitions){
     //     p.print();
     // }
+
 
     return listOfFinalPartitions[0];
 
@@ -498,7 +534,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
 //input : two partitions and thresholds for comparing the partitions
 //output : true if the two partitions are the same given the thresholds. In that case, merge partitions into par1
 bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshold_p){
-
+    cout << "Comparing two partitions..." << endl;
     /*
     Two metrics are used to compare two partition : the chi to see if the two partition correlate when they are small
                                                     the p when the partitions are bigger and you can do probabilities on them
@@ -534,7 +570,7 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
         return false;
     }
 
-    float scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
+    int scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
     short ndivergentPositions[2] = {0,0}; //number of positions where these two partitions could not have been so different by chance
     //remember all types of matches for the chi square test
     int matches00[2] = {0,0};
@@ -544,6 +580,9 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
 
     for (auto c = 0 ; c < part2.size() ; c++){
 
+        float threshold1 = 0.5*(more1[c]+less1[c]) + 3*sqrt((more1[c]+less1[c])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
+        float threshold2 = 0.5*(more2[c]+less2[c]) + 3*sqrt((more2[c]+less2[c])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
+
         if (part2[c] == 1){
 
             if (part1[c] == 1){
@@ -552,13 +591,9 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
                 matches11[0] += 1;
                 matches10[1] += 1;
 
-                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[1] < threshold_p){ //we can't make stats with <10 reads
-                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
-                    float probNot2 = less2[c]/(less2[c]+more2[c]);
-                    //if both positions are certain, this is bad
-                    if (probNot1 < 0.2 && probNot2 < 0.2){
-                        ndivergentPositions[1] += 1;
-                    }
+                //if both positions are certain, this may be bad
+                if (more1[c] > threshold1 && more2[c] > threshold2){
+                    ndivergentPositions[1] += 1;
                 }
             }
             else if (part1[c] == -1){
@@ -567,13 +602,9 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
                 matches01[0] += 1;
                 matches00[1] += 1;
 
-                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[0] < threshold_p){ //we can't make stats with <10 reads
-                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
-                    float probNot2 = less2[c]/(less2[c]+more2[c]);
-                    //if both positions are certain, this is bad
-                    if (probNot1 < 0.2 && probNot2 < 0.2){
-                        ndivergentPositions[0] += 1;
-                    }
+                //if both positions are certain, this may be bad
+                if (more1[c] > threshold1 && more2[c] > threshold2){
+                    ndivergentPositions[0] += 1;
                 }
             }
         }
@@ -585,13 +616,9 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
                 matches10[0] += 1;
                 matches11[1] += 1;
 
-                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[0] < threshold_p){ //we can't make stats with <10 reads
-                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
-                    float probNot2 = less2[c]/(less2[c]+more2[c]);
-                    //if both positions are certain, this is bad
-                    if (probNot1 < 0.2 && probNot2 < 0.2){
-                        ndivergentPositions[0] += 1;
-                    }
+                //if both positions are certain, this may be bad
+                if (more1[c] > threshold1 && more2[c] > threshold2){
+                    ndivergentPositions[0] += 1;
                 }
             }
             else if (part1[c] == -1){
@@ -600,13 +627,9 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
                 matches00[0] += 1;
                 matches01[1] += 1;
 
-                if (more1[c] > 10 && more2[c] > 10 && ndivergentPositions[1] < threshold_p){ //we can't make stats with <10 reads
-                    float probNot1 = less1[c]/(less1[c]+more1[c]);//probability of the less probable base of 1
-                    float probNot2 = less2[c]/(less2[c]+more2[c]);
-                    //if both positions are certain, this is bad
-                    if (probNot1 < 0.2 && probNot2 < 0.2){
-                        ndivergentPositions[1] += 1;
-                    }
+                //if both positions are certain, this may be bad
+                if (more1[c] > threshold1 && more2[c] > threshold2){
+                    ndivergentPositions[1] += 1;
                 }
             }
         }
@@ -615,6 +638,7 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
 
     //check if there are too many unenxplainable positions
     if (ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p){
+        cout << "Should not merge those two partitions ! " << endl;
         return false;
     }
 
@@ -625,8 +649,8 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
 
     //now look at the best scores
 
-    auto maxScore = scores[0];
-    auto maxScoreIdx = 0; //can be either 0 or 1
+    int maxScore = scores[0];
+    int maxScoreIdx = 0; //can be either 0 or 1
     
     if (scores[1] > maxScore){
         maxScore = scores[1];
@@ -639,7 +663,7 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
     int n = numberOfBases;
     float pmax1 = maxFrequence/numberOfBases;
     float pmax2 = float(occurences[maxScoreIdx]) / numberOfBases;
-    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
+    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is i.e. only one base in one partition, it can't be compared
         chi = 0;
     }
     //chi square test with 1 degree of freedom
@@ -652,7 +676,13 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
     bool same = (chi > thresholdChi);
 
     if (same){
+        cout << "Let's merge, baby !:" << endl;
+        par1.print();
+        par2.print();
         par1.mergePartition(par2, -maxScoreIdx*2+1);
+    }
+    else {
+        cout << "Should not merge those two partitions ? " << chi << endl;
     }
 
     return same ;
