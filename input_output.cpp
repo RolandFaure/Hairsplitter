@@ -17,6 +17,7 @@ using std::ifstream;
 using std::array;
 using std::set;
 using std::stoi;
+using std::min;
 using robin_hood::unordered_map;
 using namespace std::chrono;
 
@@ -45,6 +46,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
         if (line[0] == format && buffer.size() > 0){
             //then first we append the last read we saw
             Read r(buffer[1]);
+            r.name = buffer[0];
             allreads.push_back(r);
 
             ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
@@ -242,32 +244,72 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
 
         if (allgood && fieldnumber > 11 && sequence2 != sequence1){
 
-            Overlap overlap;
-            overlap.sequence1 = sequence1;
-            overlap.sequence2 = sequence2;
-            overlap.position_1_1 = pos1_1;
-            overlap.position_1_2 = pos1_2;
-            overlap.position_2_1 = pos2_1;
-            overlap.position_2_2 = pos2_2;
-            overlap.strand = positiveStrand;
-
-            //cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
-
-            allreads[sequence1].add_overlap(allOverlaps.size());
-            if (sequence1 != sequence2){
-                allreads[sequence2].add_overlap(allOverlaps.size());
-            }
-            allOverlaps.push_back(overlap);
-
-            //now take care of backboneReads: two overlapping reads cannot both be backbone
-            if (backbonesReads[sequence1] && backbonesReads[sequence2]){
-                if (allreads[sequence1].sequence_.size() < allreads[sequence2].sequence_.size()){
-                    backbonesReads[sequence1] = false;
+            //now let's check if this overlap extends to the end of the reads (else, it means the read did not come from the same region)
+            bool fullOverlap = false;
+            float limit1 = float(pos1_2-pos1_1)/2;
+            float limit2 = float(pos2_2-pos2_1)/2;
+            if (positiveStrand){
+                if (pos1_1  < limit1){
+                    if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                    }
                 }
-                else{
-                    backbonesReads[sequence2] = false;
+                else if (pos2_1 < limit2){
+                     if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                    }
                 }
             }
+            else {
+                if (pos1_1 < limit1){
+                    if (pos2_1 < limit2 || length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                    }
+                }
+                else if (length2-pos2_2 < limit2){
+                    if (length1-pos1_2 < limit1 || pos2_1 < limit2){
+                        fullOverlap = true;
+                    }
+                }
+            }
+            
+
+            //add the overlap if it's a full overlap
+
+            if (fullOverlap){
+
+                Overlap overlap;
+                overlap.sequence1 = sequence1;
+                overlap.sequence2 = sequence2;
+                overlap.position_1_1 = pos1_1;
+                overlap.position_1_2 = pos1_2;
+                overlap.position_2_1 = pos2_1;
+                overlap.position_2_2 = pos2_2;
+                overlap.strand = positiveStrand;
+
+
+                //cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+
+                allreads[sequence1].add_overlap(allOverlaps.size());
+                if (sequence1 != sequence2){
+                    allreads[sequence2].add_overlap(allOverlaps.size());
+                }
+                allOverlaps.push_back(overlap);
+
+                //now take care of backboneReads: two overlapping reads cannot both be backbone
+                if (backbonesReads[sequence1] && backbonesReads[sequence2]){
+                    if (allreads[sequence1].sequence_.size() < allreads[sequence2].sequence_.size()){
+                        backbonesReads[sequence1] = false;
+                    }
+                    else{
+                        backbonesReads[sequence2] = false;
+                    }
+                }
+            }
+            // else{ //DEBUG
+            //     cout << "Not full overlap ! " << allreads[sequence1].name << "," << allreads[sequence2].name << " " << positiveStrand
+            //     << " " << pos1_1 << "," << pos1_2 << "," << pos2_1 << "," << pos2_2 << " " << length1-pos1_2 << "," << length2-pos2_2 << endl;
+            // }
         }
     }
 
@@ -287,7 +329,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
 
 //input : original file of overlaps, allreads and partitions
 //output : the same file of overlaps, but with all spurious overlap filtered out
-void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<Partition> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices){
+void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<std::vector<short>> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices){
 
     ifstream in(fileIn);
     if (!in){
@@ -349,23 +391,34 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                     int backbone = allreads[sequence1].backbone_seq[backbone1].first;
                     if (backbone == allreads[sequence2].backbone_seq[backbone2].first){ //then they lean on the same backbone read
                         if (name1[0] == name2[0]){
-                            if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
-                            != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
-                                //cout << "comparing badly " << name1 << " " << name2 << endl;
-                                // partitions[backbone].print();
-                                // partitions[backbone].getConfidence();
-                                // for (auto i : partitions[backbone].getConfidence()){
-                                //     cout << i << ",";
-                                // }
-                                // cout << endl;
-                                // cout << partitions[backbone].getConfidence()[allreads[sequence2].backbone_seq[backbone2].second]<< ","<<
-                                // partitions[backbone].getConfidence()[allreads[sequence1].backbone_seq[backbone1].second] << endl;
+                            if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                            != partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]){
+
+                                if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                                * partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] >= 0){
+                                    // cout << "comparing badly " << name1 << " " << name2 << endl;
+                                    // partitions[backbone].print();
+                                    // partitions[backbone].getConfidence();
+                                    // for (auto i : partitions[backbone].getConfidence()){
+                                    //     cout << i << ",";
+                                    // }
+                                    // cout << endl;
+                                    // cout << partitions[backbone].getConfidence()[allreads[sequence2].backbone_seq[backbone2].second]<< ","<<
+                                    // partitions[backbone].getConfidence()[allreads[sequence1].backbone_seq[backbone1].second] << endl;
+                                }
                             }
                         }
-                        if (partitions[backbone].getPartition()[allreads[sequence2].backbone_seq[backbone2].second] 
-                            != partitions[backbone].getPartition()[allreads[sequence1].backbone_seq[backbone1].second]){
+                        if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                            != partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]){ //if they're not in the same cluster
+                            
+                            if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                            * partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] >= 0){ //0 is an uncertain read
                                 goodOverlap = false;
                                 //cout << "not validating " << name1 << " vs " << name2 << endl;
+                            }
+                            else {
+                                goodOverlap = false;
+                            }
                         }
 
                     }
@@ -378,6 +431,29 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 
     }
 
+}
+
+void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters, std::string fileOut){
+
+    ofstream out(fileOut);
+
+    out << "nodedef>name VARCHAR,label VARCHAR, cluster VARCHAR\n";
+    for (auto i = 0 ; i < adj.size() ; i++){
+        out << i << ", " << i << ", " <<clusters[i] << "\n";
+    }
+    out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
+    for (auto i = 0 ; i < adj.size() ; i++){
+        // cout << "line " << i << ", length of line i : " << 
+        for (auto j=0 ; j < adj[i].size(); j++){
+            if (adj[i][j] > 0){
+                out << i << ", " << j << ", " << adj[i][j] << "\n";
+            }
+            // else{
+            //     // cout << "Not working on me : " << adj[i][j] << endl;
+            // }
+        }
+        
+    }
 }
 
 

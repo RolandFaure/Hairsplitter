@@ -12,5 +12,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
 
 void parse_PAF(std::string filePAF, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, std::vector<unsigned long int> &backbones_reads, bool computeBackbones);
 
-void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<Partition> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices);
+void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<std::vector<short>> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices);
+
+void outputGraph(std::vector<std::vector<float>> &adj , std::vector<int> &clusters, std::string fileOut);
 #endif

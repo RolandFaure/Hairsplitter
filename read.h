@@ -27,6 +27,8 @@ public:
     Read(std::string s);
     Sequence sequence_;
 
+    std::string name; //this is actually only for debugging
+
     void add_overlap(long int o);
     size_t size();
     void new_backbone(std::pair<int, short> pair, size_t size);

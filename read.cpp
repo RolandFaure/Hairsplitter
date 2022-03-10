@@ -7,6 +7,7 @@ using std::endl;
 Read::Read(std::string s)
 {
     sequence_ = Sequence(s);
+    name = "";
 }
 
 void Read::add_overlap(long int o){
