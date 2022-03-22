@@ -19,6 +19,7 @@ public :
     bool isInformative(float errorRate, bool lastReadBiased);
     int number();
     int size();
+    float proportionOf1();
 
 private :
     std::vector<short> mostFrequentBases; // at each position, 3 possibilities : 1 for allele1, -1 for allele2 and 0 for non-attributed-yet

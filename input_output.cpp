@@ -171,11 +171,11 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
     ifstream in(filePAF);
     if (!in){
         cout << "problem reading PAF file " << filePAF << endl;
-        throw std::invalid_argument( "Input file could not be read" );
+        throw std::invalid_argument( "Input file '"+filePAF +"' could not be read" );
     }
 
 
-    vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
+    vector<bool> backbonesReads (allreads.size(), computeBackbones); //for now all reads can be backbones read, they will be filtered afterward
 
     string line;
 
@@ -197,7 +197,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         bool allgood = true;
         //now go through the fields of the line
         short fieldnumber = 0;
-        while (std::getline(line2, field, '\t'))
+        while (getline(line2, field, '\t'))
         {
             if (fieldnumber == 0){
                 try{
@@ -297,7 +297,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 allOverlaps.push_back(overlap);
 
                 //now take care of backboneReads: two overlapping reads cannot both be backbone
-                if (backbonesReads[sequence1] && backbonesReads[sequence2]){
+                if (backbonesReads[sequence1] && backbonesReads[sequence2] && computeBackbones){
                     if (allreads[sequence1].sequence_.size() < allreads[sequence2].sequence_.size()){
                         backbonesReads[sequence1] = false;
                     }
@@ -322,9 +322,127 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             }
         }
     }
-    //backbones_reads = {0}; //just for fun now
 
+}
 
+//input : a VCF file containing a list of variants
+//output : all variants loaded in a variant list
+void parse_VCF(std::string fileVCF, robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants){
+    ifstream in(fileVCF);
+    if (!in){
+        cout << "problem reading VCF file " << fileVCF << endl;
+        throw std::invalid_argument( "Input file '"+fileVCF +"' could not be read" );
+    }
+
+    string line;
+    while(getline(in, line)){
+
+        if (line[0] != '#'){
+
+            std::istringstream line2(line);
+            string field;
+            int nbfield = 0;
+            Variant v;
+
+            while (getline(line2, field, '\t')){
+
+                if (nbfield == 0){
+                    v.refSeq = field;
+                }
+                else if (nbfield == 1){
+                    v.position = std::stoi(field);
+                }
+                else if (nbfield == 7){
+                    std::istringstream field2(field);
+                    std::string info;
+                    while (getline(field2, info, ';')){
+                        if (info.substr(0,6) ==  "RNAMES"){
+                            
+                            std::istringstream info2(info.substr(7, info.size()));
+                            string read;
+                            while(getline(info2, read, ',')){
+                                cout << "read : " << read << endl;
+                                v.readsWithVariant.emplace(read);
+                                cout << "size : " << v.readsWithVariant.size() << endl;
+                            }
+
+                            break;
+                        }
+                    }
+                }
+                nbfield++;
+            }
+            // cout << "variant in : " << v.readsWithVariant.size() << endl;
+            allVariants[v.refSeq].push_back(v);
+        }
+
+    }
+    for (auto refseqs : allVariants)
+    {
+        std::sort(refseqs.second.begin() , refseqs.second.end());   
+        // cout << "length of the variants : " << endl;
+        // for (auto v : refseqs.second){
+        //     cout << v.readsWithVariant.size() << endl;
+        // } 
+    }
+}
+
+//input : sam file of all the reads aligned to the reference
+//output : updated list of variants, with for each variant also the reads that do not align on the ref but only on the variants
+void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants){
+
+    ifstream in(fileSAM);
+    if (!in){
+        cout << "problem reading SAM file " << fileSAM << endl;
+        throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
+    }
+
+    string line;
+    int nbreads = 0;
+    while(getline(in, line)){
+
+        if (line[0] != '@'){
+
+            std::istringstream line2(line);
+            string field;
+            int fieldnb = 0;
+            string seqname;
+            string refseq;
+            int position;
+            int length;
+            while (getline(line2, field, '\t')){
+
+                if (fieldnb == 0){
+                    seqname = field;
+                }
+                else if (fieldnb == 2){
+                    refseq = field;
+                }
+                else if (fieldnb == 3){
+                    // cout << "position : " << field << endl;
+                    position = std::stoi(field);
+                }
+                else if (fieldnb == 9){
+                    length = field.size();
+                }
+
+                fieldnb++;
+            }
+            //now check all the variants in this zone
+            for (Variant v : allVariants[refseq]){
+                if (v.position > position && v.position < position+length){
+                    //cout << "the variant " << v.refSeq << " " << v.position << " is found on read " << seqname << endl;
+                    if (v.readsWithVariant.find(seqname) == v.readsWithVariant.end()){
+                        v.readsWithoutVariant.emplace(seqname);
+                    }
+                }
+            }
+            nbreads++;
+            if (nbreads%100 == 0){
+                // cout << "Read " << nbreads << " reads " << endl;
+            }
+        }
+    }
 }
 
 //input : original file of overlaps, allreads and partitions
@@ -353,6 +471,13 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 
         long int sequence1;
         long int sequence2;
+        int pos1_1= -1;
+        int pos1_2= -1;
+        int length1= -1;
+        int pos2_1= -1;
+        int pos2_2= -1;
+        int length2= -1;
+        bool positiveStrand;
 
         string name1;
         string name2;
@@ -370,6 +495,18 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                     allgood = false;
                 }
             }
+            else if (fieldnumber == 1){
+                length1 = stoi(field);
+            }
+            else if (fieldnumber == 2){
+                pos1_1 =  stoi(field);
+            }
+            else if (fieldnumber == 3){
+                pos1_2 = stoi(field);
+            }
+            else if (fieldnumber == 4){
+                positiveStrand = (field == "+");
+            }
             else if (fieldnumber == 5){
                 try{
                     sequence2 = indices[field];
@@ -379,15 +516,59 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                     allgood = false;
                 }
             }
+            else if (fieldnumber == 6){
+                length2 = stoi(field);
+            }
+            else if (fieldnumber == 7){
+                pos2_1 =  stoi(field);
+            }
+            else if (fieldnumber == 8){
+                pos2_2 = stoi(field);
+            }
             fieldnumber++;
+        }
+
+        //now let's check if this overlap extends to the end of the reads (else, it means the read did not come from the same region)
+        bool fullOverlap = false;
+        float limit1 = float(pos1_2-pos1_1)/2;
+        float limit2 = float(pos2_2-pos2_1)/2;
+        if (positiveStrand){
+            if (pos1_1  < limit1){
+                if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                    fullOverlap = true;
+                }
+            }
+            else if (pos2_1 < limit2){
+                    if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                    fullOverlap = true;
+                }
+            }
+        }
+        else {
+            if (pos1_1 < limit1){
+                if (pos2_1 < limit2 || length1-pos1_2 < limit1){
+                    fullOverlap = true;
+                }
+            }
+            else if (length2-pos2_2 < limit2){
+                if (length1-pos1_2 < limit1 || pos2_1 < limit2){
+                    fullOverlap = true;
+                }
+            }
         }
 
         //now that we have the two sequences, check if they were partitionned separately
         bool goodOverlap = true;
         if (allgood){
 
+
             for (int backbone1 = 0 ; backbone1 < allreads[sequence1].backbone_seq.size() ; backbone1 ++){
+                // if ("1_@SRR8184499.1.4916" == name1){
+                //     cout << "backbone of 1_@SRR8184499.1.4916 " << allreads[sequence1].backbone_seq[backbone1].first << endl;
+                // }
+
                 for (int backbone2 = 0 ; backbone2 < allreads[sequence2].backbone_seq.size() ; backbone2 ++){
+
                     int backbone = allreads[sequence1].backbone_seq[backbone1].first;
                     if (backbone == allreads[sequence2].backbone_seq[backbone2].first){ //then they lean on the same backbone read
                         if (name1[0] == name2[0]){
@@ -408,24 +589,27 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                                 }
                             }
                         }
+                        // cout << "comparing " << allreads[sequence2].name << " and " << allreads[sequence1].name << endl;
+                        // cout << partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] << " " << partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] << endl;
                         if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
-                            != partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]){ //if they're not in the same cluster
-                            
-                            if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
-                            * partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] >= 0){ //0 is an uncertain read
+                            != partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]
+                                && partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] != -1
+                                && partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] != -1){ //if they're not in the same cluster
+                            // if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                            // * partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second] >= 0){ //0 is an uncertain read
                                 goodOverlap = false;
-                                //cout << "not validating " << name1 << " vs " << name2 << endl;
-                            }
-                            else {
-                                goodOverlap = false;
-                            }
+                                // cout << "not validating " << name1 << " vs " << name2 << endl;
+                            // }
+                            // else {
+                            //     goodOverlap = false;
+                            // }
                         }
 
                     }
                 }
             }
         }
-        if (goodOverlap){
+        if (goodOverlap && fullOverlap){
             out << line << endl;
         }
 

@@ -7,27 +7,28 @@
 
 //small struct to return a slightly complicated result
 struct distancePartition{
-    int nmatch;
-    int nmismatch;
     int n00;
     int n01;
     int n10;
     int n11;
     int nonComparable;
-    float chisquare; //chi square test on the similarity of the two partition
+    float score;
     short phased; // worth -1 or 1
+    bool augmented; //to know if the partition was augmented or not
+    std::vector<short> partition_to_augment;
 };
 
 
 
-void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<std::vector<short>> &partitions);
+void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<std::vector<short>> &partitions, bool assemble_on_assembly);
 
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar);
+float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly);
 
 std::vector<short>  separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, float minDistance);
 
-distancePartition distance(Partition &par1, std::vector<char> &par2, float errorRate);
+distancePartition distance(Partition &par1, std::vector<char> &par2);
 bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshold_p);
+float computeChiSquare(distancePartition dis);
 
 std::vector<short> threadHaplotypes(std::vector<Partition> &listOfFinalPartitions);
 

@@ -120,7 +120,7 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
 
 }
 
-//input : a new partition to add to the consensus
+//input : a new partition to add to the consensus (the partition must be well-phased)
 //output : updated consensus partition
 //WARNING : the input partition must be of the same size as the consensus partition
 void Partition::augmentPartition(vector<short>& supplementaryPartition){
@@ -237,7 +237,12 @@ vector<float> Partition::getConfidence(){
     vector<float> conf;
     for (int i = 0 ; i < moreFrequence.size() ; i++){
         //conf.push_back(moreFrequence[i]+lessFrequence[i]);
-        conf.push_back(float(moreFrequence[i]+1)/(moreFrequence[i]+lessFrequence[i]+1)); //+1 so that a read with only one position is not considered 100% confident
+        if (moreFrequence[i]+lessFrequence[i] > 0) {
+            conf.push_back(float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]));
+        }
+        else {
+            conf.push_back(1);
+        }
     }
 
     return conf;
@@ -286,3 +291,16 @@ int Partition::size(){
     return mostFrequentBases.size();
 }
 
+float Partition::proportionOf1(){
+    float n1 = 0;
+    float n0 = 0;
+    for (auto r : mostFrequentBases){
+        if (r == 1){
+            n1++;
+        }
+        else if (r==-1){
+            n0++;
+        }
+    }
+    return n1/(n1+n0);
+}

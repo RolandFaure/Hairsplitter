@@ -6,6 +6,7 @@
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
+#include <set>
 
 #include "robin_hood.h"
 #include "input_output.h"
@@ -32,7 +33,7 @@ bool comp (distPart i, distPart j){
 
 //input : the set of all overlaps and the backbone reads
 //output : a partition for all backbone reads. All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
-void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<vector<short>> &partitions) {
+void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<vector<short>> &partitions, bool assemble_on_assembly) {
 
     // vector<char> seq1 = {'A', 'A', 'A', 'A', 'A', 'A', '?', 'A', 'A', 'A', 'C', 'A', 'C', '?', 'A', 'A', 'A', 'C', 'A', 'C', '?'};
     // vector<char> seq2 = {'A', 'A', 'A', 'A', 'A', 'C', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C', 'A', 'A', 'A', 'A', 'C', 'A', 'C'};
@@ -46,25 +47,32 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     int index = 0;
     for (unsigned long int read : backbones_reads){
-        if (allreads[read].neighbors_.size() > 0 /*&& index ==2*/){
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
-            vector<vector<char>> snps (allreads[read].size(), vector<char>(allreads[read].neighbors_.size()+1, '?')); //vector containing list of position, with SNPs at each position
+        //524, 67
+        if (allreads[read].neighbors_.size() > 0 && index <= 10 /*&& (allreads[read].size() == 13059 || allreads[read].size() == 6786)*/){
+            vector<vector<char>> snps (allreads[read].size(), vector<char>(allreads[read].neighbors_.size()+1-int(assemble_on_assembly), '?')); //vector containing list of position, with SNPs at each position
             //first build an MSA
-            cout << "Generating MSA" << endl;
+            // cout << "Generating MSA" << endl;
             Partition truePar(0); //for debugging
-            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar);
-            // for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
-            //     if (partitions[allreads[i].backbone_seq[b].first].getPartition().size() <= allreads[i].backbone_seq[b].second){
-            //         throw std::logic_error("BIBBU");
-            //     }
-            // }
+            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly);
+
+            // auto numberOf0s = 0;
+            // for (auto i : truePar.getPartition()) {if (i==-1){numberOf0s++;}}
+            // if (numberOf0s > 10){
+            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
 
             //then separate the MSA
-            cout << "Separating reads" << endl;
+            // cout << "Separating reads" << endl;
             auto par = separate_reads(read, allOverlaps, allreads, snps, meanDistance);
-            // cout << "True partition : " << endl;
-            // truePar.print();
+            cout << "True partition : " << endl;
+            truePar.print();
+            // auto par = truePar.getPartition();//DEBUG
+            // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
+            cout << "Proposed partition : " << endl;
+            for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
+            cout << endl;
+
             partitions.push_back(par);
+    
         }
         index++;
     }
@@ -73,12 +81,10 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
 //input: a read with all its neighbor
 //outputs : the precise alignment of all reads against input read in the form of matrix snps, return the mean editDistance/lengthOfAlginment
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar){
+float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly){
 
-    vector<char> truePartition; //for debugging
     //cout << "neighbors of read " << read << " : " << allreads[read].neighbors_.size() << endl;
     //go through the neighbors of the backbone read and align it
-    unsigned short numberOfNeighbors = allreads[read].neighbors_.size();
 
     //keep count of the distance between two reads to know the mean distance
     float totalDistance = 0;
@@ -88,28 +94,33 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     robin_hood::unordered_map<int, int> insertionPos;
     vector<int> numberOfInsertionsHere (allreads[read].size(), 0);
     
-    //first enter the sequence of the read in snps
-    string readSequence = allreads[read].sequence_.str();
-    for (auto i = 0 ; i < readSequence.size() ; i++){
-        snps[i][numberOfNeighbors] = readSequence[i];
+    //first enter the sequence of the read in snps, if the backbone read is a read, not if it's a contig
+    if (!assemble_on_assembly){
+        string readSequence = allreads[read].sequence_.str();
+        for (auto i = 0 ; i < readSequence.size() ; i++){
+            snps[i][snps[i].size()-1] = readSequence[i];
+        }
     }
 
     //to remember on what backbone the backbone read is leaning -> itself
     allreads[read].new_backbone(make_pair(backboneReadIndex, allreads[read].neighbors_.size()), allreads[read].neighbors_.size()+1);
 
+
+    //small loop to compute truePartition DEBUG
+    vector<char> truePartition; //for debugging
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
         if (overlap.sequence1 == read){
-            //cout << "name : " << allreads[overlap.sequence2].name << endl;
-            if (allreads[overlap.sequence2].name[1] == '0'){
+            // cout << "name : " << allreads[overlap.sequence2].name << endl;
+            if (allreads[overlap.sequence2].name[1] == '1'){
                 truePartition.push_back('A');
             }
             else{
                 truePartition.push_back('C');
             }
             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-
         }
         else{
             if (allreads[overlap.sequence1].name[1] == '1'){
@@ -118,12 +129,36 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
             else{
                 truePartition.push_back('C');
             }
-            // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl
+            // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }    
     }
+    //do not forget the last read itself
+    if (allreads[read].name[1] == '1'){
+        truePartition.push_back('A');
+    }
+    else{
+        truePartition.push_back('C');
+    }
+    // cout << "name : " << allreads[read].name << " " << allreads[read].name[1] << " " << truePartition[truePartition.size()-1] << endl;
     truePar = Partition(truePartition);
 
+    // for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+    //     long int neighbor = allreads[read].neighbors_[n];
+    //     Overlap overlap = allOverlaps[neighbor];
+    //     if (overlap.sequence1 == read){
+    //         allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+    //     }
+    //     else {
+    //         allreads[overlap.sequence1].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+    //     }
+    // }
+
+    // /* compute only true partition
+    // cout << "Aligning on backbone of length " << snps.size() << endl;
+
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+
+        cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
 
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
@@ -227,7 +262,13 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
                         insertionPos[100*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
                         numberOfInsertionsHere[indexQuery] += 1;
-                        snps.push_back(vector<char> (numberOfNeighbors+1, '-'));
+                        vector<char> newInsertedPos(snps[0].size(), '-');
+                        for (auto re = 0 ; re < newInsertedPos.size() ; re++){
+                            if (snps[indexQuery][re] == '?'){
+                                newInsertedPos[re] = '?';
+                            }
+                        }
+                        snps.push_back(newInsertedPos);
                         snps[snps.size()-1][n] = toBeAlgined2[indexTarget];
                     }
                     else{
@@ -260,36 +301,23 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     }
 
-    //cout << "Finished aligning" << endl;
+    // cout << "Finished aligning                                                                      " << endl;
 
-    //get rid of the * that are on inserted columns but between two -
-    for (size_t n = 0 ; n < numberOfNeighbors+1 ; n++){
-
-        for (auto i = 0 ; i < numberOfInsertionsHere.size(); i++){
-            //cout << "two : " << i << " " << snps.size() << endl; 
-            if (snps[i][n] == '?'){
-                //cout << "one : " << i << " "<< numberOfInsertionsHere.size() << " " << snps.size() << endl;
-                for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++){
-                    snps[insertionPos[100*i+insert]][n] = '?';
-                }
-            }
-        }
-    }
 
     //print snps (just for debugging)
     // int step = 2;
     // int numberOfReads = 10;
-    // int start = 300;
-    // int end = 400;
-    // vector<string> reads (min(numberOfNeighbors+1, numberOfReads));
+    // int start = 10000;
+    // int end = 10400;
+    // vector<string> reads (min(int(snps[0].size()), numberOfReads));
     // for (unsigned short i = start ; i < end; i++){
         
-    //     for (short n = 0 ; n < min(numberOfNeighbors+1, numberOfReads*step) ; n+= step){
+    //     for (short n = 0 ; n < min(int(snps[0].size()), numberOfReads*step) ; n+= step){
     //         reads[n/step] += snps[i][n];
     //     }
     //     for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++ ){
     //         auto snpidx = insertionPos[100*i+insert];
-    //         for (short n = 0 ; n < min(numberOfNeighbors+1, numberOfReads*step) ; n+= step){
+    //         for (short n = 0 ; n < min(int(snps[0].size()), numberOfReads*step) ; n+= step){
     //             reads[n/step] += snps[snpidx][n];
     //         }
     //     }
@@ -299,22 +327,23 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //     cout << neighbor << endl;
     // }
     // for (unsigned short i = start ; i < end; i++){cout << snps[i][1];} cout << endl;
-    // for (unsigned short i = start ; i < end; i++){cout << snps[i][numberOfNeighbors];} cout << endl;
+    // for (unsigned short i = start ; i < end; i++){cout << snps[i][snps[0].size()-1];} cout << endl;
 
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     return totalDistance/totalLengthOfAlignment;
+    ///
 }
 
 //input : a set of reads aligned to read in matrix snps
 //output : reads separated by their region of origin
 vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, float meanDistance){
 
-
     /*
     The null model is described as uniform error rate -> binomial error distribution on one position
     meanDistance ~= 2*sequencingErrorRate (e) at most
     suspicious positions have p-value < 0.05, i.e. more errors than n*e + 3*sqrt(n*e*(1-e))
     */
+
     robin_hood::unordered_map<char, short> bases2content;
     bases2content['A'] = 0;
     bases2content['C'] = 1; 
@@ -329,6 +358,7 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
     int numberOfNeighbors = 0;
 
     vector<vector<distPart>> distanceBetweenPartitions;
+    vector<size_t> suspectPostitions;
 
     for (int position = 0 ; position < snps.size() ; position++){
 
@@ -345,28 +375,34 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
 
         float threshold = 1 + numberOfReads*meanDistance/2 + 3*sqrt(numberOfReads*meanDistance/2*(1-meanDistance/2));
         //DEBUG
-        //threshold = 20;
+        //threshold = 3;
         if (*std::max_element(content, content+5) < numberOfReads-threshold){ //this position is suspect
             //cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
+            suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
             vector<distPart> distances (distanceBetweenPartitions.size());
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
 
-                distancePartition dis = distance(partitions[p], snps[position], meanDistance/2);
-                auto comparable = dis.n00 + dis.n01 + dis.n10; //do not compare 11, because it is too easy to match
+                distancePartition dis = distance(partitions[p], snps[position]);
+                if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented ){
+                    // cout << "merging..." << endl;;
+                    // partitions[p].print();
+                    // for (auto i : dis.partition_to_augment) {cout << i;} cout << endl;
+                    partitions[p].augmentPartition(dis.partition_to_augment);
+                    found = true;
+                    break;
+                }
+                auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
                 if (comparable > 5){
-                    //distances[p].distance = float(dis.n01+dis.n10)/comparable;
-                    distances[p].distance = float(dis.n01+dis.n10)/(comparable+dis.n11);
+                    //distances[p].distance = max(float(0), (10-dis.chisquare)/10) ;
+                    distances[p].distance = float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10);
                     distances[p].phased = dis.phased;
                 }
                 else{
                     distances[p].distance = 1;
                 }
-                if (float(dis.nmismatch)/(dis.nmismatch+dis.nmatch) <= meanDistance ) {//same test as in distance
-                    found = true;
-                    break;
-                }
+                
             }
 
             if (!found){
@@ -386,8 +422,9 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
         return vector<short> (snps[0].size(), 1);
     }
 
-    cout << "Outputting the graph" << endl;
+    // cout << "Outputting the graph" << endl;
 
+    /* looking at the graph
     //square the distanceBetweenPartions matrix (which is a triangle matrix until now)
 
     for (int i = 0 ; i < distanceBetweenPartitions.size() ; i++){
@@ -404,94 +441,84 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
     }
 
     // build the adjacency matrix
-    // vector<vector <float>> adj (distanceBetweenPartitions.size(), vector<float> (distanceBetweenPartitions.size(), 0));
-    // //each node keeps only the links to very close elements
-    // int numberOfNeighborsKept = 5;
-    // for (auto i = 0 ; i < distanceBetweenPartitions.size() ; i++){
-    //     if (distanceBetweenPartitions[i].size() > numberOfNeighborsKept){
-    //         vector <distPart> minElements (numberOfNeighborsKept);
-    //         std::partial_sort_copy(distanceBetweenPartitions[i].begin(), distanceBetweenPartitions[i].end(), minElements.begin(), minElements.end(), comp);
-    //         float maxDiff = minElements[numberOfNeighborsKept-1].distance;
+    vector<vector <float>> adj (distanceBetweenPartitions.size(), vector<float> (distanceBetweenPartitions.size(), 0));
+    //each node keeps only the links to very close elements
+    int numberOfNeighborsKept = 5;
+    for (auto i = 0 ; i < distanceBetweenPartitions.size() ; i++){
+        if (distanceBetweenPartitions[i].size() > numberOfNeighborsKept){
+            vector <distPart> minElements (numberOfNeighborsKept);
+            std::partial_sort_copy(distanceBetweenPartitions[i].begin(), distanceBetweenPartitions[i].end(), minElements.begin(), minElements.end(), comp);
+            float maxDiff = minElements[numberOfNeighborsKept-1].distance;
 
-    //         //cout << "maxdiff of partition " << i << " : " << maxDiff << endl;
-    //         if (i == 1){
-    //             // cout << "1 : " << endl;
-    //             // for(auto j:adj[i]){cout<<j << " ";}
-    //             // cout << endl;
-    //         }
+            //cout << "maxdiff of partition " << i << " : " << maxDiff << endl;
+            if (i == 1){
+                // cout << "1 : " << endl;
+                // for(auto j:adj[i]){cout<<j << " ";}
+                // cout << endl;
+            }
             
-    //         int numberOf1s = 0;
-    //         for (int j = 0 ; j < distanceBetweenPartitions[i].size() ; j++){
-    //             if (distanceBetweenPartitions[i][j].distance > maxDiff || distanceBetweenPartitions[i][j].distance == 1 || numberOf1s >= numberOfNeighborsKept){
+            int numberOf1s = 0;
+            for (int j = 0 ; j < distanceBetweenPartitions[i].size() ; j++){
+                if (distanceBetweenPartitions[i][j].distance > maxDiff || distanceBetweenPartitions[i][j].distance == 1 || numberOf1s >= numberOfNeighborsKept){
                     
-    //             }
-    //             else {
-    //                 if (distanceBetweenPartitions[i][j].distance < meanDistance*2){
-    //                     // cout << "distance : " << distanceBetweenPartitions[i][j].distance << endl;
-    //                     adj[i][j] = 1;
-    //                     adj[i][j] = 1;
-    //                     numberOf1s++;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+                }
+                else {
+                    if (distanceBetweenPartitions[i][j].distance < meanDistance){
+                        // cout << "distance : " << distanceBetweenPartitions[i][j].distance << endl;
+                        adj[i][j] = 1;
+                        adj[i][j] = 1;
+                        numberOf1s++;
+                    }
+                }
+            }
+        }
+    }
 
-    // for (auto i = 0 ; i < adj.size() ; i++){
-    //     auto count = 0;
-    //     for (auto j = 0 ; j < adj.size() ; j++)
-    //     {
-    //         if (adj[j][i] == 1){
-    //             count += 1;
-    //         }
-    //     }
-    //     if (count > 100){
-    //         cout << "here is the wonderful partition : " << endl;
-    //         partitions[i].print();
-    //     }
-    // }
+   /* to look at the graph
 
-    /*now cluster the different partitions, to achieve ( 1 partition = 1 actual division of the reads)
-     -> start by chisquaring two partitions to see if they correlate
-     -> then test if it is possible that "they are so different by chance"
-    */
+    vector<int> clusters (partitions.size());
 
-    // vector<int> clusters (partitions.size());
-
-    // cluster_graph_chinese_whispers(adj, clusters);
-    // outputGraph(adj, clusters, "graph.gdf");
+    cluster_graph_chinese_whispers(adj, clusters);
+    outputGraph(adj, clusters, "graph.gdf");
 
     //filter out too small clusters
-    // vector <int> sizeOfCluster;
-    // for (auto p = 0 ; p < partitions.size() ; p++){
-    //     while (clusters[p] >= sizeOfCluster.size() ){ 
-    //         sizeOfCluster.push_back(0);
-    //     }
-    //     sizeOfCluster[clusters[p]] += 1;
-    // }
-    // vector<Partition> listOfFinalPartitions(sizeOfCluster.size(), Partition(partitions[0].size()));
+    vector <int> sizeOfCluster;
+    for (auto p = 0 ; p < partitions.size() ; p++){
+        while (clusters[p] >= sizeOfCluster.size() ){ 
+            sizeOfCluster.push_back(0);
+        }
+        sizeOfCluster[clusters[p]] += 1;
+    }
+    vector<Partition> listOfFinalPartitionsdebug(sizeOfCluster.size(), Partition(partitions[0].size()));
 
-    // //now merge each cluster in one partition
-    // for (auto p = 0 ; p < partitions.size() ; p++){
+    //now merge each cluster in one partition
+    for (auto p = 0 ; p < partitions.size() ; p++){
 
-    //     if (sizeOfCluster[clusters[p]] > 3){
-    //         // if (sizeOfCluster[clusters[p]] == 41){
-    //         //     partitions[p].print();
-    //         // }
-    //         listOfFinalPartitions[clusters[p]].mergePartition(partitions[p]);
-    //     }
-    // }
+        if (sizeOfCluster[clusters[p]] > 3){
+            // if (sizeOfCluster[clusters[p]] == 41){
+            //     partitions[p].print();
+            // }
+            listOfFinalPartitionsdebug[clusters[p]].mergePartition(partitions[p]);
+        }
+    }
 
-    // //filter out empty partitions
-    // vector<Partition> listOfFinalPartitions2;
-    // for (auto p : listOfFinalPartitions){
-    //     if (p.number()> 0 && p.isInformative(meanDistance/2, true)) {
-    //         listOfFinalPartitions2.push_back(p);
-    //     }
-    // }
-    // listOfFinalPartitions = listOfFinalPartitions2;
+    //filter out empty partitions
+    vector<Partition> listOfFinalPartitions2;
+    for (auto p : listOfFinalPartitionsdebug){
+        if (p.number()> 0 && p.isInformative(meanDistance/2, true)) {
+            listOfFinalPartitions2.push_back(p);
+        }
+    }
+    listOfFinalPartitionsdebug = listOfFinalPartitions2;
 
-    float threshold = min(0.1*numberOfSuspectPostion, 0.001*snps.size());
+    for (auto p : listOfFinalPartitionsdebug){
+        cout << "final : " << endl;
+        p.print();
+    }
+
+    */
+
+    float threshold = max(4.0, min(0.1*numberOfSuspectPostion, 0.001*snps.size()));
 
     // cout << "Here are all the partitions : " << endl;
     // for (auto p : partitions){
@@ -504,7 +531,7 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
         
         if (partitions[p1].number() > threshold && partitions[p1].isInformative(meanDistance/2, true)){
 
-            // cout << "informative partition : ";
+            // cout << "informative partition 2 : " << endl;
             // partitions[p1].print();
             bool different = true;
             for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
@@ -530,23 +557,16 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
         }
     }
 
-    //now we have the list of final partitions : there may be several if there are more than two copies
+    //now we have the list of final partitions : there may be several, especially if there are more than two copies
 
     if (listOfFinalPartitions.size() == 0){
         Partition p(snps[0].size());
         listOfFinalPartitions.push_back(p);
     }
 
-    cout << "I end up with " << listOfFinalPartitions.size() << " partitions, deduced from " << partitions.size() << ". On average, one snps contribute to " << float(numberOfNeighbors)/numberOfSuspectPostion << " partitions" << endl; 
-    cout << "Length of backbone read " << snps.size() << ". I have " << numberOfSuspectPostion << " suspect positions, and " << listOfFinalPartitions[0].getPartition().size() << " reads " << endl;
-    for (auto p : listOfFinalPartitions){
-        // if (p.number() == 33 || p.number() == 41){
-            p.print();
-        // }
-        // cout << p.getMore()[0] << "/" << p.getLess()[0] << " " << p.getMore()[1] << "/" << p.getLess()[1] << endl;
-    }
-
-
+    cout << "I end up with " << listOfFinalPartitions.size() << " partitions, deduced from " << partitions.size() << endl; 
+    cout  << "I have " << numberOfSuspectPostion << " suspect positions, and " << listOfFinalPartitions[0].getPartition().size() << " reads " << endl;
+    
     //now aggregate all those binary partitions in one final partition. There could be up to 2^numberBinaryPartitions final groups
     vector<short> finalClusters = threadHaplotypes(listOfFinalPartitions);
 
@@ -557,14 +577,16 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
 
 //input : one partition and one list of chars
 //output : is the list of chars close to the partition ? If so, augment the partition. Return the chi-square of the difference in bases
-distancePartition distance(Partition &par1, vector<char> &par2, float errorRate){
+distancePartition distance(Partition &par1, vector<char> &par2){
 
     /*
     when computing the distance, there is not 5 letters but 2 : the two alleles, which are the two most frequent letters
     */
     distancePartition res;
     res.nonComparable = 0;
+    res.augmented = true;
     vector<short> part1 = par1.getPartition();
+    vector<float> confs1 = par1.getConfidence();
 
     robin_hood::unordered_flat_map<char, short> bases2content;
     bases2content['A'] = 0;
@@ -592,6 +614,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
         res.n01 = 0;
         res.n10 = 0;
         res.n11 = 0;
+        res.augmented = false;
         res.nonComparable = par2.size();
         return res;
     }
@@ -612,10 +635,10 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
             secondFrequence2 = maxFrequence2;
             secondFrequent2 = mostFrequent2;
             maxFrequence2 = content2[i];
-            mostFrequent2 = "ACGT*"[i];
+            mostFrequent2 = "ACGT-"[i];
         }
         else if (content2[i] > secondFrequence2){
-            secondFrequent2 = "ACGT*"[i];
+            secondFrequent2 = "ACGT-"[i];
             secondFrequence2 = content2[i];
         }
     }
@@ -623,6 +646,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
     // for (auto i : par2){cout << i;} cout << endl;
 
     float scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
+    float bestScore = 0;
     //remember all types of matches for the chi square test
     int matches00[2] = {0,0};
     int matches01[2] = {0,0};
@@ -632,19 +656,23 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
 
     for (auto c = 0 ; c < par2.size() ; c++){
 
+        float conf = 2*confs1[c]-1;
+
         if (par2[c] == mostFrequent2){
             newPartitions[0].push_back(1);
             newPartitions[1].push_back(-1);
 
             if (part1[c] == 1){
-                scores[0] += 1;
-                scores[1] -= 1;
+                scores[0] += conf;
+                scores[1] -= conf;
+                bestScore += conf;
                 matches11[0] += 1;
                 matches10[1] += 1;
             }
             else if (part1[c] == -1){
-                scores[0] -= 1;
-                scores[1] += 1;
+                scores[0] -= conf;
+                scores[1] += conf;
+                bestScore += conf;
                 matches01[0] += 1;
                 matches00[1] += 1;
             }
@@ -657,14 +685,16 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
             newPartitions[1].push_back(1);
 
             if (part1[c] == 1){
-                scores[0] -= 1;
-                scores[1] += 1;
+                scores[0] -= conf;
+                scores[1] += conf;
+                bestScore += conf;
                 matches10[0] += 1;
                 matches11[1] += 1;
             }
             else if (part1[c] == -1){
-                scores[0] += 1;
-                scores[1] -= 1;
+                scores[0] += conf;
+                scores[1] -= conf;
+                bestScore += conf;
                 matches00[0] += 1;
                 matches01[1] += 1;
             }
@@ -684,20 +714,7 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
     }
 
     //now look at the best scores
-    string seq1 = "";
-    string seq1bis = "";
-    string seq2 = "";
-    string seq2bis = "";
-    for (int c = 0 ; c < part1.size() ; c++){
-        if (par2[c] != '?' && part1[c] != 0){
-            if (par2[c] == mostFrequent2 || par2[c] == secondFrequent2){
-                seq1 += '1'+part1[c];
-                seq2 += par2[c];
-            }
-        }
-        seq1bis += '1'+part1[c];
-        seq2bis += par2[c];
-    }
+
     auto maxScore = scores[0];
     auto maxScoreIdx = 0; //can be either 0 or 1
     for (auto i = 0 ; i < 2 ; i++){
@@ -708,51 +725,41 @@ distancePartition distance(Partition &par1, vector<char> &par2, float errorRate)
         }
     }
 
-    res.nmatch = (par1.size()-res.nonComparable+maxScore)/2;
-    res.nmismatch = (par1.size()-res.nonComparable-maxScore)/2;
     res.n00 = matches00[maxScoreIdx];
     res.n01 = matches01[maxScoreIdx];
     res.n10 = matches10[maxScoreIdx];
     res.n11 = matches11[maxScoreIdx];
+    res.score = scores[maxScoreIdx]/bestScore;
     res.phased = -2*maxScoreIdx + 1;
+    res.partition_to_augment = newPartitions[maxScoreIdx];
     //cout << "Computing..." << maxScore << " " << par1.size()-res.nonComparable << " " << res.nmismatch << endl;
 
-    //compute number of expected matches by chance
-    int occurences[2] = {maxFrequence2, secondFrequence2};
-    // res.easyMatches = maxFrequence*occurences[maxScoreIdx]*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases 
-    //             + (numberOfBases-maxFrequence)*(numberOfBases-occurences[maxScoreIdx])*(res.nmismatch+res.nmatch)/numberOfBases/numberOfBases;
-    
-    //now compute the chi square
-    int n = res.nmatch + res.nmismatch;
-    float pmax1 = maxFrequence/numberOfBases;
-    float pmax2 = float(occurences[maxScoreIdx]) / (maxFrequence2+secondFrequence2);
-    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
-        res.chisquare = 0;
-        return res;
-    }
-    //chi square test with 1 degree of freedom
-    res.chisquare = pow((matches00[maxScoreIdx]-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
-                        + pow((matches01[maxScoreIdx]-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
-                        + pow((matches10[maxScoreIdx]-pmax1*(1-pmax2)*n),2)/(pmax1*(1-pmax2)*n)
-                        + pow((matches11[maxScoreIdx]-pmax1*pmax2*n),2)/(pmax1*pmax2*n);
-    
-    if (float(res.nmismatch)/(res.nmatch+res.nmismatch) <= errorRate*2 ){
-        // cout << "To compare : " << endl << seq1 << " ; " << seq1bis << endl << seq2 << " ; "<< seq2bis  << endl;
-        // cout << "res : " << res.nmatch << "," << res.nmismatch << "," << res.nonComparable << ", easy matching : " << 
-        //            chi_square << endl;
+    return res;
+}
 
-        par1.augmentPartition(newPartitions[maxScoreIdx]);
-        // if (par1.number() > 70){
-        //     cout << "Intergrating new partition  ";
-        //     for (auto i : newPartitions[maxScoreIdx]){cout << i;}
-        //     cout << endl;
-        //     par1.print();
-        // }
-        return res;
+float computeChiSquare(distancePartition dis){
+
+    int n = dis.n00 + dis.n01 + dis.n10 + dis.n11;
+    if (n == 0){
+        return 0;
     }
-    else {
-        return res;
+    float pmax1 = float(dis.n10+dis.n11)/n;
+    float pmax2 = float(dis.n01+dis.n11)/n;
+    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
+        return 0;
     }
+
+    // cout << "ps : " << pmax1 << ", " << pmax2 << endl;
+    // cout << "expected/obtained : " << dis.n00 << "/"<<(1-pmax1)*(1-pmax2)*n << " ; " << dis.n01 << "/"<<(1-pmax1)*pmax2*n
+    // << " ; " << dis.n10 << "/" << pmax1*(1-pmax2)*n << " ; " << dis.n11 << "/" << pmax1*pmax2*n << endl;
+    //chi square test with 1 degree of freedom
+    float res;
+    res = pow((dis.n00-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
+        + pow((dis.n01-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
+        + pow((dis.n10-pmax1*(1-pmax2)*n),2)/(pmax1*(1-pmax2)*n)
+        + pow((dis.n11-pmax1*pmax2*n),2)/(pmax1*pmax2*n);
+
+    return res;
 }
 
 //input : two partitions and thresholds for comparing the partitions
@@ -880,7 +887,7 @@ bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshol
         maxScoreIdx = 1;
     }
 
-    int occurences[2] = {maxFrequence2, numberOfBases-maxFrequence2};
+    int occurences[2] = {maxFrequence2, numberOfBases-int(maxFrequence2)};
  
     //now compute the chi square
     int n = numberOfBases;
@@ -936,7 +943,95 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
         allLess.push_back(i.getLess());
     }
 
+    //as a first step, we'll try to throw away the partitions that do not look very sure of themselves
+    /*to to that, we'll look at each read, see if it's well clustered in one partition. 
+    If yes, all partitions where it's badly clustered are suspicious
+    Indeed, we expect the different errors to compensate each other
+    */
+    vector<Partition> trimmedListOfFinalPartition;
+
+    vector<bool> readsClassified (listOfFinalPartitions[0].size(), false);
+    for (int par = 0 ; par < listOfFinalPartitions.size() ; par++){
+        for (int read = 0 ; read < listOfFinalPartitions[0].size() ; read++){
+            if (allPartitions[par][read] != 0 && allConfidences[par][read] >= 0.7){
+                readsClassified[read] = true;
+            }
+        }
+    }
+
+    //now we know what reads are not well classified anywhere. Now see if some partitions are just not sure enough of themselves
+    for (int par = 0 ; par < listOfFinalPartitions.size() ; par++){
+
+        //because of the ref, the two haplotypes are not strictly equivalent : try to compensate
+        int numberOfPartitionnedRead = 0;
+        float means [2] = {0,0};
+        float n1 = 0;
+        float n0 = 0;
+        for (int read = 0 ; read < listOfFinalPartitions[0].size() ; read++){
+
+            if (allPartitions[par][read] != 0){
+                numberOfPartitionnedRead++;
+                if (allPartitions[par][read] == 1){
+                    means[1] += allConfidences[par][read];
+                    n1++;
+                }
+                else if (allPartitions[par][read] == -1){
+                    means[0] += allConfidences[par][read];
+                    n0++;
+                }
+            }
+        }
+
+        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * 0.6 , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * 0.6 };
+        //cout << "the center is : " << means[0]/n0 << " " << means[1]/n1 << endl;
+
+        int numberOfUnsureReads = 0;
+        for (int read = 0 ; read < listOfFinalPartitions[0].size() ; read++){
+
+            if (allPartitions[par][read] != 0 && allConfidences[par][read] < 1-errors[(allPartitions[par][read]+1)/2] && readsClassified[read]){ //oops
+                numberOfUnsureReads++;
+            }
+        }
+
+        //cout << "Here is the number of unsure reads " << numberOfUnsureReads << " "<< numberOfPartitionnedRead << endl;
+
+        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1){
+            trimmedListOfFinalPartition.push_back(listOfFinalPartitions[par]);
+        }
+
+    }
+    listOfFinalPartitions = trimmedListOfFinalPartition;
+
+    allPartitions = {};
+    for (auto i : listOfFinalPartitions){
+        allPartitions.push_back(i.getPartition());
+    }
+    allConfidences = {};
+    for (auto i : listOfFinalPartitions){
+        allConfidences.push_back(i.getConfidence());
+    }
+
+    // for (auto p : listOfFinalPartitions){
+    //     cout << "informative partition : ";
+    //     p.print();
+    //     double conf = 1;
+    //     int numberReads = 0;
+    //     auto mores = p.getMore();
+    //     auto confidences = p.getConfidence();
+    //     for (auto c = 0 ; c < confidences.size() ; c++) {
+    //         if (mores[c] > 1){
+    //             conf*=confidences[c];
+    //             numberReads++;
+    //         }   
+
+    //     }
+    //     cout << numberReads << " " << exp(log(conf)/numberReads)  << endl;
+    // }
+
+    //as a second step, we'll thread the haplotypes between the partitions
+
     robin_hood::unordered_flat_map <int, int> count; //a map counting how many times a cluster appears
+    int numberOfAssignedReads=0;
 
     for (int pos=0 ; pos < listOfFinalPartitions[0].size() ; pos++){
         int id = 0;
@@ -947,7 +1042,7 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
                 id = -1;
                 break;
             }
-            else if (camp ==1){
+            else if (camp == 1 ){
                 id += 1;
             }
         }
@@ -955,68 +1050,116 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
             frequenceOfPart[id] += 1;
             res[pos] = id;
             count[id] += 1;
+            numberOfAssignedReads ++;
         }
     }
 
-    //establish a list of possible clusters
-    vector<int> listOfGroups;
-    for (auto group : count){
-        if (group.second > 1){
-            listOfGroups.push_back(group.first);
-        }
+    
+    //to make sure we don't over-estimate the number of clusters, we'll make the assumption that all haplotypes have haplotype-specific mutation => the number of final cluster cannot be higher that the number of partitions
+    vector<float> proportionOf1;
+    for (auto p : listOfFinalPartitions){
+        proportionOf1.push_back(p.proportionOf1());  
     }
-    //to make sure we don't over-estimate the number of clusters, we'll make the assumption that all haplotypes have haplotype-specific mutation => the number of final cluster cannot be higher that the number of partition
-    vector <int> minElements (listOfFinalPartitions.size());
-    std::partial_sort_copy(listOfGroups.begin(),  listOfGroups.end(), minElements.begin(), minElements.end());
-    int minNumberOfReads = minElements[listOfFinalPartitions.size()-1];
+    vector<float> listOfLikelihoods;
+    vector<int> listOfAbundances;
+    for (auto group : count){
+        int id = group.first;
+        double proba = 1;
+        for (int binary = listOfFinalPartitions.size()-1 ; binary > -1 ; binary--){
+            if (id%2 == 1){
+                proba *= proportionOf1[binary];
+            }
+            else{
+                proba *= 1-proportionOf1[binary];
+            }
+            id = int(id / 2);
+        }
+        // cout << "group " << group.first << " is expected " << numberOfAssignedReads*proba << " times and arrives " << group.second << " times " << endl;
+        listOfLikelihoods.push_back(float(group.second -numberOfAssignedReads*proba) /group.second);
+        listOfAbundances.push_back(group.second);  
+    }
+    int minLikelihood = -10;
+    if (listOfFinalPartitions.size() != 1){
+        vector <int> minElements (listOfAbundances.size()-listOfFinalPartitions.size());
+        std::partial_sort_copy(listOfLikelihoods.begin(),  listOfLikelihoods.end(), minElements.begin(), minElements.end());
+        minLikelihood = minElements[minElements.size()-1];
+    }
+
+    // cout << "minNumber of reads : " << minNumberOfReads << endl;
+    // for (auto a : listOfAbundances) {cout << a << ",";}cout << endl;
+
+    //establish a list of possible clusters
+    std::set <int> listOfGroups;
+    int indexOfCount = 0;
+    for (auto group : count){
+        if (listOfLikelihoods[indexOfCount] >= minLikelihood){
+            listOfGroups.emplace(group.first);
+        }
+        indexOfCount++;
+    }
+
+    // cout << "possible clusters : "; for (auto g : listOfGroups){cout << g << " ";} cout << endl;
+    // cout << "Res : ";
+    // for (auto i : res){
+    //     cout << i << ",";
+    // }
+    // cout << endl;
 
     //now most reads should be assigned to a cluster. Rescue those that have not been assigned or assigned to a singleton cluster
 
     for (auto read = 0 ; read < res.size() ; read++){
 
-        if (res[read] == -1 || count[res[read]] < max(minNumberOfReads, 2)){ //this means the read needs to be rescued 
+        if (listOfGroups.find(res[read]) == listOfGroups.end()){ //this means the read needs to be rescued 
 
-            //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
-            //iterate through the list of groups and choose the one that can be explained by the less mistakes
-            int bestGroup = -1;
-            int bestGroupScore = 1000000;
-
-            //compute a score for each existing group, then assign the read to that group
-            for (auto group : listOfGroups){
-
-                int score = 0;
-                int groupDecomposition = group;
-
-                for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
-                    int expectedAssignation = groupDecomposition%2;
-
-                    if ((allPartitions[binary][read]+1)/2 != expectedAssignation && allPartitions[binary][read] != 0){
-                        score += allMores[binary][read]-allLess[binary][read];
-                    }
-
-                    groupDecomposition /= 2;
-                }
-                if (score < bestGroupScore){
-                    bestGroup = group;
-                    bestGroupScore = score;
+            bool atLeastOnePartitionContainThisRead = false;
+            for (auto p : listOfFinalPartitions){
+                if (p.getPartition()[read] != 0){
+                    atLeastOnePartitionContainThisRead = true;
                 }
             }
-            res[read] = bestGroup;
 
-            // cout << "Rescuing ";
-            // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
-            //     cout << allMores[binary][read]<< "/" << allLess[binary][read] << " ";
-            // }
-            // cout << " as : " << bestGroup << endl;
+            if (atLeastOnePartitionContainThisRead){
+                //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
+                //iterate through the list of groups and choose the one that can be explained by the less mistakes
+                int bestGroup = -1;
+                int bestGroupScore = 1000000;
+
+                //compute a score for each existing group, then assign the read to that group
+                for (auto group : listOfGroups){
+
+                    int score = 0;
+                    int groupDecomposition = group;
+
+                    for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
+                        int expectedAssignation = groupDecomposition%2;
+
+                        if ((allPartitions[binary][read]+1)/2 != expectedAssignation && allPartitions[binary][read] != 0){
+                            score += allMores[binary][read]-allLess[binary][read];
+                        }
+
+                        groupDecomposition /= 2;
+                    }
+                    if (score < bestGroupScore){
+                        bestGroup = group;
+                        bestGroupScore = score;
+                    }
+                }
+                res[read] = bestGroup;
+
+                // cout << "Rescuing ";
+                // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
+                //     cout << allMores[binary][read]<< "/" << allLess[binary][read] << " ";
+                // }
+                // cout << " as : " << bestGroup << endl;
+            }
         }
     }
 
-
-    cout << "Res : ";
-    for (auto i : res){
-        cout << i << ",";
-    }
-    cout << endl;
+    // cout << "Res : ";
+    // for (auto i : res){
+    //     cout << i << ",";
+    // }
+    // cout << endl;
 
     return res;
 
