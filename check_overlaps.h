@@ -32,5 +32,6 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
 
 std::vector<short> threadHaplotypes(std::vector<Partition> &listOfFinalPartitions);
+std::vector<short> rescue_reads(std::vector<short> &threadedClusters, std::vector<std::vector<char>> &snps, std::vector<size_t> &suspectPostitions);
 
 #endif

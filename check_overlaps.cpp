@@ -40,17 +40,15 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         //524, 67
-        if (allreads[read].neighbors_.size() > 0 && index == 51){
+        if (allreads[read].neighbors_.size() > 5 && index == 189){
+
+            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
+
             vector<vector<char>> snps;  //vector containing list of position, with SNPs at each position
             //first build an MSA
             cout << "Generating MSA" << endl;
             Partition truePar(0); //for debugging
             float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly);
-
-            // auto numberOf0s = 0;
-            // for (auto i : truePar.getPartition()) {if (i==-1){numberOf0s++;}}
-            // if (numberOf0s > 10){
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
 
             //then separate the MSA
             cout << "Separating reads" << endl;
@@ -105,7 +103,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
         if (overlap.sequence1 == read){
-            // cout << "name : " << allreads[overlap.sequence2].name << endl;
             if (allreads[overlap.sequence2].name[1] == '1'){
                 truePartition.push_back('A');
             }
@@ -165,7 +162,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
 
     string consensus = consensus_reads(read_str , polishingReads);
-    // cout << "Aligning on backbone of length " << snps.size() << endl;
 
     polishingReads.push_back(read_str); //now we'll use polishingReads as the list of reads aligning on the consensus
     snps = vector<vector<char>>(consensus.size(), vector<char>(polishingReads.size(), '?'));
@@ -233,149 +229,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         edlibFreeAlignResult(result);
     }
     
-    // for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
-
-    //     cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
-
-    //     long int neighbor = allreads[read].neighbors_[n];
-    //     Overlap overlap = allOverlaps[neighbor];
-
-    //     //cout << "The overlap I'm looking at looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
-
-    //     string toBeAlgined1;
-    //     string toBeAlgined2;
-    //     int true_begin; //true_begin and true_end are there because input alignments are not expected to go to the end of the reads
-    //     int true_end;
-    //     int start1 = 0;
-    //     if (overlap.sequence1 == read){
-    //         if (overlap.strand){ //if the two reads are on the same strand
-    //             //now adjust the positions to go to the end of the reads with true_begin and true_end
-    //             true_begin = min(overlap.position_1_1, overlap.position_2_1);
-    //             true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
-    //             start1 = overlap.position_1_1-true_begin;
-    //             toBeAlgined1 = allreads[overlap.sequence1].sequence_.subseq(start1, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
-    //             toBeAlgined2 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
-                
-    //         }
-    //         else {
-    //             true_begin = min(static_cast<size_t>(overlap.position_1_1), allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
-    //             true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, size_t(overlap.position_2_1));
-    //             start1 = overlap.position_1_1-true_begin;
-    //             toBeAlgined1 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
-    //             toBeAlgined2 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_end, overlap.position_2_2-overlap.position_2_1+true_end+true_begin).reverse_complement().str();
-    //         }
-    //         true_begin = overlap.position_1_1-true_begin;
-
-    //     }
-    //     else {
-    //         if (overlap.strand){ //if the two reads are on the same strand
-    //             true_begin = min(overlap.position_1_1, overlap.position_2_1);
-    //             true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
-    //             start1 = overlap.position_2_1-true_begin;
-    //             toBeAlgined1 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_begin, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
-    //             toBeAlgined2 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).str();
-    //         }
-    //         else {
-    //             true_begin = min(size_t(overlap.position_1_1), allreads[overlap.sequence2].sequence_.size()-overlap.position_2_2);
-    //             true_end = min(allreads[overlap.sequence1].sequence_.size()-overlap.position_1_2, size_t(overlap.position_2_1));
-    //             start1 = overlap.position_2_1-true_end;
-    //             toBeAlgined1 = allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1-true_end, overlap.position_2_2-overlap.position_2_1+true_begin+true_end).str();
-    //             toBeAlgined2 = allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1-true_begin, overlap.position_1_2-overlap.position_1_1+true_begin+true_end).reverse_complement().str();
-    //         }
-    //         true_begin = overlap.position_2_1-true_begin;
-    //     }
-
-    //     //cout << "Aligning " << toBeAlgined1.c_str() << " and " << toBeAlgined2.c_str() << endl;
-
-    //     EdlibAlignResult result = edlibAlign(toBeAlgined1.c_str(), toBeAlgined1.size(), toBeAlgined2.c_str(), toBeAlgined2.size(),
-    //                                     edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
-    //     //cout << "Aligned ! " << result.editDistance << endl;
     
-    //     totalDistance += result.editDistance;
-    //     totalLengthOfAlignment += result.alignmentLength;
-
-        //cout << overlap.sequence1 << " " << overlap.sequence2 << " " << toBeAlgined1 << " " << toBeAlgined2 << endl;
-        //cout << toBeAlgined1 << endl << toBeAlgined2 << endl;
-        //cout << "alignment of read " << read << " : " << result.editDistance << " " << result.alignmentLength << ", " << edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD) << endl;  
-        //list_of_CIGARs.push_back(edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD));
-
-        // string aln (reinterpret_cast<char*>(result.alignment));
-
-        //a loop going through the CIGAR and modifyning snps
-        // char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
-        // int indexQuery = start1; //query corresponds to read
-        // int indexTarget = 0; //target corresponds to the other read of the overlap
-        // int numberOfInsertionsThere = 0;
-        // int nmatches = 0;
-        // int nmismatches = 0;
-        // for (int i = 0; i < result.alignmentLength; i++) {
-        //     if (moveCodeToChar[result.alignment[i]] == '=' || moveCodeToChar[result.alignment[i]] == 'X'){
-        //         snps[indexQuery][n] = toBeAlgined2[indexTarget];
-        //         indexQuery++;
-        //         indexTarget++;
-        //         numberOfInsertionsThere = 0;
-        //         if (indexQuery > 900 && indexQuery < 1100){
-        //             if (moveCodeToChar[result.alignment[i]] == '=' ){
-        //                 nmatches++;
-        //             }
-        //             if (moveCodeToChar[result.alignment[i]] == 'X'){
-        //                 nmismatches++;
-        //             }
-        //         }
-        //     }
-        //     else if (moveCodeToChar[result.alignment[i]] == 'I'){
-        //         snps[indexQuery][n] = '-';
-        //         indexQuery++;
-        //         numberOfInsertionsThere = 0;
-        //     }
-        //     else if (moveCodeToChar[result.alignment[i]] == 'D'){ //hardest one
-        //         if (numberOfInsertionsHere[indexQuery] < 99) {
-
-        //             if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
-        //                 insertionPos[100*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
-        //                 numberOfInsertionsHere[indexQuery] += 1;
-        //                 vector<char> newInsertedPos(snps[0].size(), '-');
-        //                 for (auto re = 0 ; re < newInsertedPos.size() ; re++){
-        //                     if (snps[indexQuery][re] == '?'){
-        //                         newInsertedPos[re] = '?';
-        //                     }
-        //                 }
-        //                 snps.push_back(newInsertedPos);
-        //                 snps[snps.size()-1][n] = toBeAlgined2[indexTarget];
-        //             }
-        //             else{
-        //                 snps[insertionPos[100*indexQuery+numberOfInsertionsThere]][n] = toBeAlgined2[indexTarget];
-        //             }
-        //             numberOfInsertionsThere ++;
-        //         }
-        //         indexTarget++;
-        //     }
-            //cout << "out" << endl;
-        // }
-
-        // int nbread = 0;
-        // if (n == nbread){
-        //     cout << "Added the alignment to snps : " << float(result.editDistance)/result.alignmentLength << endl;
-        //     cout << nmatches << " " << nmismatches << endl;
-
-        //     for(auto i = 900 ; i< min(snps.size(), size_t(1100)); i++){
-        //         cout << snps[i][nbread];
-        //     }
-        //     cout << " " << nbread << endl;
-
-        //     for(auto i = 900 ; i< min(snps.size(), size_t(1100)); i++){
-        //         cout << snps[i][numberOfNeighbors];
-        //     }
-        //     cout << " " << nbread << endl << endl;
-        // }
-
-        // edlibFreeAlignResult(result);
-
-    // }
-
-    // cout << "Finished aligning                                                                      " << endl;
-
-
     //print snps (just for debugging)
     // int step = 1;
     // int numberOfReads = 100;
@@ -416,7 +270,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 //function using Racon to consensus all reads
 string consensus_reads(string &backbone, vector <string> &polishingReads){
     
-    system("mkdir tmp/");
+    system("mkdir tmp/ 2>tmp/trash.txt");
     std::ofstream outseq("tmp/unpolished.fasta");
     outseq << ">seq\n" << backbone;
     outseq.close();
@@ -427,8 +281,8 @@ string consensus_reads(string &backbone, vector <string> &polishingReads){
     }
     polishseqs.close();
 
-    system("minimap2 -t 1 -x map-ont tmp/unpolished.fasta tmp/reads.fasta > tmp/mapped.paf");
-    system("racon -t 1 tmp/reads.fasta tmp/mapped.paf tmp/unpolished.fasta > tmp/polished.fasta");
+    system("minimap2 -t 1 -x map-ont tmp/unpolished.fasta tmp/reads.fasta > tmp/mapped.paf 2>tmp/trash.txt");
+    system("racon -t 1 tmp/reads.fasta tmp/mapped.paf tmp/unpolished.fasta > tmp/polished.fasta 2>tmp/trash.txt");
 
     std::ifstream polishedRead("tmp/polished.fasta");
     string line;
@@ -437,6 +291,10 @@ string consensus_reads(string &backbone, vector <string> &polishingReads){
         if (line[0] != '>'){
             consensus = line; 
         }
+    }
+
+    if (consensus == ""){ //that's typically if there are too few reads to consensus
+        return backbone;
     }
 
 
@@ -534,7 +392,7 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
                     // partitions[p].print();
                     // Partition(snps[position]).print();
                 }
-                if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > 10){
+                if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > min(10.0, 0.3*partitions[p].size())){
                     partitions[p].augmentPartition(dis.partition_to_augment);
                     // if (p == 0 && dis.partition_to_augment[90] !=0){
                     //     for (auto c : snps[position]){cout << c;} cout << endl;
@@ -552,7 +410,6 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
                 else{
                     distances[p].distance = 1;
                 }
-                
             }
 
             if (!found){
@@ -709,12 +566,14 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
         listOfFinalPartitions.push_back(p);
     }
 
-    cout << "I end up with " << listOfFinalPartitions.size() << " partitions, deduced from " << partitions.size() << endl; 
-    cout  << "I have " << numberOfSuspectPostion << " suspect positions, and " << listOfFinalPartitions[0].getPartition().size() << " reads " << endl;
+    // cout << "I end up with " << listOfFinalPartitions.size() << " partitions, deduced from " << partitions.size() << endl; 
+    // cout << "I have " << numberOfSuspectPostion << " suspect positions, and " << listOfFinalPartitions[0].getPartition().size() << " reads " << endl;
     
     //now aggregate all those binary partitions in one final partition. There could be up to 2^numberBinaryPartitions final groups
-    vector<short> finalClusters = threadHaplotypes(listOfFinalPartitions);
+    vector<short> threadedClusters = threadHaplotypes(listOfFinalPartitions);
 
+    //rescue reads that have not been assigned to a cluster
+    vector<short> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
 
     return finalClusters;
 
@@ -1192,8 +1051,8 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
     
     vector <float> strengthOfPartitions;
     for (auto p : listOfFinalPartitions){
-        cout << "informative partition : " << endl;
-        p.print();
+        // cout << "informative partition : " << endl;
+        // p.print();
         double conf = 1;
         int numberReads = 0;
         auto mores = p.getMore();
@@ -1205,7 +1064,7 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
             }   
 
         }
-        cout << numberReads << " " << exp(log(conf)/numberReads) << " " << pow(1/(1-exp(log(conf)/numberReads)), 2)*p.number() << endl;
+        // cout << numberReads << " " << exp(log(conf)/numberReads) << " " << pow(1/(1-exp(log(conf)/numberReads)), 2)*p.number() << endl;
         strengthOfPartitions.push_back(pow(1/(1-exp(log(conf)/numberReads)), 2)*p.number());
     }
 
@@ -1262,7 +1121,7 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
             }
             id = int(id / 2);
         }
-        cout << "group " << group.first << " is expected " << numberOfAssignedReads*proba << " times and arrives " << group.second << " times " << endl;
+        // cout << "group " << group.first << " is expected " << numberOfAssignedReads*proba << " times and arrives " << group.second << " times " << endl;
         listOfLikelihoods.push_back(float(group.second-numberOfAssignedReads*proba) / group.second);
     }
 
@@ -1347,7 +1206,7 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
         }
     }
 
-    // cout << "Res : ";
+    // cout << "Res of thread haplotypes: ";
     // for (auto i : res){
     //     cout << i << ",";
     // }
@@ -1356,3 +1215,93 @@ vector<short> threadHaplotypes(vector<Partition> &listOfFinalPartitions){
     return res;
 
 }
+
+vector<short> rescue_reads(vector<short> &threadedClusters, vector<vector<char>> &snps, vector<size_t> &suspectPostitions){
+
+    cout << "Rescuing reads" << endl;
+    auto numberOfClusters = *std::max_element(threadedClusters.begin(), threadedClusters.end());
+
+    robin_hood::unordered_flat_map<char, short> bases2content;
+    bases2content['A'] = 0;
+    bases2content['C'] = 1; 
+    bases2content['G'] = 2;
+    bases2content['T'] = 3;
+    bases2content['-'] = 4;
+    bases2content['?'] = 5;
+
+    //create a vector counting for each read what cluster fits best
+    vector<vector<int>> bestClusters (threadedClusters.size(), vector<int> (numberOfClusters+1, 0));
+
+    //now iterate through the suspect positions
+    for (auto position : suspectPostitions){
+
+        //look at what base is normal for each cluster
+        vector<vector<int>> basesForEachCluster(numberOfClusters+1, vector<int> (5, 0));
+        for (auto r = 0 ; r < snps[position].size() ; r++){
+            if (threadedClusters[r] != -1 && snps[position][r] != '?'){
+                basesForEachCluster[threadedClusters[r]][bases2content[snps[position][r]]] += 1;
+            }
+        }
+
+        vector<char> clusterBase (numberOfClusters+1, 0);
+        bool sure = true; //bool marking if all cluster agree within themselves
+        for (auto c = 0 ; c < clusterBase.size() ; c++){
+            char bestBase = 'A';
+            int bestBaseNb = basesForEachCluster[c][0];
+            int totalBaseNb = basesForEachCluster[c][0];
+            for (auto b = 1 ; b < 5 ; b++){
+                int thisBaseNb = basesForEachCluster[c][b]; 
+                totalBaseNb += thisBaseNb;
+                if (thisBaseNb > bestBaseNb){
+                    bestBaseNb = thisBaseNb;
+                    bestBase = "ACGT-"[b];
+                }
+            }
+            clusterBase[c] = bestBase;
+            if (float(bestBaseNb)/totalBaseNb < 0.8){
+                sure = false;
+                break; //this position is not worth looking at
+            }
+        }
+
+        //now each cluster has its base, let's update bestClusters
+        if (sure){
+            for (auto r = 0 ; r < snps[position].size() ; r++){ //update each read
+                for (auto c = 0 ; c < numberOfClusters+1 ; c++){
+                    if (snps[position][r] == clusterBase[c]){
+                        bestClusters[r][c] += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    //now for each read we know at how many positions it agrees with each cluster : find best cluster
+    vector<short> newClusters (threadedClusters.size(), -1);
+    for (auto r = 0 ; r < newClusters.size() ; r++){
+
+        // if (threadedClusters[r] == 0){
+        //     cout << "let's see what read " << r << " looks like " << endl;
+        //     for (auto cl : bestClusters[r]) {cout << cl << ",";} cout << endl;
+        // }
+
+        auto maxIterator = std::max_element(bestClusters[r].begin(), bestClusters[r].end());
+        if (*maxIterator > 0){
+            newClusters[r] = std::distance(bestClusters[r].begin() , maxIterator );
+        }
+        // else {
+        //     cout << "wow, this read has 0 positions, sad sad sad " << r << endl;
+        // }
+    }
+
+    return newClusters;
+}
+
+
+
+
+
+
+
+
+
