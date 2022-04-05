@@ -40,7 +40,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         //524, 67
-        if (allreads[read].neighbors_.size() > 5 && index == 189){
+        if (allreads[read].neighbors_.size() > 5){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
 
@@ -525,21 +525,20 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
 
     */
 
-    float threshold = max(4.0, min(0.1*numberOfSuspectPostion, 0.001*snps.size()));
-
-    // cout << "Here are all the partitions : " << endl;
-    // for (auto p : partitions){
-    //     p.print();
-    // }
-    // cout << "threshold : " << threshold << endl;
+    float threshold =  max(4.0, min(0.01*numberOfSuspectPostion, 0.001*snps.size()));
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
+
+        // if (partitions[p1].number() > 5){
+        //     cout << "non informative partition : "  << threshold << " " << numberOfSuspectPostion << " " << snps.size()<< endl;
+        //     partitions[p1].print();
+        // }
         
         if (partitions[p1].number() > threshold && partitions[p1].isInformative(meanDistance/2, true)){
 
-            cout << "informative partition 2 : " << endl;
-            partitions[p1].print();
+            // cout << "informative partition 2 : " << endl;
+            // partitions[p1].print();
 
             bool different = true;
             for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
@@ -1220,6 +1219,10 @@ vector<short> rescue_reads(vector<short> &threadedClusters, vector<vector<char>>
 
     cout << "Rescuing reads" << endl;
     auto numberOfClusters = *std::max_element(threadedClusters.begin(), threadedClusters.end());
+
+    if (numberOfClusters == 0){
+        return vector<short> (threadedClusters.size(), 0);
+    }
 
     robin_hood::unordered_flat_map<char, short> bases2content;
     bases2content['A'] = 0;
