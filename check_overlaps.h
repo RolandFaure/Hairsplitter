@@ -23,11 +23,12 @@ struct distancePartition{
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, std::vector<std::vector<short>> &partitions, bool assemble_on_assembly);
 
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly);
+std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads);
 
 std::vector<short>  separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, float minDistance);
 
 distancePartition distance(Partition &par1, std::vector<char> &par2);
-bool distance(Partition &par1, Partition &par2, float thresholdChi, int threshold_p);
+distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
 
 std::vector<short> threadHaplotypes(std::vector<Partition> &listOfFinalPartitions);

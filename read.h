@@ -31,7 +31,7 @@ public:
 
     void add_overlap(long int o);
     size_t size();
-    void new_backbone(std::pair<int, short> pair, size_t size);
+    void new_backbone(std::pair<int, int> pair, size_t size);
     std::vector <long int> neighbors_; //list of long int referring to indices in allOverlaps
 
 //private :

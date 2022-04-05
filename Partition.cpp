@@ -203,7 +203,7 @@ void Partition::mergePartition(Partition p){
 
     for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
         if (mostFrequentBases[c] == 0){
-            mostFrequentBases[c] = other[c];
+            mostFrequentBases[c] = other[c]*phased;
             moreFrequence[c] = moreOther[c];
             lessFrequence[c] = lessOther[c];
         }
@@ -302,5 +302,10 @@ float Partition::proportionOf1(){
             n0++;
         }
     }
-    return n1/(n1+n0);
+    if (n1+n0 > 0){
+        return n1/(n1+n0);
+    }
+    else{
+        return 0.5;
+    }
 }

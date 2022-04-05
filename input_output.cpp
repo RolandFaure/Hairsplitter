@@ -175,7 +175,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
     }
 
 
-    vector<bool> backbonesReads (allreads.size(), computeBackbones); //for now all reads can be backbones read, they will be filtered afterward
+    vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
 
     string line;
 
@@ -185,10 +185,12 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         std::istringstream line2(line);
 
         unsigned long int sequence1 = 10000;
+        string name1;
         int pos1_1= -1;
         int pos1_2= -1;
         int length1= -1;
         unsigned long int sequence2= 100000;
+        string name2;
         int pos2_1= -1;
         int pos2_2= -1;
         int length2= -1;
@@ -202,6 +204,13 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             if (fieldnumber == 0){
                 try{
                     sequence1 = indices[field];
+                    std::istringstream line3(field);
+                    string unit;
+                    while(getline(line3, unit, ' ')){
+                        name1 = unit;
+                        break;
+                    }
+
                 }
                 catch(...){
                     cout << "There is a sequence in the PAF I did not find in the fasta: " << field << endl;
@@ -223,6 +232,12 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             else if (fieldnumber == 5){
                 try{
                     sequence2 = indices[field];
+                    std::istringstream line3(field);
+                    string unit;
+                    while(getline(line3, unit, ' ')){
+                        name2 = unit;
+                        break;
+                    }
                 }
                 catch(...){
                     cout << "There is a sequence in the PAF I did not find in the fasta/q:" << field << ":" << endl;
@@ -249,7 +264,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             float limit1 = float(pos1_2-pos1_1)/2;
             float limit2 = float(pos2_2-pos2_1)/2;
             if (positiveStrand){
-                if (pos1_1  < limit1){
+                if (pos1_1  < limit1){ 
                     if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
                         fullOverlap = true;
                     }
@@ -273,7 +288,9 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 }
             }
             
-
+            // if (name1 == "2_@DRR198813.15575"){
+            //     cout << "reading overlap with 2_@DRR198813.15575 : " << fullOverlap << " " << length1 << " " << pos1_1 << " " << pos1_2 << endl;
+            // }
             //add the overlap if it's a full overlap
 
             if (fullOverlap){
@@ -297,7 +314,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 allOverlaps.push_back(overlap);
 
                 //now take care of backboneReads: two overlapping reads cannot both be backbone
-                if (backbonesReads[sequence1] && backbonesReads[sequence2] && computeBackbones){
+                if (backbonesReads[sequence1] && backbonesReads[sequence2] && pos1_2-pos1_1 > 0.5*min(length1, length2)){
                     if (allreads[sequence1].sequence_.size() < allreads[sequence2].sequence_.size()){
                         backbonesReads[sequence1] = false;
                     }
@@ -462,6 +479,7 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
     }
 
     string line;
+    int numberOfNotBb = 0;
 
     while(getline(in, line)){
 
@@ -559,8 +577,8 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 
         //now that we have the two sequences, check if they were partitionned separately
         bool goodOverlap = true;
+        bool commonBackbone = false;
         if (allgood){
-
 
             for (int backbone1 = 0 ; backbone1 < allreads[sequence1].backbone_seq.size() ; backbone1 ++){
                 // if ("1_@SRR8184499.1.4916" == name1){
@@ -571,6 +589,7 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 
                     int backbone = allreads[sequence1].backbone_seq[backbone1].first;
                     if (backbone == allreads[sequence2].backbone_seq[backbone2].first){ //then they lean on the same backbone read
+                        commonBackbone = true;
                         if (name1[0] == name2[0]){
                             if (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
                             != partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]){
@@ -604,17 +623,42 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
                             //     goodOverlap = false;
                             // }
                         }
+                        else if  (partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] 
+                            == partitions[backbone][allreads[sequence1].backbone_seq[backbone1].second]
+                                && partitions[backbone][allreads[sequence2].backbone_seq[backbone2].second] != -1){
+                                goodOverlap = true;
+                                // cout << "good overlap : " << name1 << " " << name2 << endl;
+                        }
 
                     }
                 }
             }
+
+            // if (!commonBackbone){
+            //     cout << "no common backbones : " << name1 << " and " << name2 << endl;
+            // }
         }
+        
+        // fullOverlap = true;
+        // if (!(goodOverlap && fullOverlap) && name1[0] == name2[0]){
+        //     cout << name1 << " and " << name2 << endl;
+        //     cout << "reason : " << goodOverlap << " " << fullOverlap << " " << commonBackbone << endl;
+        // }
+        // else if (goodOverlap && fullOverlap && name1[0] != name2[0]){
+        //     cout << name1 << " and " << name2 << endl;
+        //     cout << "reason : " << goodOverlap << " " << fullOverlap << " " << commonBackbone << endl;
+        // }
+
+
+        if (!commonBackbone){
+            numberOfNotBb++;
+        }
+
         if (goodOverlap && fullOverlap){
             out << line << endl;
         }
-
     }
-
+    // cout << "number of non-common overlaps : " << numberOfNotBb << endl;
 }
 
 void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters, std::string fileOut){

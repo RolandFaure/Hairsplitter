@@ -17,6 +17,8 @@ using std::vector;
 using namespace std::chrono;
 using namespace clipp;
 
+//../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
+
 int main(int argc, char *argv[])
 {
 
