@@ -40,9 +40,9 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         //524, 67
-        if (allreads[read].neighbors_.size() > 5){
+        if (allreads[read].neighbors_.size() > 5 && index == 63){
 
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << endl;
+            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
             vector<vector<char>> snps;  //vector containing list of position, with SNPs at each position
             //first build an MSA
@@ -72,16 +72,12 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 //outputs : the precise alignment of all reads against input read in the form of matrix snps, return the mean editDistance/lengthOfAlginment
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<std::vector<char>> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly){
 
-    //cout << "neighbors of read " << read << " : " << allreads[read].neighbors_.size() << endl;
+    // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
 
     //keep count of the distance between two reads to know the mean distance
     float totalDistance = 0;
     double totalLengthOfAlignment = 0;
-
-    //while all the alignments are computed, build the positions
-    robin_hood::unordered_map<int, int> insertionPos;
-    vector<int> numberOfInsertionsHere (allreads[read].size(), 0);
     
     //first enter the sequence of the read in snps, if the backbone read is a read, not if it's a contig
 
@@ -139,6 +135,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
+        // cout << "overlap : " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " "
+        //     << overlap.position_2_2 << endl;
         if (overlap.sequence1 == read){
             // cout << "Neighbor of " << allreads[overlap.sequence1].name << " : " << allreads[overlap.sequence2].name << endl;
             allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
@@ -162,11 +160,17 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
 
     string consensus = consensus_reads(read_str , polishingReads);
+    cout << "Done building a consensus of the backbone" << endl;
 
-    polishingReads.push_back(read_str); //now we'll use polishingReads as the list of reads aligning on the consensus
+    if (!assemble_on_assembly){
+        polishingReads.push_back(read_str); //now we'll use polishingReads as the list of reads aligning on the consensus
+    }
     snps = vector<vector<char>>(consensus.size(), vector<char>(polishingReads.size(), '?'));
 
-    
+    //while all the alignments are computed, build the positions
+    robin_hood::unordered_map<int, int> insertionPos;
+    vector<int> numberOfInsertionsHere (consensus.size()+1, 0);
+
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
@@ -174,8 +178,12 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         EdlibAlignResult result = edlibAlign(polishingReads[n].c_str(), polishingReads[n].size(), consensus.c_str(), consensus.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
+    
         totalLengthOfAlignment += result.alignmentLength;
         totalDistance += result.editDistance;
+        // cout << "Alignment distance : " << float(result.editDistance)/result.alignmentLength << endl;
+
+        // if (n == 10) {break;}
 
         //a loop going through the CIGAR and modifyning snps
         char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
@@ -188,10 +196,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         // if (n == 169){
         // for (int i = 0; i < result.alignmentLength; i++){cout << moveCodeToChar[result.alignment[i]];} cout << endl;}
 
+        
         for (int i = 0; i < result.alignmentLength; i++) {
-            // if (indexQuery > consensus.size()){
-                // cout << "problem : " << indexQuery << endl;
-            // }
+
             if (moveCodeToChar[result.alignment[i]] == '=' || moveCodeToChar[result.alignment[i]] == 'X'){
                 snps[indexQuery][n] = polishingReads[n][indexTarget];
                 indexQuery++;
@@ -204,10 +211,10 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                 numberOfInsertionsThere = 0;
             }
             else if (moveCodeToChar[result.alignment[i]] == 'I'){ //hardest one
-                if (numberOfInsertionsHere[indexQuery] < 99) {
+                if (numberOfInsertionsHere[indexQuery] < 9999) {
 
                     if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
-                        insertionPos[100*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
+                        insertionPos[10000*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
                         numberOfInsertionsHere[indexQuery] += 1;
                         vector<char> newInsertedPos(snps[0].size(), '-');
                         for (auto re = 0 ; re < newInsertedPos.size() ; re++){
@@ -219,30 +226,39 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                         snps[snps.size()-1][n] = polishingReads[n][indexTarget];
                     }
                     else{
-                        snps[insertionPos[100*indexQuery+numberOfInsertionsThere]][n] = polishingReads[n][indexTarget];
+                        snps[insertionPos[10000*indexQuery+numberOfInsertionsThere]][n] = polishingReads[n][indexTarget];
                     }
                     numberOfInsertionsThere ++;
                 }
                 indexTarget++;
             }
+
+            for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead onf '?'
+                snps[insertionPos[10000*indexQuery+ins]][n] = '-';
+            }
         }
+
+        // cout << "index target : " << indexTarget<< endl;
+        // cout << "index query : " << indexQuery << endl;
+        // cout << "consensus length : " << consensus.size() << endl;
+        
         edlibFreeAlignResult(result);
     }
     
-    
     //print snps (just for debugging)
     // int step = 1;
-    // int numberOfReads = 100;
-    // int start = 50;
-    // int end = 120;
+    // int numberOfReads = 10;
+    // int start = 100;
+    // int end = 150;
     // vector<string> reads (min(int(snps[0].size()), numberOfReads));
+    // string cons = "";
     // for (unsigned short i = start ; i < end; i++){
         
     //     for (short n = 0 ; n < min(int(snps[0].size()), numberOfReads*step) ; n+= step){
     //         reads[n/step] += snps[i][n];
     //     }
-    //     for (short insert = 0 ; insert < min(99,numberOfInsertionsHere[i]) ; insert++ ){
-    //         auto snpidx = insertionPos[100*i+insert];
+    //     for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+    //         auto snpidx = insertionPos[10000*i+insert];
     //         for (short n = 0 ; n < min(int(snps[0].size()), numberOfReads*step) ; n+= step){
     //             reads[n/step] += snps[snpidx][n];
     //         }
@@ -251,13 +267,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     // cout << "Here are the aligned reads : " << endl;
     // int index = 0;
     // for (auto neighbor : reads){
-    //     if ((index == 3 || index == 13 || index == 16 || index == 21)){
+    //     // if (neighbor[0] != '?'){
     //         cout << neighbor << " " << index  << endl;
-    //     }
+    //     // }
     //     index++;
     // }
-    // for (unsigned short i = start ; i < end; i++){cout << snps[i][1];} cout << endl;
-    // for (unsigned short i = start ; i < end; i++){cout << snps[i][snps[0].size()-1];} cout << endl;
 
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     return totalDistance/totalLengthOfAlignment;
@@ -270,7 +284,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 //function using Racon to consensus all reads
 string consensus_reads(string &backbone, vector <string> &polishingReads){
     
-    system("mkdir tmp/ 2>tmp/trash.txt");
+    system("mkdir tmp/ 2> trash.txt");
     std::ofstream outseq("tmp/unpolished.fasta");
     outseq << ">seq\n" << backbone;
     outseq.close();
@@ -300,8 +314,8 @@ string consensus_reads(string &backbone, vector <string> &polishingReads){
 
     //racon tends to drop the ends of the sequence, so attach them back.
     //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
-    auto before_size = 500;
-    auto after_size = 250;
+    auto before_size = min(size_t(500), backbone.size());
+    auto after_size = min(size_t(250), consensus.size());
 
     // Do the alignment for the beginning of the sequence.
     string before_start = backbone.substr(0,before_size);
@@ -530,7 +544,7 @@ vector<short> separate_reads(long int read, std::vector <Overlap> &allOverlaps, 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
 
-        // if (partitions[p1].number() > 5){
+        // if (partitions[p1].number() > 2){
         //     cout << "non informative partition : "  << threshold << " " << numberOfSuspectPostion << " " << snps.size()<< endl;
         //     partitions[p1].print();
         // }

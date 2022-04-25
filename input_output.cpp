@@ -109,17 +109,16 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
 
     string line;
     vector<string> buffer;
+    string sequence= "";
+    string nameOfSequence = "";
 
     while(getline(in, line)){
 
         if (line[0] == format && buffer.size() > 0){
-            //then first we append the last read we saw
-            Read r(buffer[1]);
-            backbone_reads.push_back(sequenceID);
-            allreads.push_back(r);
+            
 
-            ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
-            string nameOfSequence = "";
+            //compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
+            nameOfSequence = "";
             for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
                 if (buffer[0][i] == ' '){
                     break;
@@ -129,27 +128,30 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 }
             }
 
-            ///link the minimap name to the index in allreads
+            //then first we append the last read we saw
+            Read r(sequence);
+            r.name = nameOfSequence;
+            backbone_reads.push_back(sequenceID);
+            allreads.push_back(r);
+
+            //link the minimap name to the index in allreads
             indices[nameOfSequence] = sequenceID;
             sequenceID++;
 
             //then we reset the buffer
             buffer = {line};
+            sequence = "";
         }
         else {
             buffer.push_back(line);
+            sequence.append(line);
         }
 
     }
 
     //now append the last read
-    Read r(buffer[1]);
-    backbone_reads.push_back(allreads.size());
-    allreads.push_back(r);
-
-
     ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
-    string nameOfSequence = "";
+    nameOfSequence = "";
     for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
         if (buffer[0][i] == ' '){
             break;
@@ -158,6 +160,10 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
             nameOfSequence.push_back(buffer[0][i]);
         }
     }
+    Read r(sequence);
+    r.name = nameOfSequence;
+    backbone_reads.push_back(allreads.size());
+    allreads.push_back(r);
     ///link the minimap name to the index in allreads
     indices[nameOfSequence] = sequenceID;
     sequenceID++;
