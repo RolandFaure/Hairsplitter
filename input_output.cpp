@@ -470,7 +470,7 @@ void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::
 
 //input : original file of overlaps, allreads and partitions
 //output : the same file of overlaps, but with all spurious overlap filtered out
-void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<std::vector<short>> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices){
+void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<std::vector<int>> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices){
 
     ifstream in(fileIn);
     if (!in){

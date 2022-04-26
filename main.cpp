@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
             cout << "Parsing alignments..." << endl;
             parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
 
-            vector<vector<short>> partitions;
+            vector<vector<int>> partitions;
             checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, false);
             cout << "Finished checking overlaps, now outputting" << endl;
 
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
             parse_assembly(refFile, allreads, indices, backbone_reads);
             parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
 
-            vector<vector<short>> partitions;
+            vector<vector<int>> partitions;
             cout << "Checking overlaps" << endl;
             checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true);
             cout << "Finished checking, now outputting" << endl;

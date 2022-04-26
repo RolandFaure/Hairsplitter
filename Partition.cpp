@@ -8,6 +8,7 @@ using std::vector;
 using std::string;
 using std::cout;
 using std::endl;
+using std::list;
 using std::vector;
 using std::min;
 using std::max;
@@ -25,7 +26,9 @@ Partition::Partition(int size){
     numberOfOccurences = 0;
 }
 
-Partition::Partition(vector<char> & snp){
+Partition::Partition(Column& snp){
+
+    readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
     robin_hood::unordered_flat_map<char, short> bases2content;
     bases2content['A'] = 0;
@@ -36,9 +39,9 @@ Partition::Partition(vector<char> & snp){
     bases2content['?'] = 5;
 
     int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '-'
-    for (int c = 0 ; c < snp.size() ; c++){
-        if (snp[c] != '?'){
-            content[bases2content[snp[c]]] += 1;
+    for (int c = 0 ; c < snp.content.size() ; c++){
+        if (snp.content[c] != '?'){
+            content[bases2content[snp.content[c]]] += 1;
         }
     }
 
@@ -65,11 +68,11 @@ Partition::Partition(vector<char> & snp){
         }
     }
 
-    for (auto i = 0 ; i < snp.size() ; i++){
-        if (snp[i] == mostFrequent2){
+    for (auto i = 0 ; i < snp.content.size() ; i++){
+        if (snp.content[i] == mostFrequent2){
             mostFrequentBases.push_back(1); 
         }
-        else if (snp[i] == secondFrequent2){
+        else if (snp.content[i] == secondFrequent2){
             mostFrequentBases.push_back(-1);
         }
         else{
@@ -120,66 +123,172 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
 
 }
 
-//input : a new partition to add to the consensus (the partition must be well-phased)
+//input : a new partition to add to the consensus (the partition must be well-phased in 'A' and 'a')
 //output : updated consensus partition
-//WARNING : the input partition must be of the same size as the consensus partition
-void Partition::augmentPartition(vector<short>& supplementaryPartition){
+void Partition::augmentPartition(Column& supplementaryPartition){
 
-    for (auto read = 0 ; read < mostFrequentBases.size() ; read++){
-        if (supplementaryPartition[read] != 0){
-            if (mostFrequentBases[read] == 0){ //the new partition gives some new position
-                mostFrequentBases[read] = supplementaryPartition[read];
-                moreFrequence[read] += 1;
+    auto it1 = readIdx.begin();
+    vector<int> idxs1_2;
+    vector<short> mostFrequentBases_2;
+    vector<int> moreFrequence_2;
+    vector<int> lessFrequence_2;
+
+    int n1 = 0;
+    int n2 = 0;
+    for (auto read : supplementaryPartition.readIdxs){
+        while(*it1 < read && it1 != readIdx.end()){ //positions that existed in the old partitions that are not found here
+            mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+            moreFrequence_2.push_back(moreFrequence[n1]);
+            lessFrequence_2.push_back(lessFrequence[n1]);
+            idxs1_2.push_back(*it1);
+            it1++;
+            n1++;
+        }
+        short s = 0;
+        if (supplementaryPartition.content[n2] == 'a'){s=-1;}
+        if (supplementaryPartition.content[n2] == 'A'){s=1;}
+        if (*it1 != read){ //then this is a new read
+            n1--; //because you're doing n1++ further down
+            if (s == 1){
+                mostFrequentBases_2.push_back(1);
+                moreFrequence_2.push_back(1);
+                lessFrequence_2.push_back(0);
+                idxs1_2.push_back(read);
             }
-            else if (supplementaryPartition[read] == mostFrequentBases[read]){ //the new partition agrees
-                moreFrequence[read] += 1;
-            }
-            else{ //the new partition disagrees
-                lessFrequence[read] += 1;
-                if (lessFrequence[read] > moreFrequence[read]){ //then the consensus has changed !
-                    lessFrequence[read] -= 1;
-                    mostFrequentBases[read] *= -1;
-                    moreFrequence[read] += 1;
-                }
+            else if (s == -1){
+                mostFrequentBases_2.push_back(-1);
+                moreFrequence_2.push_back(1);
+                lessFrequence_2.push_back(0);
+                idxs1_2.push_back(read);
             }
         }
+        else{ //we're looking at a read that is both old and new
+            if (s == 0){ //the new partition does not brign anything
+                mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+                moreFrequence_2.push_back(moreFrequence[n1]);
+                lessFrequence_2.push_back(lessFrequence[n1]);
+            }
+            else if (mostFrequentBases[n1] == 0){ //no information on previous partition
+                mostFrequentBases_2.push_back(s);
+                moreFrequence_2.push_back(1);
+                lessFrequence_2.push_back(0);
+            }
+            else if (s == mostFrequentBases[n1]){ //both partitions agree
+                mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+                moreFrequence_2.push_back(moreFrequence[n1]+1);
+                lessFrequence_2.push_back(lessFrequence[n1]);
+            }
+            else if (s == -mostFrequentBases[n1]) { //the new partitions disagrees
+                if (lessFrequence[n1]+1 > moreFrequence[n1]){ //then the consensus has changed !
+                    mostFrequentBases_2.push_back(-mostFrequentBases[n1]);
+                    moreFrequence_2.push_back(moreFrequence[n1]+1);
+                    lessFrequence_2.push_back(lessFrequence[n1]);
+                }
+                else{
+                    mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+                    moreFrequence_2.push_back(moreFrequence[n1]);
+                    lessFrequence_2.push_back(lessFrequence[n1]+1);
+                }
+            }
+            idxs1_2.push_back(read);
+            it1++;
+        }
+        n1++;
+        n2++;
     }
+
+    mostFrequentBases = mostFrequentBases_2;
+    moreFrequence = moreFrequence_2;
+    lessFrequence = lessFrequence_2;
+    readIdx = idxs1_2;
     numberOfOccurences += 1;
 }
 
 //input : another partition to be merged into this one and short phased (worth 1 or -1) (are the 0 in front of the 0 or the 1 ?)
 //output : updated consensus partition
-//WARNING like above, the two partitions must be the same size
-void Partition::mergePartition(Partition p, short phased){
+void Partition::mergePartition(Partition &p, short phased){
 
     auto moreOther = p.getMore();
     auto lessOther = p.getLess();
 
     auto other = p.getPartition();
+    auto idx2 = p.getReads();
 
-    for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
-        if (mostFrequentBases[c] == 0){
-            mostFrequentBases[c] = other[c];
-            moreFrequence[c] = moreOther[c];
-            lessFrequence[c] = lessOther[c];
-        }
-        else if (phased*other[c] == mostFrequentBases[c]){ //the two partitions agree
-            moreFrequence[c] += moreOther[c];
-            lessFrequence[c] += lessOther[c];
-        }
-        else if (phased*other[c] != mostFrequentBases[c]){ //the two partitions disagree
-            moreFrequence[c] += lessOther[c];
-            lessFrequence[c] += moreOther[c];
+    vector<int> newIdx;
+    vector<short> newMostFrequent;
+    vector<int> newMoreFrequence;
+    vector<int> newLessFrequence;
 
-            //then the most popular base may have changed
-            if (lessFrequence[c] > moreFrequence[c]){
-                mostFrequentBases[c] *= -1;
-                auto stock = moreFrequence[c];
-                moreFrequence[c] = lessFrequence[c];
-                lessFrequence[c] = stock;
+    int n1 = 0;
+    int n2 = 0;
+    while (n1 < readIdx.size() && n2 < idx2.size() ){
+        if (readIdx[n1] < idx2[n2]){
+            newIdx.push_back(readIdx[n1]);
+            newMostFrequent.push_back(mostFrequentBases[n1]);
+            newMoreFrequence.push_back(moreFrequence[n1]);
+            newLessFrequence.push_back(lessFrequence[n1]);
+            n1++;
+        }
+        else if (readIdx[n1] > idx2[n2]){
+            newIdx.push_back(idx2[n2]);
+            newMostFrequent.push_back(other[n2]);
+            newMoreFrequence.push_back(moreOther[n2]);
+            newLessFrequence.push_back(lessOther[n2]);
+            n2++;
+        }
+        else{ //the read is present on both partitions
+            newIdx.push_back(readIdx[n1]);
+            if (mostFrequentBases[n1] == 0){
+                newMostFrequent.push_back(other[n2]);
+                newMoreFrequence.push_back(moreOther[n2]);
+                newLessFrequence.push_back(lessOther[n2]);
             }
+            else if (other[n2] == 0){
+                newMostFrequent.push_back(mostFrequentBases[n1]);
+                newMoreFrequence.push_back(moreFrequence[n1]);
+                newLessFrequence.push_back(lessFrequence[n1]);
+            }
+            else if (phased*other[n2] == mostFrequentBases[n1]){ //the two partitions agree
+                newMostFrequent.push_back(mostFrequentBases[n1]);
+                newMoreFrequence.push_back(moreFrequence[n1]+moreOther[n2]);
+                newLessFrequence.push_back(lessFrequence[n1]+lessOther[n2]);
+            }
+            else if (phased*other[n2] != mostFrequentBases[n1]){ //the two partitions disagree
+                newMostFrequent.push_back(mostFrequentBases[n1]);
+                newMoreFrequence.push_back(moreFrequence[n1]+moreOther[n2]);
+                newLessFrequence.push_back(lessFrequence[n1]+lessOther[n2]);
+
+                //then the most popular base may have changed
+                if (newLessFrequence[newLessFrequence.size()-1] > newMoreFrequence[newMoreFrequence.size()-1] ){
+                    newMostFrequent[newMostFrequent.size()-1] *= -1;
+                    auto stock = newMoreFrequence[newMoreFrequence.size()-1];
+                    newMoreFrequence[newMoreFrequence.size()-1] = newLessFrequence[newLessFrequence.size()-1];
+                    newLessFrequence[newLessFrequence.size()-1] = stock;
+                }
+            }
+            n1++;
+            n2++;
         }
     }
+    while (n2 < idx2.size()){
+        newIdx.push_back(idx2[n2]);
+        newMostFrequent.push_back(other[n2]);
+        newMoreFrequence.push_back(moreOther[n2]);
+        newLessFrequence.push_back(lessOther[n2]);
+        n2++;
+    }
+    while (n1 < readIdx.size()){
+        newIdx.push_back(readIdx[n1]);
+        newMostFrequent.push_back(mostFrequentBases[n1]);
+        newMoreFrequence.push_back(moreFrequence[n1]);
+        newLessFrequence.push_back(lessFrequence[n1]);
+        n1++;
+    }
+
+    readIdx = newIdx;
+    mostFrequentBases = newMostFrequent;
+    lessFrequence = newLessFrequence;
+    moreFrequence = newMoreFrequence;
 
     numberOfOccurences += p.number();
 }
@@ -187,50 +296,43 @@ void Partition::mergePartition(Partition p, short phased){
 //input : another partition to be merged into this one
 //output : updated consensus partition
 //WARNING like above, the two partitions must be the same size
-void Partition::mergePartition(Partition p){
+void Partition::mergePartition(Partition &p){
 
     auto moreOther = p.getMore();
     auto lessOther = p.getLess();
 
     auto other = p.getPartition();
+    auto idx2 = p.getReads();
 
     //first determine the phase between the two partitions
-    float phase = 0.01;
-    for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
-        phase += mostFrequentBases[c]*other[c]; //going toward + if phased, toward - if unphased
+    int n1 = 0;
+    int n2 = 0;
+    float phase = 0.01; //not 0 to be sure phase is not 0 at the end (by default we choose +1 for phased)
+    while (n1<readIdx.size() && n2 < idx2.size()){
+        if (readIdx[n1] < idx2[n2]){
+            n1++;
+        }
+        else if (readIdx[n1] > idx2[n2]){
+            n2++;
+        }
+        else{
+            phase += mostFrequentBases[n1]*other[n2];
+            n1++;
+            n2++;
+        }
     }
     auto phased = phase / std::abs(phase);
 
-    for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
-        if (mostFrequentBases[c] == 0){
-            mostFrequentBases[c] = other[c]*phased;
-            moreFrequence[c] = moreOther[c];
-            lessFrequence[c] = lessOther[c];
-        }
-        else if (phased*other[c] == mostFrequentBases[c]){ //the two partitions agree
-            moreFrequence[c] += moreOther[c];
-            lessFrequence[c] += lessOther[c];
-        }
-        else if (phased*other[c] == -mostFrequentBases[c]){ //the two partitions disagree
-            moreFrequence[c] += lessOther[c];
-            lessFrequence[c] += moreOther[c];
-
-            //then the most popular base may have changed
-            if (lessFrequence[c] > moreFrequence[c]){
-                mostFrequentBases[c] *= -1;
-                auto stock = moreFrequence[c];
-                moreFrequence[c] = lessFrequence[c];
-                lessFrequence[c] = stock;
-            }
-        }
-    }
-
-    numberOfOccurences += p.number();
+    this->mergePartition(p, phased);
 }
 
 //returns the majoritary partition
 vector<short> Partition::getPartition(){
     return mostFrequentBases;
+}
+
+vector<int> Partition::getReads(){
+    return readIdx;
 }
 
 vector<float> Partition::getConfidence(){
@@ -261,34 +363,43 @@ int Partition::number(){
 }
 
 void Partition::print(){
-    for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
-        auto ch = mostFrequentBases[c];
-        if (moreFrequence[c] == 0){
-            cout << "o";
+
+    int c = 0;
+    int n = 0;
+    auto it = readIdx.begin();
+
+    while(it != readIdx.end()){
+        if (*it > c){
+            cout << "?";
         }
-        else if (float(moreFrequence[c])/(moreFrequence[c]+lessFrequence[c]) < 0.7){
-            cout << "!";
+        else{
+            auto ch = mostFrequentBases[n];
+            if (moreFrequence[n] == 0){
+                cout << "o";
+            }
+            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.7){
+                cout << "!";
+            }
+            else if (ch == 1){
+                cout << 1;
+            }
+            else if (ch == -1){
+                cout << 0;
+            }
+            else {
+                cout << '?';
+            }
+            it++;
+            n++;
         }
-        else if (ch == 1){
-            cout << 1;
-        }
-        else if (ch == -1){
-            cout << 0;
-        }
-        else {
-            cout << '?';
-        }
-        //cout << c << ",";
+        c++;
     }
+
     cout << " " << numberOfOccurences << endl;
     // for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
     //     cout << moreFrequence[c] << "/" << lessFrequence[c] << ";";
     // }
     // cout << endl;
-}
-
-int Partition::size(){
-    return mostFrequentBases.size();
 }
 
 float Partition::proportionOf1(){
