@@ -41,7 +41,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         
-        if (allreads[read].neighbors_.size() > 20 && allreads[read].name == "edge_131"){
+        if (allreads[read].neighbors_.size() > 20 && allreads[read].name == "edge_1"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -190,9 +190,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
-        cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\n";
+        cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
 
-        EdlibAlignResult result = edlibAlign(polishingReads[n].c_str(), polishingReads[n].size(), consensus.c_str(), consensus.size(),
+        EdlibAlignResult result = edlibAlign(polishingReads[n].c_str(), polishingReads[n].size(),
+                                    consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str(),
+                                    positionOfReads[n].second-positionOfReads[n].first,
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
     
@@ -204,7 +206,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
         //a loop going through the CIGAR and modifyning snps
         char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
-        int indexQuery = result.startLocations[0]; //query corresponds to read
+        int indexQuery = result.startLocations[0]+positionOfReads[n].first; //query corresponds to read
         int indexTarget = 0; //target corresponds to the consensus
         int numberOfInsertionsThere = 0;
 
@@ -244,7 +246,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                 numberOfInsertionsThere = 0;
             }
             else if (moveCodeToChar[result.alignment[i]] == 'I'){ //hardest one
-                if (numberOfInsertionsHere[indexQuery] < 9999 && indexQuery > 0) {
+                if (numberOfInsertionsHere[indexQuery] < 9999 && indexQuery > positionOfReads[n].first) {
 
                     if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
                         insertionPos[10000*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
@@ -276,8 +278,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //print snps (just for debugging)
     // int step = 1;
     // int numberOfReads = 10;
-    // int start = 00;
-    // int end = 50;
+    // int start = 1011;
+    // int end = 1060;
     // vector<string> reads (numberOfReads);
     // string cons = "";
     // for (unsigned short i = start ; i < end; i++){
@@ -293,29 +295,30 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //         }
     //         reads[n/step] += c;
     //     }
-    //     for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //         int snpidx = insertionPos[10000*i+insert];
-    //         for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //             char c = '?';
-    //             int ri = 0;
-    //             for (auto r : snps[snpidx].readIdxs){
-    //                 if (r == n){
-    //                     c = snps[snpidx].content[ri];
-    //                 }
-    //                 ri ++;
-    //             }
-    //             reads[n/step] += c;
-    //         }
-    //     }
+    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+    //     //     int snpidx = insertionPos[10000*i+insert];
+    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+    //     //         char c = '?';
+    //     //         int ri = 0;
+    //     //         for (auto r : snps[snpidx].readIdxs){
+    //     //             if (r == n){
+    //     //                 c = snps[snpidx].content[ri];
+    //     //             }
+    //     //             ri ++;
+    //     //         }
+    //     //         reads[n/step] += c;
+    //     //     }
+    //     // }
     // }
     // cout << "Here are the aligned reads : " << endl;
     // int index = 0;
     // for (auto neighbor : reads){
-    //     // if (neighbor[0] != '?'){
+    //     if (neighbor[0] != '?'){
     //         cout << neighbor << " " << index  << endl;
-    //     // }
+    //     }
     //     index++;
     // }
+    // cout << consensus.substr(start, end-start) << endl;
 
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     return totalDistance/totalLengthOfAlignment;
@@ -1105,8 +1108,6 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     return trimmedListOfFinalPartition;
 }
 
-
-
 //input : a list of all binary partitions found in the reads
 //output : a vector a big as the number of reads, where numbers correspond to groups of reads
 vector<int> threadHaplotypes2(vector<Partition> &listOfFinalPartitions, int numberOfReads){
@@ -1123,7 +1124,7 @@ vector<int> threadHaplotypes2(vector<Partition> &listOfFinalPartitions, int numb
     } customLess;
     std::sort(listOfFinalPartitions.begin(), listOfFinalPartitions.end(), customLess);
 
-    cout << "Here are all the partitions : " << endl;
+    cout << "Here are all the partitions, sorted : " << endl;
     for (auto p : listOfFinalPartitions){
         p.print();
     }

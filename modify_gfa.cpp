@@ -65,26 +65,30 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
             //now modify the gfa if there are more than two parts to the partition
             if (intervals.size() > 1){
 
+                //sort interval by first base
+                vector < pair<int, pair<int,int>> > intervals_vector (intervals.begin(), intervals.end());
+                std::sort(intervals_vector.begin(), intervals_vector.end(), [](pair<int, pair<int,int>>& lhs, pair<int, pair<int,int>>& rhs) {
+                    return lhs.second.first < rhs.second.first;
+                });
+
                 //first define the intervals where the contig needs splitting
                 vector <pair<pair<int,int>, set<int>>> splitIntervals;//associate all corresponding parts to the splitting interval
 
-                for (auto interval : intervals){
+                for (auto interval : intervals_vector){
                     bool found = false;
                     auto limits = interval.second;
+                    cout << "interval : " << limits.first << " " << limits.second << endl;
                     int s = 0;
                     for (auto splitInterval : splitIntervals){
-                        if (limits.first <= splitInterval.first.first && limits.second > splitInterval.first.first){
-                            found = true;
-                            splitIntervals[s].first.first = limits.first;
-                            splitIntervals[s].first.second = max(limits.second, splitInterval.first.second);
-                            splitIntervals[s].second.emplace(interval.first);
-                            break;
-                        }
-                        else if (limits.first <= splitInterval.first.second && limits.second > splitInterval.first.second){
+                        if (limits.first <= splitInterval.first.second && limits.second > splitInterval.first.second){
                             found = true;
                             splitIntervals[s].first.second = limits.second;
                             splitIntervals[s].second.emplace(interval.first);
                             break;
+                        }
+                        else if (limits.first <= splitInterval.first.second && limits.second <= splitInterval.first.second){
+                            found = true;
+                            splitIntervals[s].second.emplace(interval.first);
                         }
                         s++;
                     }
@@ -98,6 +102,12 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                 std::sort(splitIntervals.begin(), splitIntervals.end(), [](pair<pair<int,int>, set<int>>& lhs, pair<pair<int,int>, set<int>>& rhs) {
                     return lhs.first.first < rhs.first.first;
                 });
+
+                for (auto s : splitIntervals){
+                    cout << "Split interval : " << s.first.first << " " << s.first.second << " ; ";
+                    for (auto i : s.second){cout << i << " ";}
+                    cout << endl;
+                }
 
                 //now all intervals where contig need splitting are defined, let's create the new contigs ! 
                 //first, create hangingLinks, a list of links left of what we'll be building
