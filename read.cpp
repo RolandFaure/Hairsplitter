@@ -4,6 +4,12 @@ using std::vector;
 using std::cout;
 using std::endl;
 
+Read::Read()
+{
+    sequence_ = Sequence();
+    name = "";
+}
+
 Read::Read(std::string s)
 {
     sequence_ = Sequence(s);
@@ -30,4 +36,21 @@ void Read::new_backbone(std::pair<int, int> pair, size_t size){
         throw std::logic_error("Problem in backbone, too high neighbor index: ");
     }
 
+}
+
+void Read::add_link(size_t l, short end){
+    if (end == 0){
+        links_left.push_back(l);
+    }
+    else{
+        links_right.push_back(l);
+    }
+}
+
+std::vector<size_t> Read::get_links_left(){
+    return links_left;
+}
+
+std::vector<size_t> Read::get_links_right(){
+    return links_right;
 }

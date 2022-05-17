@@ -95,9 +95,8 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
 //input : file containing an assembly in fasta format
 //output : the contigs appended to the end of allreads and marked as backbones
-void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbone_reads){
-
-    char format = '>';
+void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices
+    , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks){
 
     ifstream in(fileAssembly);
     if (!in){
@@ -108,66 +107,88 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     long int sequenceID = allreads.size(); //counting the number of sequences we have already seen 
 
     string line;
-    vector<string> buffer;
-    string sequence= "";
     string nameOfSequence = "";
 
     while(getline(in, line)){
 
-        if (line[0] == format && buffer.size() > 0){
+        if (line[0] == 'S'){
             
+            string field;
+            std::istringstream line2(line);
+            int fieldNb = 0;
+            while(getline(line2, field, '\t')){
+                if (fieldNb == 1){ // name of the sequence
+                    nameOfSequence = field;
+                }
+                else if (fieldNb == 2){ //here is the sequence
+                    Read r(field);
+                    r.name = nameOfSequence;
+                    backbone_reads.push_back(sequenceID);
+                    allreads.push_back(r);
 
-            //compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
-            nameOfSequence = "";
-            for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
-                if (buffer[0][i] == ' '){
-                    break;
+                    //link the minimap name to the index in allreads
+                    indices[nameOfSequence] = sequenceID;
+                    sequenceID++;
                 }
-                else{
-                    nameOfSequence.push_back(buffer[0][i]);
-                }
+
+                fieldNb += 1;
             }
-
-            //then first we append the last read we saw
-            Read r(sequence);
-            r.name = nameOfSequence;
-            backbone_reads.push_back(sequenceID);
-            allreads.push_back(r);
-
-            //link the minimap name to the index in allreads
-            indices[nameOfSequence] = sequenceID;
-            sequenceID++;
-
-            //then we reset the buffer
-            buffer = {line};
-            sequence = "";
         }
-        else {
-            buffer.push_back(line);
-            sequence.append(line);
+
+        if (line[0] == 'L'){
+            
+            string field;
+            std::istringstream line2(line);
+            int fieldNb = 0;
+            Link link;
+            
+            try{
+                while(getline(line2, field, '\t')){
+                    if (fieldNb == 1){ // name of the sequence1
+                        link.neighbor1 = indices[field];
+                    }
+                    else if (fieldNb == 2){ //here is the sequence
+                        if (field == "+"){
+                            link.end1 = 1;
+                        }
+                        else if (field == "-"){
+                            link.end1 = 0;
+                        }
+                        else{
+                            cout << "Problem in reading the link : " << line << endl;
+                        }
+                    }
+                    else if (fieldNb == 3){ // name of the sequence1
+                        link.neighbor2 = indices[field];
+                    }
+                    else if (fieldNb == 4){ //here is the sequence
+                        if (field == "+"){
+                            link.end2 = 0;
+                        }
+                        else if (field == "-"){
+                            link.end2 = 1;
+                        }
+                        else{
+                            cout << "Problem in reading the link : " << line << endl;
+                        }
+                    }
+                    else if (fieldNb == 5){
+                        link.CIGAR = field;
+                    }
+
+                    fieldNb += 1;
+                }
+                allLinks.push_back(link);
+                allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
+                allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);
+            }
+            catch(...){
+                cout << "Problem while reading your GFA file. Please ensure all 'L' lines are below 'S' lines" << endl;
+                throw std::invalid_argument("Invalid GFA");
+            }
         }
 
     }
-
-    //now append the last read
-    ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
-    nameOfSequence = "";
-    for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
-        if (buffer[0][i] == ' '){
-            break;
-        }
-        else{
-            nameOfSequence.push_back(buffer[0][i]);
-        }
-    }
-    Read r(sequence);
-    r.name = nameOfSequence;
-    backbone_reads.push_back(allreads.size());
-    allreads.push_back(r);
-    ///link the minimap name to the index in allreads
-    indices[nameOfSequence] = sequenceID;
-    sequenceID++;
-
 }
 
 //input : a file containing overlaps
@@ -271,26 +292,50 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             float limit2 = float(pos2_2-pos2_1)/2;
             if (positiveStrand){
                 if (pos1_1  < limit1){ 
-                    if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                    if (length2-pos2_2 < limit2){
                         fullOverlap = true;
+                        pos2_2 = length2;
                     }
+                    if (length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                        pos1_2 = length1;
+                    }
+                    pos1_1 = 0;
                 }
                 else if (pos2_1 < limit2){
-                     if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
+                    if (length2-pos2_2 < limit2){
                         fullOverlap = true;
+                        pos2_2 = length2;
                     }
+                    if (length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                        pos1_2 = length1;
+                    }
+                    pos2_1 = 0;
                 }
             }
             else {
                 if (pos1_1 < limit1){
-                    if (pos2_1 < limit2 || length1-pos1_2 < limit1){
+                    if (pos2_1 < limit2){
                         fullOverlap = true;
+                        pos2_1 = 0;
                     }
+                    if (length1-pos1_2 < limit1){
+                        fullOverlap = true;
+                        pos1_2 = length1;
+                    }
+                    pos1_1 = 0;
                 }
                 else if (length2-pos2_2 < limit2){
-                    if (length1-pos1_2 < limit1 || pos2_1 < limit2){
+                    if (length1-pos1_2 < limit1){
                         fullOverlap = true;
+                        pos1_2 = length1;
                     }
+                    if (pos2_1 < limit2){
+                        fullOverlap = true;
+                        pos2_1 = 0;
+                    }
+                    pos2_2 = length2;
                 }
             }
             
@@ -665,6 +710,86 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
         }
     }
     // cout << "number of non-common overlaps : " << numberOfNotBb << endl;
+}
+
+//input : the list of all reads. Among those, backbone reads are actually contigs
+
+void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_reads, string fileOut, vector<Link> &allLinks)
+{
+    ofstream out(fileOut);
+    for (auto r : backbone_reads){
+        Read read = allreads[r];
+        out << "S\t"<< read.name << "\t" << read.sequence_.str() << "\n";
+    }
+    for (auto l : allLinks){
+        string end1 = "-";
+        if (l.end1 == 1) {end1 = "+";}
+        string end2 = "-";
+        if (l.end2 == 0) {end2 = "+";}
+        out << "L\t" << allreads[l.neighbor1].name << "\t" << end1 << "\t" << allreads[l.neighbor2].name 
+            << "\t" << end2 << "\t" << l.CIGAR << "\n";
+    }
+}
+
+void outputTruePar(Partition truePar, std::string id){
+    string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/trueHaps_"+id+".tsv";
+    ofstream out(fileOut);
+
+    int n = 0;
+    for (auto read : truePar.getPartition()){
+        if (read == 1){
+            out << "1";
+        }
+        else{
+            out << "0";
+        }
+        n++;
+    }
+    out.close();
+}
+
+//input: list of suspicious column
+//output: a file written on disk with 0s and 1s
+void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitions, string id){
+    
+    string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/matrix_"+id+".tsv";
+    ofstream out(fileOut);
+
+    int nbReads = 0;
+    for (auto c : snps){
+        for (auto pp : c.readIdxs){
+            if (pp > nbReads){
+                nbReads = pp+1;
+            }
+        }
+    }
+
+    vector<vector<int>> matrix (nbReads, vector<int> (suspectPostitions.size(), 0));
+
+    int n = 0;
+
+    for (auto sus : suspectPostitions){
+        auto c =  Partition(snps[sus], 0);
+        int n2 = 0;
+        for (auto p : c.getReads()){
+            if (c.getPartition()[n2] == 1){
+                matrix[p][n] = 1;
+            }
+            // else{
+            //     cout << "content : " << c.getPartition()[n2] << " did not ocm ei" << endl;
+            // }
+            n2++;
+        }
+        n++;
+    }
+
+    for (auto line : matrix){
+        for (auto c : line){
+            out << c << "\t";
+        }
+        out << "\n";
+    }
+    out.close();
 }
 
 void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters, std::string fileOut){

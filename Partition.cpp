@@ -17,16 +17,20 @@ using std::end;
 using std::pair;
 using std::make_pair;
 
-Partition::Partition(int size){
-    for (auto i = 0 ; i < size ; i++){
-        mostFrequentBases.push_back(0);
-        lessFrequence.push_back(0);
-        moreFrequence.push_back(0);
-    }
+Partition::Partition(){
+    readIdx = {};
+    mostFrequentBases = {}; 
+    moreFrequence = {};
+    lessFrequence = {};
     numberOfOccurences = 0;
+    conf_score = 0;
 }
 
-Partition::Partition(Column& snp){
+Partition::Partition(Column& snp, int pos){
+
+    pos_left = pos;
+    pos_right = pos;
+    conf_score = 0;
 
     readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
@@ -125,7 +129,13 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
 
 //input : a new partition to add to the consensus (the partition must be well-phased in 'A' and 'a')
 //output : updated consensus partition
-void Partition::augmentPartition(Column& supplementaryPartition){
+void Partition::augmentPartition(Column& supplementaryPartition, int pos){
+
+    //first adjust pos right and pos left if pos changes the limits of the partition
+    if (pos != -1){
+        if (pos < pos_left) {pos_left = pos;}
+        if (pos > pos_right) {pos_right = pos;}
+    }
 
     auto it1 = readIdx.begin();
     vector<int> idxs1_2;
@@ -208,6 +218,11 @@ void Partition::augmentPartition(Column& supplementaryPartition){
 //output : updated consensus partition
 void Partition::mergePartition(Partition &p, short phased){
 
+    //first adjust the limits of the partition
+    pos_left = std::min(pos_left, p.get_left());
+    pos_right = std::max(pos_right, p.get_right());
+
+    //then merge the content of the two partitions
     auto moreOther = p.getMore();
     auto lessOther = p.getLess();
 
@@ -326,6 +341,25 @@ void Partition::mergePartition(Partition &p){
     this->mergePartition(p, phased);
 }
 
+//input : nothing except the partition itself
+//output : a confidence score of the partition stored
+void Partition::compute_conf(){
+    double conf = 1;
+    int numberReads = 0;
+    auto confidences = this->getConfidence();
+    for (auto c = 0 ; c < confidences.size() ; c++) {
+        if (moreFrequence[c] > 1){
+            conf*=confidences[c];
+            numberReads++;
+        }   
+    }
+    if (conf == 1){ //do not divide by 0 when calculating the score
+        conf = 0.99;
+    }
+    conf_score = pow(1/(1-exp(log(conf)/numberReads)), 2)*this->number(); //exp(log(conf)/numberReads) is the geometrical average confidence
+
+}
+
 //returns the majoritary partition
 vector<short> Partition::getPartition(){
     return mostFrequentBases;
@@ -395,7 +429,7 @@ void Partition::print(){
         c++;
     }
 
-    cout << " " << numberOfOccurences << endl;
+    cout << " " << numberOfOccurences << " " << pos_left << " <-> " << pos_right << endl;
     // for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
     //     cout << moreFrequence[c] << "/" << lessFrequence[c] << ";";
     // }
@@ -420,3 +454,22 @@ float Partition::proportionOf1(){
         return 0.5;
     }
 }
+
+float Partition::get_conf(){
+    if (conf_score == 0){
+        this->compute_conf();
+    }
+    return conf_score;
+}
+
+int Partition::get_left(){
+    return pos_left;
+}
+
+int Partition::get_right(){
+    return pos_right;
+}
+
+
+
+

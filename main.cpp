@@ -6,6 +6,7 @@
 #include "edlib.h"
 #include "input_output.h"
 #include "check_overlaps.h"
+#include "modify_gfa.h"
 #include "clipp.h" //library to build command line interfaces
 #include "phase_variants.h"
 
@@ -26,7 +27,7 @@ int main(int argc, char *argv[])
     auto cli = (
             option("-f", "--fastq") & opt_value("fastqfile", fastqfile),
             option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
-            option("-r", "--ref") & opt_value("refFile", refFile),
+            option("-g", "--gfa") & opt_value("GFA file", refFile),
             option("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
         robin_hood::unordered_map<std::string, unsigned long int> indices;
         vector<unsigned long int> backbone_reads;
         std::vector <Overlap> allOverlaps;
+        vector <Link> allLinks;
 
         auto t1 = high_resolution_clock::now();
 
@@ -54,31 +56,36 @@ int main(int argc, char *argv[])
             phase_reads_with_variants(allvariants);
         }
         else if (refFile == "" ){   
-            cout << "Parsing reads..." << endl;
-            parse_reads(fastqfile, allreads, indices);         
-            //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
-            cout << "Parsing alignments..." << endl;
-            parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
 
-            vector<vector<int>> partitions;
-            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, false);
-            cout << "Finished checking overlaps, now outputting" << endl;
+            //to uncomment that, need to redo output_filtered paf with new "partitions"
 
-            output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
+            // cout << "Parsing reads..." << endl;
+            // parse_reads(fastqfile, allreads, indices);         
+            // //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
+            // cout << "Parsing alignments..." << endl;
+            // parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
+
+            // std::unordered_map<unsigned long int, vector<int>> partitions;
+            // checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, false);
+            // cout << "Finished checking overlaps, now outputting" << endl;
+
+            //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
         }
         else if (refFile != ""){
             cout << "Parsing reads..." << endl;
             parse_reads(fastqfile, allreads, indices);
 
-            parse_assembly(refFile, allreads, indices, backbone_reads);
+            parse_assembly(refFile, allreads, indices, backbone_reads, allLinks);
             parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
 
-            vector<vector<int>> partitions;
+            std::unordered_map<unsigned long int, vector<int>> partitions;
             cout << "Checking overlaps" << endl;
             checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true);
             cout << "Finished checking, now outputting" << endl;
 
-            output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
+            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks);
+            output_GFA(allreads, backbone_reads, outputFile, allLinks);
+            //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
         }
         else{
             cout << "Could not parse the arguments" << endl;
@@ -87,12 +94,12 @@ int main(int argc, char *argv[])
 
         auto t2 = high_resolution_clock::now();
 
-        cout << "Finished in " << duration_cast<milliseconds>(t2-t1).count() << "ms"  << endl;
+        cout << "Finished in " << duration_cast<seconds>(t2-t1).count() << "s"  << endl;
     }
 
-    string sequence1 = "ACTGGCTCGTTCGAAAGCTCGT";
-    string sequence2 = "TTACTGGCTCATTCGAAACGCTCGT";
-    string sequence3 = "GCTCGTTGAAAAGCTCGTTGGCT";
+    // string sequence1 = "ACTGGCTCGTTCGAAAGCTCGT";
+    // string sequence2 = "TTACTGGCTCATTCGAAACGCTCGT";
+    // string sequence3 = "GCTCGTTGAAAAGCTCGTTGGCT";
 
     // EdlibAlignResult result = edlibAlign(sequence1.c_str(), sequence1.size(), sequence2.c_str(), sequence2.size(),
     //                                     edlibNewAlignConfig(42, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));

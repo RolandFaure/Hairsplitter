@@ -20,10 +20,19 @@ struct Overlap
     bool strand; //false if the two reads are on different strands
 };
 
+struct Link{
+    std::string CIGAR;
+    long int neighbor1;
+    short end1; //either 0 or 1
+    long int neighbor2;
+    short end2; //either 0 or 1
+};
+
 class Read
 {
 
 public:
+    Read();
     Read(std::string s);
     Sequence sequence_;
 
@@ -34,10 +43,18 @@ public:
     void new_backbone(std::pair<int, int> pair, size_t size);
     std::vector <long int> neighbors_; //list of long int referring to indices in allOverlaps
 
+    void add_link(size_t l, short end); //that's when reads are actually contigs
+    std::vector<size_t> get_links_left();
+    std::vector<size_t> get_links_right();
+
 //private :
     std::vector <std::pair<int, short>> backbone_seq; //first element is the id of backbone read, second is the indice of neighbor
 
+private : //when reads are actually contigs
+    std::vector<size_t> links_left; //indices of links in allLinks vector
+    std::vector<size_t> links_right;
 };
+
 
 
 #endif // READ_H
