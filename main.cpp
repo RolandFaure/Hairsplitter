@@ -20,8 +20,29 @@ using namespace clipp;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
+void check_dependancies(){
+    auto res = system("minimap2 --version > tmp/trash.txt 2> tmp/trash.txt");
+    auto miniasm = system("miniasm -V > tmp/trash.txt 2> tmp/trash.txt");
+    auto racon = system("racon --version > tmp/trash.txt 2> tmp/trash.txt");
+    
+    if (res != 0){
+        cout << "MISSING DEPENDANCY: minimap2" << endl;
+    }
+    if (miniasm != 0){
+        cout << "MISSING DEPENDANCY: miniasm" << endl;
+    }
+    if (racon != 0){
+        cout << "MISSING DEPENDANCY: racon" << endl;
+    }
+
+    if (res != 0 || miniasm != 0 || racon != 0){
+        exit(EXIT_FAILURE);
+    }
+}
+
 int main(int argc, char *argv[])
-{
+{   
+    check_dependancies();
 
     string fastqfile, allfile, refFile, alnOnRefFile, outputFile, samFile, vcfFile;
     auto cli = (

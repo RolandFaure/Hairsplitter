@@ -3,6 +3,8 @@
 
 #include "read.h"
 #include "Partition.h"
+#include "edlib.h"
+
 #include <vector>
 #include <unordered_map>
 

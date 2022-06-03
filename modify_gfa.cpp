@@ -1,5 +1,6 @@
 #include "modify_gfa.h"
 #include<algorithm> //for "sort"
+#include <fstream>
 
 using std::string;
 using std::cout;
@@ -66,12 +67,12 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                         }
                     }
 
-                    cout << "stitching : ";
-                    for (auto s: stitches[n]){
-                        cout << s.first << "<->" ;
-                        for (auto s2 : s.second) {cout << s2 << ",";}
-                        cout << "  ;  ";
-                    } 
+                    // cout << "stitching : ";
+                    // for (auto s: stitches[n]){
+                    //     cout << s.first << "<->" ;
+                    //     for (auto s2 : s.second) {cout << s2 << ",";}
+                    //     cout << "  ;  ";
+                    // } 
                     cout << endl;
                 }
             }
@@ -121,8 +122,24 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                     string newcontig;
                     if (readsPerPart.size() > 1){
                         newcontig = local_assembly(group.second);
-                        if (newcontig == ""){
+                        if (newcontig == "" || true){ //this can happen if the local assembly is unsuccesful (e.g. too few reads)
                             newcontig = consensus_reads(toPolish, group.second);
+                            cout << "falling back to consensusing" << endl;
+                        }
+                        else{ 
+                            //clip the resulting assembly so that it matches the part we're trying to polish
+                            EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
+                                    newcontig.c_str(), newcontig.size(),
+                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+
+                            cout << "here is the alignment needed to clip : " << result.startLocations[0] << " " << result.endLocations[0] << endl;
+                            char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
+                            for (int l = 0; l < result.alignmentLength; l++) {
+                                cout << moveCodeToChar[result.alignment[l]];
+                            }
+
+                            edlibFreeAlignResult(result);
+
                         }
                     }
                     else {

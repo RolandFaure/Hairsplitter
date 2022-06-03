@@ -50,11 +50,12 @@ private :
     //then the counts of each allele at each position
     std::vector<int> moreFrequence;
     std::vector<int> lessFrequence;
+
     int numberOfOccurences; //  Int is the number of partition supporting this
     float conf_score;
 
-    int pos_left; //position of leftmost position of the partition
-    int pos_right; //position of the rightmost position of the partition
+    int pos_left; //position of leftmost position of the partition on the consensus
+    int pos_right; //position of the rightmost position of the partition on the consensus
 };
 
 #endif

@@ -1,5 +1,4 @@
 #include "check_overlaps.h"
-#include "edlib.h"
 // #include "spoa/spoa.hpp"
 #include "cluster_graph.h"
 
@@ -238,7 +237,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         for (int l = 0; l < result.alignmentLength; l++) {
 
             if (indexQuery < consensus.size()){
-                // cout << "PROBLME !!! " << indexQuery << " " << consensus.size() << " " << moveCodeToChar[result.alignment[l]] << endl;
 
                 if (moveCodeToChar[result.alignment[l]] == '=' || moveCodeToChar[result.alignment[l]] == 'X'){
                     //fill inserted columns with '-' just before that position
@@ -437,25 +435,23 @@ string consensus_reads(string &backbone, vector <string> &polishingReads){
 string local_assembly(vector <string> &reads){
 
     std::ofstream polishseqs("tmp/reads.fasta");
-    for (int read =0 ; read < reads.size() ; read++){
+    for (int read=0 ; read < reads.size() ; read++){
         polishseqs << ">read"+std::to_string(read)+"\n" << reads[read] << "\n";
     }
     polishseqs.close();
 
     system("minimap2 -x ava-ont -t1 tmp/reads.fasta tmp/reads.fasta > tmp/local_overlaps.paf 2> tmp/trash.txt");
-    string command = "miniasm -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $2;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
+    string command = "miniasm -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $3;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
     cout << command << endl;
     system(command.c_str());
 
-    std::ifstream polishedRead("tmp/local_assembly.gfa");
+    std::ifstream newcontig("tmp/local_assembly.txt");
     string line;
-    string consensus;
-    while(getline(polishedRead, line)){
-        if (line[0] != '>'){
-            consensus = line; 
-        }
+    string contig;
+    while(getline(newcontig, line)){
+        contig = line; 
     }
-    return "";
+    return contig;
 }
 
 //input : a set of reads aligned to read in matrix snps
