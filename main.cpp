@@ -78,12 +78,13 @@ int main(int argc, char *argv[])
             parse_assembly(refFile, allreads, indices, backbone_reads, allLinks);
             parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
 
-            std::unordered_map<unsigned long int, vector<int>> partitions;
+            std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
             cout << "Checking overlaps" << endl;
-            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true);
+            std::unordered_map <int, std::pair<int,int>> clusterLimits;
+            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits);
             cout << "Finished checking, now outputting" << endl;
 
-            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks);
+            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits);
             output_GFA(allreads, backbone_reads, outputFile, allLinks);
             //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
         }

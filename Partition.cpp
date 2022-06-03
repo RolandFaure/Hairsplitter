@@ -470,6 +470,11 @@ int Partition::get_right(){
     return pos_right;
 }
 
-
+//transforms all -1 in 1 and vice-versa
+void Partition::flipPartition(){
+    for (auto r = 0 ; r < mostFrequentBases.size() ; r++){
+        mostFrequentBases[r] *= -1;
+    }
+}
 
 

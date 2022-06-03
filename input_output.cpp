@@ -40,10 +40,11 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
     string line;
     vector<string> buffer;
+    long int linecount = 0;
 
     while(getline(in, line)){
 
-        if (line[0] == format && buffer.size() > 0){
+        if (line[0] == format && buffer.size() > 0 && linecount%4 == 0){
             //then first we append the last read we saw
             Read r(buffer[1]);
             r.name = buffer[0];
@@ -70,6 +71,8 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
         else {
             buffer.push_back(line);
         }
+
+        linecount++;
 
     }
 
@@ -129,6 +132,12 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     //link the minimap name to the index in allreads
                     indices[nameOfSequence] = sequenceID;
                     sequenceID++;
+                }
+                else if (field.substr(0,2) == "dp" || field.substr(0,2) == "DP"){
+                    allreads[allreads.size()-1].depth = std::atoi(field.substr(5, field.size()-5).c_str());
+                }
+                else if (fieldNb > 2){
+                    allreads[allreads.size()-1].comments += "\t"+field;
                 }
 
                 fieldNb += 1;
@@ -339,8 +348,10 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 }
             }
             
-            // if (name1 == "2_@DRR198813.15575"){
-            //     cout << "reading overlap with 2_@DRR198813.15575 : " << fullOverlap << " " << length1 << " " << pos1_1 << " " << pos1_2 << endl;
+            // if (name1 == "2_@DRR198813.7882"){
+            //     cout << "reading overlap with @2_@DRR198813.7882 : " << fullOverlap << " " << length1 << " " << pos1_1 << " " << pos1_2 << " " << name2 << endl;
+            //     cout << "on practive, we mark them as overlapping... " << allreads[sequence1].name << " " << allreads[sequence2].name << endl;
+            //     cout << sequence1 << " " << sequence2 << endl;
             // }
             //add the overlap if it's a full overlap
 
@@ -713,21 +724,29 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 }
 
 //input : the list of all reads. Among those, backbone reads are actually contigs
-
+//output : a new gfa file with all contigs splitted
 void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_reads, string fileOut, vector<Link> &allLinks)
 {
     ofstream out(fileOut);
     for (auto r : backbone_reads){
-        Read read = allreads[r];
-        out << "S\t"<< read.name << "\t" << read.sequence_.str() << "\n";
+        if (allreads[r].name != "delete_me"){
+            Read read = allreads[r];
+            out << "S\t"<< read.name << "\t" << read.sequence_.str() << read.comments;
+            if (read.depth != -1){
+                out << "\tdp:f:" << std::to_string(read.depth);
+            }
+            out << "\n";
+        }
     }
     for (auto l : allLinks){
-        string end1 = "-";
-        if (l.end1 == 1) {end1 = "+";}
-        string end2 = "-";
-        if (l.end2 == 0) {end2 = "+";}
-        out << "L\t" << allreads[l.neighbor1].name << "\t" << end1 << "\t" << allreads[l.neighbor2].name 
-            << "\t" << end2 << "\t" << l.CIGAR << "\n";
+        if (l.end1 != -1 && l.end2 != -1){
+            string end1 = "-";
+            if (l.end1 == 1) {end1 = "+";}
+            string end2 = "-";
+            if (l.end2 == 0) {end2 = "+";}
+            out << "L\t" << allreads[l.neighbor1].name << "\t" << end1 << "\t" << allreads[l.neighbor2].name 
+                << "\t" << end2 << "\t" << l.CIGAR << "\n";
+        }
     }
 }
 

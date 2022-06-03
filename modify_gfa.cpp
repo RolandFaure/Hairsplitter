@@ -1,5 +1,4 @@
 #include "modify_gfa.h"
-#include <set>
 #include<algorithm> //for "sort"
 
 using std::string;
@@ -19,204 +18,270 @@ using std::set;
 using std::to_string;
 
 void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsigned long int> &backbones_reads, std::vector <Overlap> &allOverlaps,
-            std::unordered_map<unsigned long int ,std::vector<int>> &partitions, string outputFile, vector<Link> &allLinks){
+            std::unordered_map<unsigned long int, std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
+            std::unordered_map <int, std::pair<int,int>> &clusterLimits){
 
     for (auto backbone : backbones_reads){
 
-        unordered_map<int, pair<int, int>> intervals; //maps each set of reads to its corresponding interval
-        unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
+        if (partitions.find(backbone) != partitions.end()){
 
-        if (partitions.find(backbone) != partitions.end()){ //means there is a partition there
+            //stitch all intervals of each backbone read
+            vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
 
-            auto partition = partitions[backbone];
+            for (int n = 0 ; n < partitions[backbone].size() ; n++){
+                //for each interval, go through the different parts and see with what part before and after they fit best
+                if (n> 0){
+                    auto stitchLeft = stitch(partitions[backbone][n].second, partitions[backbone][n-1].second);
+                    // cout << "stitching left ... ";
+                    // for (auto s: stitchLeft){cout << s.first << "<->" << s.second << ", ";} cout << endl;
 
-            for (auto n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
-                
-                if (partition[n] !=  0){
+                    auto stitchRight = stitch(partitions[backbone][n-1].second, partitions[backbone][n].second);
+                    // cout << "stitching right ... ";
+                    // for (auto s: stitchRight){cout << s.first << "<->" << s.second << ", ";} cout << endl;
 
-                    pair <int,int> interval;
-                    Overlap overlap = allOverlaps[allreads[backbone].neighbors_[n]];
-                    Read r;
-
-                    if (overlap.sequence2 == backbone){
-                        interval.first = overlap.position_2_1;
-                        interval.second = overlap.position_2_2;
-                        r = allreads[overlap.sequence1];
-                    }
-                    else if (overlap.sequence1 == backbone){
-                        interval.first = overlap.position_1_1;
-                        interval.second = overlap.position_1_2;
-                        r = allreads[overlap.sequence2];
+                    for (auto s : stitchLeft){
+                        stitches[n][s.first] = s.second;
                     }
 
-                    if (intervals.find(partition[n]) == intervals.end()){
-                        intervals[partition[n]] = interval;
-                        readsPerPart[partition[n]] = {r.sequence_.str()};
-                    }
-                    else {
-                        readsPerPart[partition[n]].push_back(r.sequence_.str());
-                        if (interval.first < intervals[partition[n]].first){intervals[partition[n]].first = interval.first;}
-                        if (interval.second > intervals[partition[n]].second){intervals[partition[n]].second = interval.second;}
-                    }
-                }
-
-            }
-
-            //now modify the gfa if there are more than two parts to the partition
-            if (intervals.size() > 1){
-
-                //sort interval by first base
-                vector < pair<int, pair<int,int>> > intervals_vector (intervals.begin(), intervals.end());
-                std::sort(intervals_vector.begin(), intervals_vector.end(), [](pair<int, pair<int,int>>& lhs, pair<int, pair<int,int>>& rhs) {
-                    return lhs.second.first < rhs.second.first;
-                });
-
-                //first define the intervals where the contig needs splitting
-                vector <pair<pair<int,int>, set<int>>> splitIntervals;//associate all corresponding parts to the splitting interval
-
-                for (auto interval : intervals_vector){
-                    bool found = false;
-                    auto limits = interval.second;
-                    cout << "interval : " << limits.first << " " << limits.second << endl;
-                    int s = 0;
-                    for (auto splitInterval : splitIntervals){
-                        if (limits.first <= splitInterval.first.second && limits.second > splitInterval.first.second){
-                            found = true;
-                            splitIntervals[s].first.second = limits.second;
-                            splitIntervals[s].second.emplace(interval.first);
-                            break;
+                    for (auto s : stitchRight){
+                        for (int neighbor : s.second){
+                            stitches[n][neighbor].emplace(s.first);
                         }
-                        else if (limits.first <= splitInterval.first.second && limits.second <= splitInterval.first.second){
-                            found = true;
-                            splitIntervals[s].second.emplace(interval.first);
+                    }
+
+                    //make sure all contigs are stitched
+                    set <int> stitchedContigs;
+                    for (auto s : stitches[n]){
+                        for (int neighbor : s.second){
+                            stitchedContigs.emplace(neighbor);
                         }
-                        s++;
                     }
-                    if (!found){
-                        set<int> s = {interval.first};
-                        splitIntervals.push_back(make_pair(limits, s));
+                    // cout << "stitched contigs : "; for(auto i : stitchedContigs) {cout <<i << ";";} cout << endl;
+                    for (auto s : stitchRight){
+                        if (stitchedContigs.find(s.first) == stitchedContigs.end()){
+                            // cout << "gluing back" << endl;
+                            for (auto s2 : stitchLeft){
+                                stitches[n][s2.first].emplace(s.first);
+                            }
+                        }
                     }
-                }
 
-                //sort split intervals per leftmost position
-                std::sort(splitIntervals.begin(), splitIntervals.end(), [](pair<pair<int,int>, set<int>>& lhs, pair<pair<int,int>, set<int>>& rhs) {
-                    return lhs.first.first < rhs.first.first;
-                });
-
-                for (auto s : splitIntervals){
-                    cout << "Split interval : " << s.first.first << " " << s.first.second << " ; ";
-                    for (auto i : s.second){cout << i << " ";}
+                    cout << "stitching : ";
+                    for (auto s: stitches[n]){
+                        cout << s.first << "<->" ;
+                        for (auto s2 : s.second) {cout << s2 << ",";}
+                        cout << "  ;  ";
+                    } 
                     cout << endl;
                 }
+            }
 
-                //now all intervals where contig need splitting are defined, let's create the new contigs ! 
-                //first, create hangingLinks, a list of links left of what we'll be building
-                vector<int> hangingLinks;
-                for (int linkIdx : allreads[backbone].get_links_left()){
-                    if (allLinks[linkIdx].neighbor1 == backbone){
-                        allLinks[linkIdx].end1 = -1;
+
+
+            //create hangingLinks, a list of links that are not yet connected but will soon be
+            vector<int> hangingLinks;
+            for (int linkIdx : allreads[backbone].get_links_left()){
+                if (allLinks[linkIdx].neighbor1 == backbone){
+                    allLinks[linkIdx].end1 = -1;
+                }
+                else {
+                    allLinks[linkIdx].end2 = -1;
+                }
+                allLinks[linkIdx].group = 0;
+                hangingLinks.push_back(linkIdx);
+            }
+
+            int n = 0;
+            for (auto interval : partitions[backbone]){
+                unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
+                cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
+
+                for (int r = 0 ; r < interval.second.size(); r++){
+                    if (interval.second[r] != -1){
+                        int clust = interval.second[r];
+                        int limitLeft = allOverlaps[allreads[backbone].neighbors_[r]].position_1_1; //the limit of the read that we should use
+                        int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
+                        auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
+
+                        if (readsPerPart.find(clust) == readsPerPart.end()){
+                            readsPerPart[clust] = {allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str()};
+                        }
+                        else {
+                            readsPerPart[clust].push_back(allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str());
+                            // cout << "read aligning is : " << allreads[idxRead].name << endl;
+                        }
+                    }
+                }
+
+                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first);
+                vector<int> futureHangingLinks;
+
+                for (auto group : readsPerPart){
+                    
+                    string newcontig;
+                    if (readsPerPart.size() > 1){
+                        newcontig = local_assembly(group.second);
+                        if (newcontig == ""){
+                            newcontig = consensus_reads(toPolish, group.second);
+                        }
                     }
                     else {
-                        allLinks[linkIdx].end2 = -1;
+                        newcontig = toPolish;
                     }
-                    hangingLinks.push_back(linkIdx);
-                }
 
-                int lastRightmostPosition = 0;
-                for (auto spl : splitIntervals){
+                    Read r(newcontig);
+                    r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
 
-                    if (spl.second.size() > 1) { //if there is only 1 group on this stretch, no need to re-polish it
-                        string toPolish = allreads[backbone].sequence_.str().substr(spl.first.first, spl.first.second-spl.first.first);
-
-                        //build the sequence left of here and attach it to hanging links
-                        Read left(allreads[backbone].sequence_.str().substr(lastRightmostPosition, spl.first.first));
-                        left.name = allreads[backbone].name + "_" +  to_string(lastRightmostPosition);
-
-                        for(auto l : hangingLinks){
-                            left.add_link(l, 0);
-                            if (allLinks[l].end1 == -1){
-                                allLinks[l].end1 = 0;
-                                allLinks[l].neighbor1 = allreads.size();
-                            }
-                            else{
-                                allLinks[l].end2 = 0;
-                                allLinks[l].neighbor2 = allreads.size();
-                            }
+                    //now create all the links IF they are compatible with "stitches"  
+                    set<int> linksToKeep;
+        
+                    if (n == 0 || stitches[n][group.first].size() == 0){
+                        for (int h : hangingLinks){
+                            linksToKeep.emplace(allLinks[h].group);
                         }
-                        allreads.push_back(left);
-                        auto leftIdx = allreads.size()-1;
-                        backbones_reads.push_back(allreads.size()-1);
-                        hangingLinks = {};
-
-                        //now create all the new sequences
-                        int g = 0;
-                        for (auto group : spl.second){
-                            string newcontig = consensus_reads(toPolish, readsPerPart[group]);
-                            Read r(newcontig);
-                            r.name = allreads[backbone].name + "_"+ to_string(spl.first.first)+ "_" + to_string(g);
-                            g++;
-
-                            Link leftLink;
-                            leftLink.CIGAR = "0M";
-                            leftLink.end1 = 0;
-                            leftLink.neighbor1 = allreads.size();
-                            leftLink.end2 = 1;
-                            leftLink.neighbor2 = leftIdx;
-                            allLinks.push_back(leftLink);
-                            r.add_link(allLinks.size()-1, 0);
-                            allreads[leftIdx].add_link(allLinks.size()-1, 1);
-                            
-                            Link rightLink;
-                            rightLink.CIGAR = "0M";
-                            rightLink.end1 = 1;
-                            rightLink.neighbor1 = allreads.size();
-                            rightLink.end2 = -1;
-                            allLinks.push_back(rightLink);
-                            r.add_link(allLinks.size()-1, 1);
-                            hangingLinks.push_back(allLinks.size()-1);
-
-                            allreads.push_back(r);
-                            backbones_reads.push_back(allreads.size()-1);
-                            cout << "now creating the different contigs : " << r.name << endl;
-
-                        }
-                        lastRightmostPosition = spl.first.second;
-                    }
-                }
-
-                //now wrap up the contig, link it with contig at the right
-                Read last(allreads[backbone].sequence_.str().substr(lastRightmostPosition, allreads[backbone].size()-lastRightmostPosition));
-                last.name = allreads[backbone].name + "_" + to_string(lastRightmostPosition);
-
-                //links left
-                for(auto l : hangingLinks){
-                    last.add_link(l, 0);
-                    if (allLinks[l].end1 == -1){
-                        allLinks[l].end1 = 0;
-                        allLinks[l].neighbor1 = allreads.size();
                     }
                     else{
-                        allLinks[l].end2 = 0;
-                        allLinks[l].neighbor2 = allreads.size();
+                        for (int l : stitches[n][group.first]){
+                            linksToKeep.emplace(l);
+                        }
                     }
+                    
+                    //create the links
+                    for (int h : hangingLinks){
+                        if (linksToKeep.find(allLinks[h].group) != linksToKeep.end()){
+                            Link leftLink;
+                            leftLink.CIGAR = allLinks[h].CIGAR;
+                            if (allLinks[h].end2 == -1){
+                                leftLink.end2 = 0;
+                                leftLink.neighbor2 = allreads.size();
+                                leftLink.end1 = allLinks[h].end1;
+                                leftLink.neighbor1 = allLinks[h].neighbor1;
+                                allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                            }
+                            else if (allLinks[h].end1 == -1) {
+                                leftLink.end1 = 0;
+                                leftLink.neighbor1 = allreads.size();
+                                leftLink.end2 = allLinks[h].end2;
+                                leftLink.neighbor2 = allLinks[h].neighbor2;
+                                allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
+                            }
+                            else {
+                                // cout << "WHAAAT" << endl;
+                            }
+                            r.add_link(allLinks.size(), 0);
+                            allLinks.push_back(leftLink);
+                        }
+                    }
+                    
+                    Link rightLink;
+                    rightLink.CIGAR = "0M";
+                    rightLink.end1 = 1;
+                    rightLink.neighbor1 = allreads.size();
+                    rightLink.end2 = -1;
+                    rightLink.group = group.first;
+                    allLinks.push_back(rightLink);
+                    r.add_link(allLinks.size()-1, 1);
+                    futureHangingLinks.push_back(allLinks.size()-1);
+
+                    allreads.push_back(r);
+                    backbones_reads.push_back(allreads.size()-1);
+                    cout << "now creating the different contigs : " << r.name << endl;
+
                 }
-                allreads.push_back(last);
-                backbones_reads.push_back(allreads.size()-1);
-
-                //links right
-                for(auto l : allreads[backbone].get_links_right()){
-                    if (allLinks[l].neighbor1 == backbone){
-                        allLinks[l].neighbor1 = allreads.size()-1;
-                        allLinks[l].end1 = 1;
-                    }
-                    else {
-                        allLinks[l].neighbor2 = allreads.size()-1;
-                        allLinks[l].end2 = 1;
-                    }
-                }                
+                hangingLinks = futureHangingLinks;
+                n += 1;
             }
-        }
 
+            //now wrap up the right of the contig
+            int left = partitions[backbone][partitions[backbone].size()-1].first.second; //rightmost interval
+            string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.str().size()-left);
+            Read r (right);
+            r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
+            for (int h : hangingLinks){
+                Link leftLink;
+                leftLink.CIGAR = allLinks[h].CIGAR;
+                if (allLinks[h].end2 == -1){
+                    leftLink.end2 = 0;
+                    leftLink.neighbor2 = allreads.size();
+                    leftLink.end1 = allLinks[h].end1;
+                    leftLink.neighbor1 = allLinks[h].neighbor1;
+                    allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                }
+                else if (allLinks[h].end1 == -1) {
+                    leftLink.end1 = 0;
+                    leftLink.neighbor1 = allreads.size();
+                    leftLink.end2 = allLinks[h].end2;
+                    leftLink.neighbor2 = allLinks[h].neighbor2;
+                    allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
+                }
+                else {
+                    // cout << "WHAAAT" << endl;
+                }
+                r.add_link(allLinks.size(), 0);
+                allLinks.push_back(leftLink);
+                
+            }
+
+            for (int linkIdx : allreads[backbone].get_links_right()){
+                if (allLinks[linkIdx].neighbor1 == backbone){
+                    allLinks[linkIdx].end1 = 1;
+                    allLinks[linkIdx].neighbor1 = allreads.size() ;
+                }
+                else {
+                    allLinks[linkIdx].end2 = 1;
+                    allLinks[linkIdx].neighbor2 = allreads.size() ;
+                }
+                r.add_link(linkIdx, 1);
+            }
+
+            allreads.push_back(r);
+            backbones_reads.push_back(allreads.size()-1);
+            cout << "now creating the different contigs : " << r.name << endl;
+
+            allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
+
+        }
     }
+
     
 }
+
+
+unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
+
+    unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
+    unordered_map<int, int> cluster_size; 
+    unordered_map<int,set<int>> stitch;
+
+    for (auto r = 0 ; r < par.size() ; r++){
+        if (par[r] != -1 && neighbor[r] != -1){
+            if (fit_left.find(par[r]) != fit_left.end()){
+                if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
+                    fit_left[par[r]][neighbor[r]] += 1;
+                }
+                else{
+                    fit_left[par[r]][neighbor[r]] = 1;
+                }
+                cluster_size[par[r]] += 1;
+            }
+            else{
+                fit_left[par[r]][neighbor[r]] = 1;
+                cluster_size[par[r]] = 1;
+                stitch[par[r]] = {};
+            }
+        }
+    }
+
+    //now give all associations
+    for (auto fit : fit_left){
+        for (auto candidate : fit.second){
+            if (candidate.second > 0.3*cluster_size[fit.first]){ //good compatibility
+                stitch[fit.first].emplace(candidate.first);
+            }
+        }
+    }
+
+    return stitch;
+}
+
+

@@ -14,6 +14,7 @@ Read::Read(std::string s)
 {
     sequence_ = Sequence(s);
     name = "";
+    depth = -1;
 }
 
 void Read::add_overlap(long int o){

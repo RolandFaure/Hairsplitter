@@ -26,6 +26,8 @@ struct Link{
     short end1; //either 0 or 1
     long int neighbor2;
     short end2; //either 0 or 1
+
+    int group; //optional, useful in modify_gfa
 };
 
 class Read
@@ -36,7 +38,9 @@ public:
     Read(std::string s);
     Sequence sequence_;
 
-    std::string name; //this is actually only for debugging
+    std::string name;
+    float depth; //coverage of the contig if indicated in the gfa
+    std::string comments; //comments in the GFA. We don't want to lose them !
 
     void add_overlap(long int o);
     size_t size();
@@ -46,7 +50,6 @@ public:
     void add_link(size_t l, short end); //that's when reads are actually contigs
     std::vector<size_t> get_links_left();
     std::vector<size_t> get_links_right();
-
 //private :
     std::vector <std::pair<int, short>> backbone_seq; //first element is the id of backbone read, second is the indice of neighbor
 
