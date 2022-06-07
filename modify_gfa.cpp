@@ -22,23 +22,39 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
             std::unordered_map<unsigned long int, std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
             std::unordered_map <int, std::pair<int,int>> &clusterLimits){
 
-    for (auto backbone : backbones_reads){
+    cout << "here are all the partitions : ";
+    for (auto p : partitions){
+        cout << allreads[p.first].name << ",";
+    }
+    cout << endl;
 
-        if (partitions.find(backbone) != partitions.end()){
+    cout << "here are all the backbones : " << endl;
+    for (auto b : backbones_reads){
+        if (b < 100000){
+            cout << allreads[b].name << endl;
+        }
+        else{
+            cout << "ERROR: " << b << endl;
+        }
+    }
+
+    for (int b = 0 ; b < backbones_reads.size() ; b++){
+
+        int backbone = backbones_reads[b];
+
+        cout << "Looking at backbone " << backbone << endl;
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
 
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
-                if (n> 0){
+                if (n > 0){
                     auto stitchLeft = stitch(partitions[backbone][n].second, partitions[backbone][n-1].second);
-                    // cout << "stitching left ... ";
-                    // for (auto s: stitchLeft){cout << s.first << "<->" << s.second << ", ";} cout << endl;
 
                     auto stitchRight = stitch(partitions[backbone][n-1].second, partitions[backbone][n].second);
-                    // cout << "stitching right ... ";
-                    // for (auto s: stitchRight){cout << s.first << "<->" << s.second << ", ";} cout << endl;
 
                     for (auto s : stitchLeft){
                         stitches[n][s.first] = s.second;
@@ -73,10 +89,9 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                     //     for (auto s2 : s.second) {cout << s2 << ",";}
                     //     cout << "  ;  ";
                     // } 
-                    cout << endl;
+                    // cout << endl;
                 }
             }
-
 
 
             //create hangingLinks, a list of links that are not yet connected but will soon be
@@ -119,28 +134,21 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
                 for (auto group : readsPerPart){
                     
-                    string newcontig;
+                    string newcontig = "";
                     if (readsPerPart.size() > 1){
-                        newcontig = local_assembly(group.second);
-                        if (newcontig == "" || true){ //this can happen if the local assembly is unsuccesful (e.g. too few reads)
+                        // newcontig = local_assembly(group.second);
+                        if (newcontig == ""){//if the assembly was not successful for one reason or another
                             newcontig = consensus_reads(toPolish, group.second);
-                            cout << "falling back to consensusing" << endl;
                         }
-                        else{ 
-                            //clip the resulting assembly so that it matches the part we're trying to polish
-                            EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
-                                    newcontig.c_str(), newcontig.size(),
-                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                        // EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
+                        //             newcontig.c_str(), newcontig.size(),
+                        //             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                            cout << "here is the alignment needed to clip : " << result.startLocations[0] << " " << result.endLocations[0] << endl;
-                            char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
-                            for (int l = 0; l < result.alignmentLength; l++) {
-                                cout << moveCodeToChar[result.alignment[l]];
-                            }
+                        // newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
+                        // cout << "Need to check the local reassembly !!" << endl;
 
-                            edlibFreeAlignResult(result);
-
-                        }
+                        // edlibFreeAlignResult(result);
+                        
                     }
                     else {
                         newcontig = toPolish;
@@ -202,6 +210,14 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
+                    cout << "here are all the backbones : " << endl;
+                    for (auto b : backbones_reads){
+                        if (b < 100000){
+                        }
+                        else{
+                            cout << "ERROR 1: " << b << endl;
+                        }
+                    }
                     cout << "now creating the different contigs : " << r.name << endl;
 
                 }
@@ -253,6 +269,14 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
             allreads.push_back(r);
             backbones_reads.push_back(allreads.size()-1);
+            cout << "here are all the backbones : " << endl;
+            for (auto b : backbones_reads){
+                if (b < 100000){
+                }
+                else{
+                    cout << "ERROR 2: " << b << endl;
+                }
+            }
             cout << "now creating the different contigs : " << r.name << endl;
 
             allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig

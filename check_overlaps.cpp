@@ -1,6 +1,8 @@
 #include "check_overlaps.h"
 // #include "spoa/spoa.hpp"
 #include "cluster_graph.h"
+//#include "WFA2-lib/bindings/cpp/WFAligner.hpp"
+//using namespace wfa;
 
 #include <cmath>
 #include <algorithm>
@@ -48,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (allreads[read].get_links_left().size()>1 || allreads[read].get_links_right().size()>1) 
-            &&  allreads[read].name == "edge_123"){
+            && index < 1350 && allreads[read].name != "edge_3000"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -69,7 +71,22 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
             // cout << "Proposed partition : " << endl;
             // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
             // cout << endl;
-            
+
+            // vector <int> split;
+            // for (int r = 0 ; r < allreads[read].neighbors_.size() ; r++){
+            //     if (r < allreads[read].neighbors_.size()/2){
+            //         split.push_back(1);
+            //     }
+            //     else{
+            //         split.push_back(2);
+            //     }
+            // }
+
+            // vector<pair<pair<int,int>, vector<int>> > par;
+            // par.push_back(make_pair(make_pair(0, 0.1*allreads[read].sequence_.size()), vector<int> (allreads[read].neighbors_.size(), 0)));
+            // par.push_back(make_pair(make_pair(0.1*allreads[read].sequence_.size(), 0.9*allreads[read].sequence_.size()), split));
+            // par.push_back(make_pair(make_pair(0.9*allreads[read].sequence_.size(), allreads[read].sequence_.size()), vector<int> (allreads[read].neighbors_.size(), 0)));
+
             partitions[read] = par;
     
         }
@@ -201,12 +218,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
-        // if (allreads[allreads[read].neighbors_[n]].name == "@2_@DRR198813.7882 7882 length=47537"){
-        //     cout << read << endl;
-        //     cout << allreads[allOverlaps[allreads[read].neighbors_[n]].sequence1].name << " is aligned on " << allreads[read].name << endl;
-        //     cout << polishingReads[n].size() << " " << consensus.size() << " " << positionOfReads[n].second << " " << positionOfReads[n].first << endl;
-        // }
-
 
         auto t1 = high_resolution_clock::now();
 
@@ -216,6 +227,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
         auto t2 = high_resolution_clock::now();
+        
+        // string ref = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first);
+        // aligner.alignEnd2End(polishingReads[n],ref);
+
+        auto t2_5 = high_resolution_clock::now();
 
         totalLengthOfAlignment += result.alignmentLength;
         totalDistance += result.editDistance;
