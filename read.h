@@ -18,6 +18,8 @@ struct Overlap
     int position_2_1;
     int position_2_2;
     bool strand; //false if the two reads are on different strands
+
+    std::string CIGAR;
 };
 
 struct Link{

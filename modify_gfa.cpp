@@ -92,6 +92,11 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
             int n = 0;
             for (auto interval : partitions[backbone]){
+
+                if (interval.first.second == interval.first.first){ //to avoid stupid segfaults
+                    interval.first.second+= 1;
+                }
+
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
 
@@ -127,7 +132,7 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                        newcontig = newcontig.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+1);
+                        newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
 
                         edlibFreeAlignResult(result);
                         

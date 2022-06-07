@@ -343,7 +343,7 @@ void Partition::mergePartition(Partition &p){
 
 //input : nothing except the partition itself
 //output : a confidence score of the partition stored
-void Partition::compute_conf(){
+float Partition::compute_conf(){
     double conf = 1;
     int numberReads = 0;
     auto confidences = this->getConfidence();
@@ -358,6 +358,7 @@ void Partition::compute_conf(){
     }
     conf_score = pow(1/(1-exp(log(conf)/numberReads)), 2)*this->number(); //exp(log(conf)/numberReads) is the geometrical average confidence
 
+    return conf_score;
 }
 
 //returns the majoritary partition

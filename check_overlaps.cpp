@@ -49,8 +49,8 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         
-        if (allreads[read].neighbors_.size() > 20 && (allreads[read].get_links_left().size()>1 || allreads[read].get_links_right().size()>1) 
-            && allreads[read].name != "edge_1460"){
+        if (allreads[read].neighbors_.size() > 20 && (allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
+            && allreads[read].name == "edge_131"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -211,6 +211,16 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                                     positionOfReads[n].second-positionOfReads[n].first,
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
+        string alignment;
+        char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
+        for (int l = 0; l < result.alignmentLength; l++) {
+            alignment += moveCodeToChar[result.alignment[l]];
+        }
+
+        // cout << "Alignment : " << endl;
+        // cout << alignment << endl;
+        // cout << allOverlaps[allreads[read].neighbors_[n]].CIGAR << endl;
+
         auto t2 = high_resolution_clock::now();
         
         // string ref = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first);
@@ -225,7 +235,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         // if (n == 10) {break;}
 
         //a loop going through the CIGAR and modifyning snps
-        char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
         int indexQuery = result.startLocations[0]+positionOfReads[n].first; //query corresponds to consensus
         int indexTarget = 0; //target corresponds to the read
         int numberOfInsertionsThere = 0;
@@ -235,11 +244,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         // if (n == 169){
         // for (int i = 0; i < result.alignmentLength; i++){cout << moveCodeToChar[result.alignment[i]];} cout << endl;}
         
-        for (int l = 0; l < result.alignmentLength; l++) {
+        for (int l = 0; l < alignment.size(); l++) {
 
             if (indexQuery < consensus.size()){
 
-                if (moveCodeToChar[result.alignment[l]] == '=' || moveCodeToChar[result.alignment[l]] == 'X'){
+                if (alignment[l] == '=' || alignment[l] == 'X' || alignment[l] == 'M'){
                     //fill inserted columns with '-' just before that position
                     for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of '?'
                         snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
@@ -252,7 +261,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     indexTarget++;
                     numberOfInsertionsThere = 0;
                 }
-                else if (moveCodeToChar[result.alignment[l]] == 'D'){
+                else if (alignment[l] == 'D'){
                     //fill inserted columns with '-' just before that position
                     for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of '?'
                         snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
@@ -264,7 +273,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     indexQuery++;
                     numberOfInsertionsThere = 0;
                 }
-                else if (moveCodeToChar[result.alignment[l]] == 'I'){ //hardest one
+                else if (alignment[l] == 'I'){ //hardest one
                     if (numberOfInsertionsHere[indexQuery] <= 9999 && indexQuery > positionOfReads[n].first) {
 
                         if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
@@ -497,7 +506,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
         float threshold = 1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2));
         //threshold = 3; //DEBUG
-        if (content[4] < 0.25*float(numberOfReadsHere) 
+        if (content[4] < 0.25*float(numberOfReadsHere) //not too many '-', because '-' are less specific than snps
             && *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
             // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
             suspectPostitions.push_back(position);
@@ -515,7 +524,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     
                 // }
                 if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                    // if (p == 82){
+                    // if (p == 223){
                     //     cout << "incrementing...";
                     //     Partition(snps[position], 0).print();
                     // }
@@ -525,7 +534,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                         pos = position;
                     }
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
-
+                    found = true;
                     break;
                 }
                 if (comparable > 5){
@@ -681,10 +690,14 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
                 distancePartition dis = distance(listOfFinalPartitions[p2], partitions[p1], 2);
                 if (dis.augmented){
-                    auto chi = computeChiSquare(dis);
-                    if (chi > 9){
+                    Partition newPart = listOfFinalPartitions[p2];
+                    newPart.mergePartition(partitions[p1], dis.phased);
+
+                    //see if confidence is improved by merging the two partitions, meaning differences were shaky
+                    if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
                         listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
                         different = false;
+                        break;
                     }
                 }
             }
@@ -702,7 +715,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     }
 
     // cout << "selecting partitions" << endl;
-    vector<Partition> listOfFinalPartitionsTrimmed = select_partitions(listOfFinalPartitions, numberOfReads);
+    vector<Partition> listOfFinalPartitionsTrimmed = select_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
 
 
     // cout << "threading clusters" << endl;
@@ -720,7 +733,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // int prop = 100; //1 for every base
     // int numberOfDisplayedReads = numberOfReads;
     // int start = 1011;
-    // int end = 1000060;
+    // int end = 10000;
     // vector<string> reads (numberOfDisplayedReads);
     // string cons = "";
     // for (auto i : suspectPostitions){
@@ -757,7 +770,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // cout << "Here are the aligned reads : " << endl;
     // int index = 0;
     // for (auto neighbor : reads){
-    //     if (/*neighbor[0] != '?'*/ index == 2|| index == 5 || index == 9 || index == 10 || index == 11){
+    //     if (neighbor[20] != '?'){
     //         cout << neighbor << " " << index  << endl;
     //     }
     //     index++;
@@ -1123,7 +1136,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
 
 //input : a list of partitions
 //output : only the partitions that look very sure of themselves
-vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, int numberOfReads){
+vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, int numberOfReads, float errorRate){
     vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size()));
 
     vector<vector<int>> allIdxs;
@@ -1192,8 +1205,8 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         }
 
         //compute the confidence level we must have to be sure (different for both haplotypes because of the bias)
-        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * 0.6 
-                            , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * 0.6 };
+        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * 0.5 
+                            , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * 0.5}; //tolerate on average 25% errors
         // cout << "the centers are : " << means[0]/n0 << " and " << means[1]/n1 << endl;
 
         int numberOfUnsureReads = 0;
@@ -1205,9 +1218,12 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
             c++;
         }
 
-        // cout << "Here is the number of unsure reads " << numberOfUnsureReads << " "<< numberOfPartitionnedRead << endl;
+        cout << "filtering partition, tolerating " << errorRate *2 << endl;
+        listOfFinalPartitions[par].print();
+        cout << "There are " << numberOfUnsureReads << " unsure reads, out of " << numberOfPartitionnedRead << " partitionned reads" << endl;
 
-        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1){ 
+        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1){ //
+        
             //then the partition is sure enough of itself
             trimmedListOfFinalPartitionBool[par] = true;
         }
@@ -1223,26 +1239,20 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         }
     }
 
-    return trimmedListOfFinalPartition;
-}
-
-//input : a list of all binary partitions found in the reads
-//output : a vector defining intervals with their two bounds and their attached local partition
-vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &listOfFinalPartitions, int numberOfReads, unordered_map <int, std::pair<int,int>> &clusterLimits){
-
-    //as a first step, we'll compute a score for each partition depending on how confident it is    
-    for (int par = 0 ; par < listOfFinalPartitions.size() ; par++){
+//now check that all remaining partitions are compatibles
+    //as a first step, we'll compute a score for each partition evaluating on how confident it is    
+    for (int par = 0 ; par < trimmedListOfFinalPartition.size() ; par++){
         //compute a score evaluating the certainty of the partition
-        listOfFinalPartitions[par].compute_conf();
+        trimmedListOfFinalPartition[par].compute_conf();
     }
 
     struct {
         bool operator()(Partition a, Partition b) const { return a.get_conf() > b.get_conf(); }
     } customLess;
-    std::sort(listOfFinalPartitions.begin(), listOfFinalPartitions.end(), customLess);
+    std::sort(trimmedListOfFinalPartition.begin(), trimmedListOfFinalPartition.end(), customLess);
 
     cout << "Here are all the partitions, sorted : " << endl;
-    for (auto p : listOfFinalPartitions){
+    for (auto p : trimmedListOfFinalPartition){
         p.print();
     }
 
@@ -1250,13 +1260,19 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &lis
 
     //draw a list of compatible partitions
     
-    vector<bool> compatibles(listOfFinalPartitions.size(), false);
-    for (int p = 0 ; p < listOfFinalPartitions.size() ; p++){
+    vector<bool> compatibles(trimmedListOfFinalPartition.size(), false);
+    for (int p = 0 ; p < trimmedListOfFinalPartition.size() ; p++){
         bool compatible = true;
         for (int p2 = 0 ; p2 < p ; p2++){
             if (compatibles[p2]){ //for all more sturdy validated partitions, check if this one is compatible
-                if (!compatible_partitions(listOfFinalPartitions[p], listOfFinalPartitions[p2])){
+                int compCode = compatible_partitions(trimmedListOfFinalPartition[p], trimmedListOfFinalPartition[p2]);
+                if (compCode == 0){
                     compatible = false;
+                    break;
+                }
+                else if (compCode == 2){ //means that they're the same partition
+                    compatible = false;
+                    trimmedListOfFinalPartition[p2].mergePartition(trimmedListOfFinalPartition[p]);
                     break;
                 }
             }
@@ -1268,12 +1284,20 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &lis
     
     vector<Partition> compatiblePartitions;
     cout << "compatible partitions : " << endl;
-    for (auto p = 0 ; p < listOfFinalPartitions.size(); p++){
+    for (auto p = 0 ; p < trimmedListOfFinalPartition.size(); p++){
         if (compatibles[p]){
-            compatiblePartitions.push_back(listOfFinalPartitions[p]);
-            listOfFinalPartitions[p].print();
+            compatiblePartitions.push_back(trimmedListOfFinalPartition[p]);
+            trimmedListOfFinalPartition[p].print();
         }
     }
+
+    return compatiblePartitions;
+}
+
+//input : a list of all binary partitions found in the reads
+//output : a vector defining intervals with their two bounds and their attached local partition
+vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &compatiblePartitions, int numberOfReads, unordered_map <int, std::pair<int,int>> &clusterLimits){
+
 
     //now go through the reference and give the repartition of reads at each position
 
@@ -1338,16 +1362,14 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &lis
 }
 
 //input : two partitions
-//output : are those two partitions compatible ?
-bool compatible_partitions(Partition &p1 , Partition &p2){
+//output : are those two partitions compatible ? : 0 No, 1 Yes, 2 they're the same partition !
+int compatible_partitions(Partition &p1 , Partition &p2){
 
     if (p1.get_right() <= p2.get_left() || p2.get_right() <= p1.get_left()){ //the two partitions are not defined on the same stretch
         return true;
     }
 
     //compatibility is defined as : either the 0s or the 1s of the extension all fall squarely within one already defined haplotype
-
-    bool compatible = false;
 
     auto idxs = p1.getReads();
     auto content = p1.getPartition();
@@ -1399,24 +1421,27 @@ bool compatible_partitions(Partition &p1 , Partition &p2){
 
     //now the idea is to see if the two partitions are compatible
     //additionally, ensure that the most specific parts are made up of ones
+    int compatible = 0;
+
     if (zero_in_0/numberOf0s > 0.9){
         p1.flipPartition();
-        compatible = true;
+        compatible += 1;
     }
     else if(zero_in_1/numberOf0s > 0.9){
         p1.flipPartition();
         p2.flipPartition();
-        compatible = true;
+        compatible += 1;
     }
-    else if (one_in_0/numberOf1s > 0.9){
-        compatible = true;
+
+    if (one_in_0/numberOf1s > 0.9){
+        compatible += 1;
     }
     else if (one_in_1/numberOf1s > 0.9){
         p2.flipPartition();
-        compatible = true;
+        compatible += 1;
     }
 
-    cout << "Compatibility : " << numberOf0s << " " << zero_in_0 << " " << zero_in_1 << " ; " << numberOf1s << " " << one_in_0 << " " << one_in_1 << endl;
+    cout << "Compatibility : " << numberOf0s << " " << zero_in_0 << " " << zero_in_1 << " ; " << numberOf1s << " " << one_in_0 << " " << one_in_1 << " ; " << compatible << endl;
     return compatible;
 }
 

@@ -36,7 +36,7 @@ public :
     int number();
     float proportionOf1();
 
-    void compute_conf();
+    float compute_conf();
     float get_conf();
 
     int get_left();

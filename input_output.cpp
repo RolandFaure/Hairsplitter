@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "input_output.h"
+#include "tools.h"
 
 using std::cout;
 using std::endl;
@@ -232,6 +233,8 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         int length2= -1;
         bool positiveStrand;
 
+        string cigar;
+
         bool allgood = true;
         //now go through the fields of the line
         short fieldnumber = 0;
@@ -288,6 +291,10 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             }
             else if (fieldnumber == 8){
                 pos2_2 = stoi(field);
+            }
+            else if (field.substr(0,5) == "cg:Z:"){
+                cigar = field.substr(5, field.size()-5);
+                cigar = convert_cigar(cigar);
             }
             //std::cout << "my field is : " << field << std::endl;
             fieldnumber++;
@@ -365,7 +372,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 overlap.position_2_1 = pos2_1;
                 overlap.position_2_2 = pos2_2;
                 overlap.strand = positiveStrand;
-
+                overlap.CIGAR = cigar;
 
                 //cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
 

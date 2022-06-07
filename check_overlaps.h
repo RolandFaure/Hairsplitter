@@ -36,11 +36,11 @@ distancePartition distance(Partition &par1, Column &par2);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
 
-std::vector<Partition> select_partitions(std::vector<Partition> &listOfFinalPartitions, int numberOfReads);
+std::vector<Partition> select_partitions(std::vector<Partition> &listOfFinalPartitions, int numberOfReads, float errorRate);
 
-std::vector< std::pair<std::pair<int,int>, std::vector<int>> > threadHaplotypes(std::vector<Partition> &listOfFinalPartitions, int numberOfReads,
+std::vector< std::pair<std::pair<int,int>, std::vector<int>> > threadHaplotypes(std::vector<Partition> &compatiblePartitions, int numberOfReads,
     std::unordered_map <int, std::pair<int,int>> &clusterLimits);
-bool compatible_partitions(Partition &p1 , Partition &p2);
+int compatible_partitions(Partition &p1 , Partition &p2);
 std::vector<int> threadHaplotypes_in_interval(std::vector<Partition> &listOfFinalPartitions, int numberOfReads);
 bool extend_with_partition_if_compatible(std::vector<int> &alreadyThreadedHaplotypes, Partition &extension, int partitionIndex,
         std::unordered_map <int, std::pair<int,int>> &clusterLimits);//auxilliary function of threadHaplotypes

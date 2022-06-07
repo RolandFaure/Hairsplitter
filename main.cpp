@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     string fastqfile, allfile, refFile, alnOnRefFile, outputFile, samFile, vcfFile;
     auto cli = (
             option("-f", "--fastq") & opt_value("fastqfile", fastqfile),
-            option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
+        option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
             option("-g", "--gfa") & opt_value("GFA file", refFile),
             option("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
