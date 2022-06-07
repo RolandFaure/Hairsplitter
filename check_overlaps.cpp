@@ -50,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (allreads[read].get_links_left().size()>1 || allreads[read].get_links_right().size()>1) 
-            && index < 1350 && allreads[read].name != "edge_3000"){
+            && allreads[read].name != "edge_1460"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -71,21 +71,6 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
             // cout << "Proposed partition : " << endl;
             // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
             // cout << endl;
-
-            // vector <int> split;
-            // for (int r = 0 ; r < allreads[read].neighbors_.size() ; r++){
-            //     if (r < allreads[read].neighbors_.size()/2){
-            //         split.push_back(1);
-            //     }
-            //     else{
-            //         split.push_back(2);
-            //     }
-            // }
-
-            // vector<pair<pair<int,int>, vector<int>> > par;
-            // par.push_back(make_pair(make_pair(0, 0.1*allreads[read].sequence_.size()), vector<int> (allreads[read].neighbors_.size(), 0)));
-            // par.push_back(make_pair(make_pair(0.1*allreads[read].sequence_.size(), 0.9*allreads[read].sequence_.size()), split));
-            // par.push_back(make_pair(make_pair(0.9*allreads[read].sequence_.size(), allreads[read].sequence_.size()), vector<int> (allreads[read].neighbors_.size(), 0)));
 
             partitions[read] = par;
     

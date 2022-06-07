@@ -22,27 +22,10 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
             std::unordered_map<unsigned long int, std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
             std::unordered_map <int, std::pair<int,int>> &clusterLimits){
 
-    cout << "here are all the partitions : ";
-    for (auto p : partitions){
-        cout << allreads[p.first].name << ",";
-    }
-    cout << endl;
-
-    cout << "here are all the backbones : " << endl;
-    for (auto b : backbones_reads){
-        if (b < 100000){
-            cout << allreads[b].name << endl;
-        }
-        else{
-            cout << "ERROR: " << b << endl;
-        }
-    }
-
-    for (int b = 0 ; b < backbones_reads.size() ; b++){
+    int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
+    for (int b = 0 ; b < max_backbone ; b++){
 
         int backbone = backbones_reads[b];
-
-        cout << "Looking at backbone " << backbone << endl;
 
         if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
 
@@ -140,14 +123,13 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
                             newcontig = consensus_reads(toPolish, group.second);
                         }
-                        // EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
-                        //             newcontig.c_str(), newcontig.size(),
-                        //             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                        EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
+                                    newcontig.c_str(), newcontig.size(),
+                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                        // newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
-                        // cout << "Need to check the local reassembly !!" << endl;
+                        newcontig = newcontig.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+1);
 
-                        // edlibFreeAlignResult(result);
+                        edlibFreeAlignResult(result);
                         
                     }
                     else {
@@ -210,14 +192,6 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
-                    cout << "here are all the backbones : " << endl;
-                    for (auto b : backbones_reads){
-                        if (b < 100000){
-                        }
-                        else{
-                            cout << "ERROR 1: " << b << endl;
-                        }
-                    }
                     cout << "now creating the different contigs : " << r.name << endl;
 
                 }
@@ -269,14 +243,6 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
             allreads.push_back(r);
             backbones_reads.push_back(allreads.size()-1);
-            cout << "here are all the backbones : " << endl;
-            for (auto b : backbones_reads){
-                if (b < 100000){
-                }
-                else{
-                    cout << "ERROR 2: " << b << endl;
-                }
-            }
             cout << "now creating the different contigs : " << r.name << endl;
 
             allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
