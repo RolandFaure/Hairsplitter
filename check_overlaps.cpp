@@ -50,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-            && allreads[read].name != "edge_4"){
+            && allreads[read].name != "edge_400"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -62,7 +62,9 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
             //then separate the MSA
             cout << "Separating reads" << endl;
-            vector<pair<pair<int,int>, vector<int>> > par = separate_reads(read, allOverlaps, allreads, snps, meanDistance, allreads[read].neighbors_.size()+1-int(assemble_on_assembly), clusterLimits);
+            vector<pair<pair<int,int>, vector<int>> > par = separate_reads(read, allOverlaps, allreads, snps, meanDistance, 
+                                                                allreads[read].neighbors_.size()+1-int(assemble_on_assembly), clusterLimits);
+            
             cout << "True partition : " << endl;
             cout << truePar << endl;
             
@@ -292,8 +294,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     // int step = 1;
     // int prop = 100; //1 for every base
     // int numberOfReads = 50;
-    // int start = 1011;
-    // int end = 10060;
+    // int start = 40011;
+    // int end = 50060;
     // vector<string> reads (numberOfReads);
     // string cons = "";
     // for (unsigned short i = start ; i < end; i+=prop){
@@ -327,9 +329,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     // cout << "Here are the aligned reads : " << endl;
     // int index = 0;
     // for (auto neighbor : reads){
-    //     // if (neighbor[0] != '?'){
+    //     if (neighbor[0] != '?'){
     //         cout << neighbor << " " << index  << endl;
-    //     // }
+    //     }
     //     index++;
     // }
     // int n = 0;
@@ -501,15 +503,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     
                 // }
                 if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                    // if (p == 223){
-                    //     cout << "incrementing...";
-                    //     Partition(snps[position], 0).print();
-                    // }
                     
                     int pos = -1;
                     if (position < allreads[read].size()){
                         pos = position;
                     }
+
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     found = true;
                     break;
@@ -710,7 +709,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // int prop = 100; //1 for every base
     // int numberOfDisplayedReads = numberOfReads;
     // int start = 1011;
-    // int end = 10000;
+    // int end = 1000000;
     // vector<string> reads (numberOfDisplayedReads);
     // string cons = "";
     // for (auto i : suspectPostitions){

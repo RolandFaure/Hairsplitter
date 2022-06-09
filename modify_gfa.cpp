@@ -136,14 +136,12 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
                             string toPolish2 = allreads[backbone].sequence_.str();
                             newcontig = consensus_reads(toPolish2, group.second);
-                            cout << "consensus : " << newcontig << endl;
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
                         newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
-                        cout << "score of newcontig : " << result.editDistance << endl;
 
                         edlibFreeAlignResult(result);
                         
