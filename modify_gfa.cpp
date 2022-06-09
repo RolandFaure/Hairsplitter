@@ -107,12 +107,20 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                         int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
+                        string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
+
+                        if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str();
+                        }
+                        else{
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).reverse_complement().str();
+                        }
+
                         if (readsPerPart.find(clust) == readsPerPart.end()){
-                            readsPerPart[clust] = {allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str()};
+                            readsPerPart[clust] = {clippedRead};
                         }
                         else {
-                            readsPerPart[clust].push_back(allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str());
-                            // cout << "read aligning is : " << allreads[idxRead].name << endl;
+                            readsPerPart[clust].push_back(clippedRead);
                         }
                     }
                 }
@@ -123,16 +131,19 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                 for (auto group : readsPerPart){
                     
                     string newcontig = "";
-                    if (readsPerPart.size() > 1){
+                    if (group.second.size() > 1){
                         // newcontig = local_assembly(group.second);
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
-                            newcontig = consensus_reads(toPolish, group.second);
+                            string toPolish2 = allreads[backbone].sequence_.str();
+                            newcontig = consensus_reads(toPolish2, group.second);
+                            cout << "consensus : " << newcontig << endl;
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
                         newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
+                        cout << "score of newcontig : " << result.editDistance << endl;
 
                         edlibFreeAlignResult(result);
                         

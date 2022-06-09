@@ -49,22 +49,22 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     int index = 0;
     for (unsigned long int read : backbones_reads){
         
-        if (allreads[read].neighbors_.size() > 20 && (allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-            && allreads[read].name == "edge_131"){
+        if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
+            && allreads[read].name != "edge_4"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
             vector<Column> snps;  //vector containing list of position, with SNPs at each position
             //first build an MSA
             cout << "Generating MSA" << endl;
-            Partition truePar; //for debugging
+            string truePar; //for debugging
             float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly);
 
             //then separate the MSA
             cout << "Separating reads" << endl;
             vector<pair<pair<int,int>, vector<int>> > par = separate_reads(read, allOverlaps, allreads, snps, meanDistance, allreads[read].neighbors_.size()+1-int(assemble_on_assembly), clusterLimits);
             cout << "True partition : " << endl;
-            truePar.print();
+            cout << truePar << endl;
             
             // auto par = truePar.getPartition();//DEBUG
             // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
@@ -81,7 +81,8 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
 //input: a read with all its neighbor
 //outputs : the precise alignment of all reads against input read in the form of matrix snps, return the mean editDistance/lengthOfAlginment
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly){
+float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
+    std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly){
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -104,48 +105,26 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     string read_str = allreads[read].sequence_.str();
 
     //small loop to compute truePartition DEBUG
-    Column truePartition; //for debugging
-    // vector <char> truePart;
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
 
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
-        truePartition.readIdxs.push_back(n);
+        
         if (overlap.sequence1 == read){
-            // truePart.push_back(allreads[overlap.sequence2].name[1]);
-            if (allreads[overlap.sequence2].name[1] == '1'){
-                truePartition.content.push_back('A');
-            }
-            else{
-                truePartition.content.push_back('C');
-            }
+
+            truePar.push_back(allreads[overlap.sequence2].name[1]);
             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }
         else{
-            // truePart.push_back(allreads[overlap.sequence1].name[1]);
-            if (allreads[overlap.sequence1].name[1] == '1'){
-                truePartition.content.push_back('C');
-            }
-            else{
-                truePartition.content.push_back('A');
-            }
+            truePar.push_back(allreads[overlap.sequence1].name[1]);
             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }    
-    }
-    //do not forget the last read itself
-    // truePart.push_back(allreads[read].name[1]);
-    if (allreads[read].name[1] == '1'){
-        truePartition.content.push_back('A');
-    }
-    else{
-        truePartition.content.push_back('C');
     }
 
     // string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/answer_"+std::to_string(read)+".tsv";
     // std::ofstream out(fileOut);
     // for (auto c : truePart){out<<c;}out.close();
     // cout << "name : " << allreads[read].name << " " << allreads[read].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-    truePar = Partition(truePartition, 0);
 
     // /* compute only true partition
 
@@ -184,12 +163,10 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         }
     }
 
-    string consensus = consensus_reads(read_str , polishingReads);
+    // string consensus = consensus_reads(read_str , polishingReads);
+    string consensus = read_str; //DEBUG
     cout << "Done building a consensus of the backbone" << endl;
 
-    if (!assemble_on_assembly){
-        polishingReads.push_back(read_str); //now we'll use polishingReads as the list of reads aligning on the consensus
-    }
     //snps = vector<vector<char>>(consensus.size(), vector<char>(polishingReads.size(), '?'));
     snps = vector<Column>(consensus.size());
 
@@ -386,7 +363,7 @@ string consensus_reads(string &backbone, vector <string> &polishingReads){
     polishseqs.close();
 
     system("minimap2 -t 1 -x map-ont tmp/unpolished.fasta tmp/reads.fasta > tmp/mapped.paf 2>tmp/trash.txt");
-    system("racon -t 1 tmp/reads.fasta tmp/mapped.paf tmp/unpolished.fasta > tmp/polished.fasta 2>tmp/trash.txt");
+    system("racon -e 1 -t 1 tmp/reads.fasta tmp/mapped.paf tmp/unpolished.fasta > tmp/polished.fasta 2>tmp/trash.txt");
 
     std::ifstream polishedRead("tmp/polished.fasta");
     string line;
@@ -1466,12 +1443,20 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
         int c = 0;
+        int lastRead = 0;
         for (auto read : listOfFinalPartitions[binary].getReads()){
+
+            for (int absentread = lastRead ; absentread < read ; absentread++) { //means that the read is absent in this interval 
+                clusters[absentread] = -pow(2, listOfFinalPartitions.size())-2;
+            }
+            lastRead = read+1;
+
             auto camp = allPartitions[binary][c];
-            if (clusters[read] == -1 && camp != 0){ //means that the read is present in this interval
+            if (clusters[read] == -1 && camp != 0){ //means that the read is present in one partition
                 clusters[read] = 0;
                 clustersAll[read] = 0;
             }
+
             if (allConfidences[binary][c] < 0.7 || camp == 0){  //0.7 to be pretty confident about the reads we separate (more than 70% on all partitions)
                 clusters[read] = -pow(2, listOfFinalPartitions.size())-2; //definitely putting that below -1
             }
@@ -1482,6 +1467,11 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
                 clustersAll[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
             }
             c++;
+        }
+
+        //the last stretch is also devoid of reads
+        for (int absentread = lastRead ; absentread < numberOfReads ; absentread++) { //means that the read is absent in this interval 
+            clusters[absentread] = -pow(2, listOfFinalPartitions.size())-2;
         }
     }
 
@@ -1558,7 +1548,11 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     for (auto read = 0 ; read < clusters.size() ; read++){
 
-        if (listOfGroups.find(clusters[read]) == listOfGroups.end() && clusters[read] !=  -1){ //this means the read needs to be rescued 
+        if (clusters[read] < 0){
+            clusters[read] = -1;
+        }
+
+        if (listOfGroups.find(clusters[read]) == listOfGroups.end() && clusters[read] >  -1){ //this means the read needs to be rescued 
 
             //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
             //iterate through the list of groups and choose the one that can be explained by the less mistakes

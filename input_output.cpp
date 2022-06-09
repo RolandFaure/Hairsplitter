@@ -307,51 +307,33 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             float limit1 = float(pos1_2-pos1_1)/2;
             float limit2 = float(pos2_2-pos2_1)/2;
             if (positiveStrand){
-                if (pos1_1  < limit1){ 
-                    if (length2-pos2_2 < limit2){
+
+                int slideLeft = min(pos1_1, pos2_1);
+                int slideRight = min(length2-pos2_2, length1-pos1_2);
+
+                if (pos1_1  < limit1 || pos2_1 < limit2){ 
+                    if (length2-pos2_2 < limit2 || length1-pos1_2 < limit1){
                         fullOverlap = true;
-                        pos2_2 = length2;
+                        pos1_2 += slideRight;
+                        pos2_2 += slideRight;
+                        pos1_1 -= slideLeft;
+                        pos2_1 -= slideLeft;
                     }
-                    if (length1-pos1_2 < limit1){
-                        fullOverlap = true;
-                        pos1_2 = length1;
-                    }
-                    pos1_1 = 0;
-                }
-                else if (pos2_1 < limit2){
-                    if (length2-pos2_2 < limit2){
-                        fullOverlap = true;
-                        pos2_2 = length2;
-                    }
-                    if (length1-pos1_2 < limit1){
-                        fullOverlap = true;
-                        pos1_2 = length1;
-                    }
-                    pos2_1 = 0;
                 }
             }
             else {
-                if (pos1_1 < limit1){
-                    if (pos2_1 < limit2){
+
+                int slideLeft = min(pos1_1, length2-pos2_2);
+                int slideRight = min(pos2_1, length1-pos1_2);
+
+                if (pos1_1 < limit1 || length2-pos2_2 < limit2){
+                    if (pos2_1 < limit2 || length1-pos1_2 < limit1){
                         fullOverlap = true;
-                        pos2_1 = 0;
+                        pos1_2 += slideRight;
+                        pos2_1 -= slideRight;
+                        pos1_1 -= slideLeft;
+                        pos2_2 += slideLeft;
                     }
-                    if (length1-pos1_2 < limit1){
-                        fullOverlap = true;
-                        pos1_2 = length1;
-                    }
-                    pos1_1 = 0;
-                }
-                else if (length2-pos2_2 < limit2){
-                    if (length1-pos1_2 < limit1){
-                        fullOverlap = true;
-                        pos1_2 = length1;
-                    }
-                    if (pos2_1 < limit2){
-                        fullOverlap = true;
-                        pos2_1 = 0;
-                    }
-                    pos2_2 = length2;
                 }
             }
             

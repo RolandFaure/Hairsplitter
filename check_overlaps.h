@@ -25,7 +25,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::pair<int,int>> &clusterLimits);
 
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, int backboneReadIndex, Partition &truePar, bool assemble_on_assembly);
+float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, int backboneReadIndex, std::string &truePar, bool assemble_on_assembly);
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads);
 std::string local_assembly(std::vector <std::string> &reads);
 

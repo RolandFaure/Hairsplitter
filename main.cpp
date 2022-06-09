@@ -21,6 +21,11 @@ using namespace clipp;
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
 void check_dependancies(){
+
+    
+    auto perm = system("mkdir tmp 2> trash.txt");
+    system("rm trash.txt 2> tmp/trash.txt");
+
     auto res = system("minimap2 --version > tmp/trash.txt 2> tmp/trash.txt");
     auto miniasm = system("miniasm -V > tmp/trash.txt 2> tmp/trash.txt");
     auto racon = system("racon --version > tmp/trash.txt 2> tmp/trash.txt");
