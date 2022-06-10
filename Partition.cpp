@@ -237,24 +237,26 @@ void Partition::mergePartition(Partition &p, short phased){
     int n1 = 0;
     int n2 = 0;
     while (n1 < readIdx.size() && n2 < idx2.size() ){
-        if (readIdx[n1] < idx2[n2]){
+        while (readIdx[n1] < idx2[n2] && n1 < readIdx.size()){
             newIdx.push_back(readIdx[n1]);
             newMostFrequent.push_back(mostFrequentBases[n1]);
             newMoreFrequence.push_back(moreFrequence[n1]);
             newLessFrequence.push_back(lessFrequence[n1]);
             n1++;
         }
-        else if (readIdx[n1] > idx2[n2]){
+
+        while (readIdx[n1] > idx2[n2] && n2 < idx2.size()){
             newIdx.push_back(idx2[n2]);
-            newMostFrequent.push_back(other[n2]);
+            newMostFrequent.push_back(other[n2]*phased);
             newMoreFrequence.push_back(moreOther[n2]);
             newLessFrequence.push_back(lessOther[n2]);
             n2++;
         }
-        else{ //the read is present on both partitions
+
+        if (n1 < readIdx.size() && n2 < idx2.size() && readIdx[n1] == idx2[n2]){ //the read is present on both partitions
             newIdx.push_back(readIdx[n1]);
             if (mostFrequentBases[n1] == 0){
-                newMostFrequent.push_back(other[n2]);
+                newMostFrequent.push_back(other[n2]*phased);
                 newMoreFrequence.push_back(moreOther[n2]);
                 newLessFrequence.push_back(lessOther[n2]);
             }
@@ -268,10 +270,10 @@ void Partition::mergePartition(Partition &p, short phased){
                 newMoreFrequence.push_back(moreFrequence[n1]+moreOther[n2]);
                 newLessFrequence.push_back(lessFrequence[n1]+lessOther[n2]);
             }
-            else if (phased*other[n2] != mostFrequentBases[n1]){ //the two partitions disagree
+            else if (phased*other[n2] == -mostFrequentBases[n1]){ //the two partitions disagree
                 newMostFrequent.push_back(mostFrequentBases[n1]);
-                newMoreFrequence.push_back(moreFrequence[n1]+moreOther[n2]);
-                newLessFrequence.push_back(lessFrequence[n1]+lessOther[n2]);
+                newMoreFrequence.push_back(moreFrequence[n1]+lessOther[n2]);
+                newLessFrequence.push_back(lessFrequence[n1]+moreOther[n2]);
 
                 //then the most popular base may have changed
                 if (newLessFrequence[newLessFrequence.size()-1] > newMoreFrequence[newMoreFrequence.size()-1] ){
@@ -287,7 +289,7 @@ void Partition::mergePartition(Partition &p, short phased){
     }
     while (n2 < idx2.size()){
         newIdx.push_back(idx2[n2]);
-        newMostFrequent.push_back(other[n2]);
+        newMostFrequent.push_back(other[n2]*phased);
         newMoreFrequence.push_back(moreOther[n2]);
         newLessFrequence.push_back(lessOther[n2]);
         n2++;

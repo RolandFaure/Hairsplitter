@@ -50,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-            && allreads[read].name != "edge_400"){
+            && allreads[read].name == "edge_147"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -236,6 +236,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
                     snps[indexQuery].readIdxs.push_back(n);
                     snps[indexQuery].content.push_back(polishingReads[n][indexTarget]);
+
                     indexQuery++;
                     indexTarget++;
                     numberOfInsertionsThere = 0;
@@ -248,7 +249,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     }
 
                     snps[indexQuery].readIdxs.push_back(n);
-                    snps[indexQuery].content.push_back('-');
+                    snps[indexQuery].content.push_back('-');                    
                     indexQuery++;
                     numberOfInsertionsThere = 0;
                 }
@@ -291,56 +292,56 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
     
     //print snps (just for debugging)
-    // int step = 1;
-    // int prop = 100; //1 for every base
-    // int numberOfReads = 50;
-    // int start = 40011;
-    // int end = 50060;
-    // vector<string> reads (numberOfReads);
-    // string cons = "";
-    // for (unsigned short i = start ; i < end; i+=prop){
+    int step = 1;
+    int prop = 10; //1 for every base
+    int numberOfReads = 50;
+    int start = 011;
+    int end = 1060;
+    vector<string> reads (numberOfReads);
+    string cons = "";
+    for (unsigned short i = start ; i < end; i+=prop){
         
-    //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //         char c = '?';
-    //         int ri = 0;
-    //         for (auto r : snps[i].readIdxs){
-    //             if (r == n){
-    //                 c = snps[i].content[ri];
-    //             }
-    //             ri ++;
-    //         }
-    //         reads[n/step] += c;
-    //     }
-    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //     //     int snpidx = insertionPos[10000*i+insert];
-    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //     //         char c = '?';
-    //     //         int ri = 0;
-    //     //         for (auto r : snps[snpidx].readIdxs){
-    //     //             if (r == n){
-    //     //                 c = snps[snpidx].content[ri];
-    //     //             }
-    //     //             ri ++;
-    //     //         }
-    //     //         reads[n/step] += c;
-    //     //     }
-    //     // }
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = 0;
-    // for (auto neighbor : reads){
-    //     if (neighbor[0] != '?'){
-    //         cout << neighbor << " " << index  << endl;
-    //     }
-    //     index++;
-    // }
-    // int n = 0;
-    // for(auto i : consensus.substr(start, end-start)){
-    //     if (n%prop == 0){
-    //         cout << i;
-    //     }
-    //     n+=1;
-    // } cout << endl;
+        for (short n = 0 ; n < numberOfReads*step ; n+= step){
+            char c = '?';
+            int ri = 0;
+            for (auto r : snps[i].readIdxs){
+                if (r == n){
+                    c = snps[i].content[ri];
+                }
+                ri ++;
+            }
+            reads[n/step] += c;
+        }
+        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+        //     int snpidx = insertionPos[10000*i+insert];
+        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+        //         char c = '?';
+        //         int ri = 0;
+        //         for (auto r : snps[snpidx].readIdxs){
+        //             if (r == n){
+        //                 c = snps[snpidx].content[ri];
+        //             }
+        //             ri ++;
+        //         }
+        //         reads[n/step] += c;
+        //     }
+        // }
+    }
+    cout << "Here are the aligned reads : " << endl;
+    int index = 0;
+    for (auto neighbor : reads){
+        if (neighbor[0] != '?'){
+            cout << neighbor << " " << index  << endl;
+        }
+        index++;
+    }
+    int n = 0;
+    for(auto i : consensus.substr(start, end-start)){
+        if (n%prop == 0){
+            cout << i;
+        }
+        n+=1;
+    } cout << endl;
 
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     return totalDistance/totalLengthOfAlignment;
@@ -469,6 +470,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
     vector<vector<distPart>> distanceBetweenPartitions;
     vector<size_t> suspectPostitions;
+    vector <int> interestingParts; //DEBUG
 
     for (int position = 0 ; position < snps.size() ; position++){  
 
@@ -508,6 +510,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     if (position < allreads[read].size()){
                         pos = position;
                     }
+
+                    // cout << "augmenting " << p << " now : ";
+                    // if (p == 1){
+                    //     interestingParts.push_back(position);
+                    // }
 
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     found = true;
@@ -657,8 +664,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         
         if (partitions[p1].number() > threshold && partitions[p1].isInformative(meanDistance/2, true)){
 
-            // cout << "informative partition 2 : " << endl;
-            // partitions[p1].print();
+            cout << "informative partition 2 : " << endl;
+            partitions[p1].print();
 
             bool different = true;
             
@@ -671,6 +678,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
                     //see if confidence is improved by merging the two partitions, meaning differences were shaky
                     if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
+                        cout << endl << "Now merging ";
+                        listOfFinalPartitions[p2].print();
+                        partitions[p1].print();
+                        cout << "phasing : " << dis.phased << endl << endl; 
+
                         listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
                         different = false;
                         break;
@@ -708,11 +720,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // int step = 1;
     // int prop = 100; //1 for every base
     // int numberOfDisplayedReads = numberOfReads;
-    // int start = 1011;
-    // int end = 1000000;
+    // int start = 011;
+    // int end = 10000;
     // vector<string> reads (numberOfDisplayedReads);
     // string cons = "";
-    // for (auto i : suspectPostitions){
+    // for (auto i : interestingParts){
         
     //     if (i < end){
 
