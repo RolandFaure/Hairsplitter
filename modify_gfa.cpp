@@ -80,7 +80,7 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
             //create hangingLinks, a list of links that are not yet connected but will soon be
             vector<int> hangingLinks;
             for (int linkIdx : allreads[backbone].get_links_left()){
-                if (allLinks[linkIdx].neighbor1 == backbone){
+                if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 0){
                     allLinks[linkIdx].end1 = -1;
                 }
                 else {
@@ -243,8 +243,9 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                 
             }
 
+            //now re-build the links right of backbone
             for (int linkIdx : allreads[backbone].get_links_right()){
-                if (allLinks[linkIdx].neighbor1 == backbone){
+                if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 1){
                     allLinks[linkIdx].end1 = 1;
                     allLinks[linkIdx].neighbor1 = allreads.size() ;
                 }
