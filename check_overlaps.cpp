@@ -50,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-            && allreads[read].name == "edge_1"){
+             && allreads[read].name != "edge_4000"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -179,6 +179,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     float alignmentTime = 0;
     float MSAtime = 0;
 
+    vector<float> mappingQuality; //DEBUG
+
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
@@ -209,6 +211,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
         totalLengthOfAlignment += result.alignmentLength;
         totalDistance += result.editDistance;
+        mappingQuality.push_back(float(result.editDistance)/result.alignmentLength);
         // cout << "Alignment distance : " << float(result.editDistance)/result.alignmentLength << endl;
 
         // if (n == 10) {break;}
@@ -343,7 +346,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //     n+=1;
     // } cout << endl;
 
-    // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+    cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -511,8 +515,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                         pos = position;
                     }
 
-                    cout << "augmenting " << p << " now : " << partitions[p].number() << " " << position << endl;
-                    if (p == 250 || p == 0){
+                    // cout << "augmenting " << p << " now : " << partitions[p].number() << " " << position << endl;
+                    if (p == 0){
                         interestingParts.push_back(position);
                     }
 
@@ -679,10 +683,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     //see if confidence is improved by merging the two partitions, meaning differences were shaky
                     if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
                         
-                        cout << endl << "Now merging " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
-                        listOfFinalPartitions[p2].print();
-                        partitions[p1].print();
-                        cout << "phasing : " << dis.phased << endl << endl; 
+                        // cout << endl << "Now merging " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
+                        // listOfFinalPartitions[p2].print();
+                        // partitions[p1].print();
+                        // cout << "phasing : " << dis.phased << endl << endl; 
 
                         listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
                         different = false;
@@ -718,54 +722,82 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // vector<int> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
 
     //print snps (just for debugging)
-    int step = 1;
-    int prop = 3; //1 for every base
-    int numberOfDisplayedReads = numberOfReads;
-    int start = 011;
-    int end = 10000000;
-    vector<string> reads (numberOfDisplayedReads);
-    string cons = "";
-    auto n = 0;
-    for (auto i : interestingParts){
+    // int step = 1;
+    // int prop = 6; //1 for every base
+    // int numberOfDisplayedReads = numberOfReads;
+    // int start = 011;
+    // int end = 10000000;
+    // vector<string> reads (numberOfDisplayedReads);
+    // string cons = "";
+    // auto n = 0;
+    // for (auto i : interestingParts){
         
-        if (i < end && n%prop == 0 ){
+    //     if (i < end && n%prop == 0 ){
 
-            for (short n = 0 ; n < numberOfDisplayedReads*step ; n+= step){
-                char c = '?';
-                int ri = 0;
-                for (auto r : snps[i].readIdxs){
-                    if (r == n){
-                        c = snps[i].content[ri];
-                    }
-                    ri ++;
-                }
-                reads[n/step] += c;
-            }
-            // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-            //     int snpidx = insertionPos[10000*i+insert];
-            //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-            //         char c = '?';
-            //         int ri = 0;
-            //         for (auto r : snps[snpidx].readIdxs){
-            //             if (r == n){
-            //                 c = snps[snpidx].content[ri];
-            //             }
-            //             ri ++;
-            //         }
-            //         reads[n/step] += c;
-            //     }
-            // }
-        }
-        n++;
-    }
-    cout << "Here are the aligned reads : " << endl;
-    int index = 0;
-    for (auto neighbor : reads){
-        if (neighbor[20] != '?'){
-            cout << neighbor << " " << index  << endl;
-        }
-        index++;
-    }
+    //         for (short n = 0 ; n < numberOfDisplayedReads*step ; n+= step){
+    //             char c = '?';
+    //             char justBefore = '?';
+    //             char justAfter = '?';
+    //             int ri = 0;
+    //             for (auto r : snps[i].readIdxs){
+    //                 if (r == n){
+    //                     c = snps[i].content[ri];
+    //                 }
+    //                 ri ++;
+    //             }
+                
+    //             ri = 0;
+    //             for (auto r : snps[i-1].readIdxs){
+    //                 if (r == n){
+    //                     justBefore = snps[i-1].content[ri];
+    //                 }
+    //                 ri ++;
+    //             }
+
+    //             ri = 0;
+    //             for (auto r : snps[i+1].readIdxs){
+    //                 if (r == n){
+    //                     justAfter = snps[i+1].content[ri];
+    //                 }
+    //                 ri ++;
+    //             }
+
+    //             if (justAfter != '-' && justAfter != '?'){
+    //                 justAfter += 32;
+    //             }
+    //             if (justBefore != '-' && justBefore != '?'){
+    //                 justBefore += 32;
+    //             }
+    //             reads[n/step] = reads[n/step] + "...";
+    //             reads[n/step] += justBefore;
+    //             reads[n/step] += c;
+    //             reads[n/step] += justAfter;
+    //         }
+    //         // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+    //         //     int snpidx = insertionPos[10000*i+insert];
+    //         //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+    //         //         char c = '?';
+    //         //         int ri = 0;
+    //         //         for (auto r : snps[snpidx].readIdxs){
+    //         //             if (r == n){
+    //         //                 c = snps[snpidx].content[ri];
+    //         //             }
+    //         //             ri ++;
+    //         //         }
+    //         //         reads[n/step] += c;
+    //         //     }
+    //         // }
+    //     }
+    //     n++;
+    // }
+    // cout << "Here are the aligned reads : " << endl;
+    // int index = 0;
+    // for (auto neighbor : reads){
+    //     if (neighbor[4] != '?'){
+    //         cout << neighbor << " " << index  << endl;
+    //     }
+    //     index++;
+    // }
 
     // return finalClusters;
     return threadedClusters;
@@ -1199,8 +1231,8 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         }
 
         //compute the confidence level we must have to be sure (different for both haplotypes because of the bias)
-        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * 0.5 
-                            , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * 0.5}; //tolerate on average 25% errors
+        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * errorRate*6 
+                            , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * errorRate*6 }; //tolerate on average errorRate*3
         // cout << "the centers are : " << means[0]/n0 << " and " << means[1]/n1 << endl;
 
         int numberOfUnsureReads = 0;
@@ -1212,13 +1244,14 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
             c++;
         }
 
-        cout << "filtering partition, tolerating " << errorRate *2 << endl;
+        cout << "filtering partition, tolerating " << errorRate *3 << endl;
         listOfFinalPartitions[par].print();
-        cout << "There are " << numberOfUnsureReads << " unsure reads, out of " << numberOfPartitionnedRead << " partitionned reads" << endl;
+        cout << "There are " << numberOfUnsureReads << " unsure reads, out of " << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
+        listOfFinalPartitions[par].number() << " for a length of " << (listOfFinalPartitions[par].get_right()-listOfFinalPartitions[par].get_left()) << endl;
 
-        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1){ //
-        
-            //then the partition is sure enough of itself
+        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1 //then the partition is sure enough of itself 
+            && listOfFinalPartitions[par].number() > 0.002*(listOfFinalPartitions[par].get_right()-listOfFinalPartitions[par].get_left())){ //and big enough
+
             trimmedListOfFinalPartitionBool[par] = true;
         }
 
