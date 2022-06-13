@@ -50,7 +50,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-            && allreads[read].name == "edge_176"){
+            && allreads[read].name == "edge_1"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -472,7 +472,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     vector<size_t> suspectPostitions;
     vector <int> interestingParts; //DEBUG
 
-    for (int position = 0 ; position < snps.size() ; position++){  
+    for (int position = 0 ; position < snps.size() ; position++){ 
 
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
@@ -511,10 +511,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                         pos = position;
                     }
 
-                    // cout << "augmenting " << p << " now : " << partitions[p].number() << endl;
-                    // if (p == 0){
-                    //     interestingParts.push_back(position);
-                    // }
+                    cout << "augmenting " << p << " now : " << partitions[p].number() << " " << position << endl;
+                    if (p == 250 || p == 0){
+                        interestingParts.push_back(position);
+                    }
 
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     found = true;
@@ -679,10 +679,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     //see if confidence is improved by merging the two partitions, meaning differences were shaky
                     if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
                         
-                        // cout << endl << "Now merging ";
-                        // listOfFinalPartitions[p2].print();
-                        // partitions[p1].print();
-                        // cout << "phasing : " << dis.phased << endl << endl; 
+                        cout << endl << "Now merging " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
+                        listOfFinalPartitions[p2].print();
+                        partitions[p1].print();
+                        cout << "phasing : " << dis.phased << endl << endl; 
 
                         listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
                         different = false;
@@ -718,52 +718,54 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // vector<int> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
 
     //print snps (just for debugging)
-    // int step = 1;
-    // int prop = 100; //1 for every base
-    // int numberOfDisplayedReads = numberOfReads;
-    // int start = 011;
-    // int end = 10000;
-    // vector<string> reads (numberOfDisplayedReads);
-    // string cons = "";
-    // for (auto i : interestingParts){
+    int step = 1;
+    int prop = 3; //1 for every base
+    int numberOfDisplayedReads = numberOfReads;
+    int start = 011;
+    int end = 10000000;
+    vector<string> reads (numberOfDisplayedReads);
+    string cons = "";
+    auto n = 0;
+    for (auto i : interestingParts){
         
-    //     if (i < end){
+        if (i < end && n%prop == 0 ){
 
-    //         for (short n = 0 ; n < numberOfDisplayedReads*step ; n+= step){
-    //             char c = '?';
-    //             int ri = 0;
-    //             for (auto r : snps[i].readIdxs){
-    //                 if (r == n){
-    //                     c = snps[i].content[ri];
-    //                 }
-    //                 ri ++;
-    //             }
-    //             reads[n/step] += c;
-    //         }
-    //         // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //         //     int snpidx = insertionPos[10000*i+insert];
-    //         //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //         //         char c = '?';
-    //         //         int ri = 0;
-    //         //         for (auto r : snps[snpidx].readIdxs){
-    //         //             if (r == n){
-    //         //                 c = snps[snpidx].content[ri];
-    //         //             }
-    //         //             ri ++;
-    //         //         }
-    //         //         reads[n/step] += c;
-    //         //     }
-    //         // }
-    //     }
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = 0;
-    // for (auto neighbor : reads){
-    //     if (neighbor[20] != '?'){
-    //         cout << neighbor << " " << index  << endl;
-    //     }
-    //     index++;
-    // }
+            for (short n = 0 ; n < numberOfDisplayedReads*step ; n+= step){
+                char c = '?';
+                int ri = 0;
+                for (auto r : snps[i].readIdxs){
+                    if (r == n){
+                        c = snps[i].content[ri];
+                    }
+                    ri ++;
+                }
+                reads[n/step] += c;
+            }
+            // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+            //     int snpidx = insertionPos[10000*i+insert];
+            //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+            //         char c = '?';
+            //         int ri = 0;
+            //         for (auto r : snps[snpidx].readIdxs){
+            //             if (r == n){
+            //                 c = snps[snpidx].content[ri];
+            //             }
+            //             ri ++;
+            //         }
+            //         reads[n/step] += c;
+            //     }
+            // }
+        }
+        n++;
+    }
+    cout << "Here are the aligned reads : " << endl;
+    int index = 0;
+    for (auto neighbor : reads){
+        if (neighbor[20] != '?'){
+            cout << neighbor << " " << index  << endl;
+        }
+        index++;
+    }
 
     // return finalClusters;
     return threadedClusters;
@@ -782,6 +784,9 @@ distancePartition distance(Partition &par1, Column &par2){
     vector<short> part1 = par1.getPartition();
     vector<float> confs1 = par1.getConfidence();
 
+    vector <int> idxs2 = par2.readIdxs;
+    vector <char> part2 = par2.content;
+
     robin_hood::unordered_flat_map<char, short> bases2content;
     bases2content['A'] = 0;
     bases2content['C'] = 1; 
@@ -792,27 +797,24 @@ distancePartition distance(Partition &par1, Column &par2){
     
     int content2 [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '?'
     float numberOfBases = 0;
-    auto it1 = idxs1.begin();
-    int n2 = 0;
-    auto it2 = par2.readIdxs.begin();
-    while (it1 != idxs1.end() && it2 != par2.readIdxs.end()){
-        if (*it1 == *it2){
-            numberOfBases++;
-            content2[bases2content[par2.content[n2]]] += 1;
-            ++it1;
-            ++it2;
-            n2++;
+
+    auto n2 = 0;
+    auto n1 = 0;
+    for (auto r : idxs2){
+        while (n1 < idxs1.size() && idxs1[n1] < idxs2[n2]){
+            n1++;
         }
-        else if (*it2 > *it1){
-            ++it1;
+        if (n1 > idxs1.size()){
+            break;
         }
-        else{
-            ++it2;
-            n2++;
+        if ( idxs1[n1] == idxs2[n2]){
+            numberOfBases+=1;
+            content2[bases2content[part2[n2]]] += 1;
         }
+        n2++;
     }
 
-    if (numberOfBases < 10){ //not comparable
+    if (numberOfBases == 0){ //not comparable
         res.n00 = 0;
         res.n01 = 0;
         res.n10 = 0;
@@ -875,10 +877,10 @@ distancePartition distance(Partition &par1, Column &par2){
     }
 
 
-    int n1 = 0;
-    it1 = idxs1.begin();
+    n1 = 0;
+    auto it1 = idxs1.begin();
     n2 = 0;
-    it2 = par2.readIdxs.begin();
+    auto it2 = par2.readIdxs.begin();
     while (it1 != idxs1.end() && it2 != par2.readIdxs.end()){
 
         float conf = 2*confs1[n2]-1;
@@ -996,6 +998,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
     Two metrics are used to compare two partition : the chi to see if the two partition correlate when they are small
                                                     the p when the partitions are bigger and you can do probabilities on them
     */
+    int numberOfComparableBases = 0;
 
     float chi = 0;
 
@@ -1029,6 +1032,8 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
             r2++;
         }
         else{
+
+            numberOfComparableBases += 1;
 
             float threshold1 = 0.5*(more1[r1]+less1[r1]) + 3*sqrt((more1[r1]+less1[r1])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
             float threshold2 = 0.5*(more2[r2]+less2[r2]) + 3*sqrt((more2[r2]+less2[r2])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
@@ -1094,7 +1099,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
     res.augmented = true;
 
     //check if there are too many unenxplainable positions
-    if (ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p){
+    if ((ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p) || numberOfComparableBases == 0){
         // cout << "Should not merge those two partitions ! " << endl;
         res.augmented = false;
     }

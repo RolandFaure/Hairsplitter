@@ -131,8 +131,9 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                 for (auto group : readsPerPart){
                     
                     string newcontig = "";
-                    if (group.second.size() > 1){
+                    if (readsPerPart.size() > 1){
                         // newcontig = local_assembly(group.second);
+
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
                             string toPolish2 = allreads[backbone].sequence_.str();
                             newcontig = consensus_reads(toPolish2, group.second);
