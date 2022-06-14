@@ -100,6 +100,8 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
     if (lastReadBiased){
         adjust = 1;
     }
+
+    int numberOfReads = 0;
     for (auto read = 0 ; read < mostFrequentBases.size()-adjust ; read++){
 
         int readNumber = moreFrequence[read] + lessFrequence[read];
@@ -109,16 +111,19 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
         if (moreFrequence[read] > threshold){
             if (mostFrequentBases[read] == -1){ //this deviates from the "all 1 theory"
                 suspiciousReads[0]++;
+                numberOfReads++;
             }
             else if (mostFrequentBases[read] == 1){ //this deviates from the "all -1 theory"
                 suspiciousReads[1]++;
+                numberOfReads++;
             }
         }
 
     }
 
-    //if I have less than two suspicious reads, then this partition is not informative
-    if (suspiciousReads[0] < 2 || suspiciousReads[1] < 2){
+    //if I have less than two/10% suspicious reads, then this partition is not informative
+    float minNumberOfReads = max(2.0, 0.1*numberOfReads);
+    if (suspiciousReads[0] < minNumberOfReads || suspiciousReads[1] < minNumberOfReads){
         return false;
     }
     else{
@@ -205,6 +210,15 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         }
         n1++;
         n2++;
+    }
+
+    while(it1 != readIdx.end()){ //positions that existed in the old partitions that are not found here
+        mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+        moreFrequence_2.push_back(moreFrequence[n1]);
+        lessFrequence_2.push_back(lessFrequence[n1]);
+        idxs1_2.push_back(*it1);
+        it1++;
+        n1++;
     }
 
     mostFrequentBases = mostFrequentBases_2;
