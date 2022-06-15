@@ -40,17 +40,19 @@ bool comp (distPart i, distPart j){
 }
 
 //input : the set of all overlaps and the backbone reads
-//output : a partition for all backbone reads. All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
+//output : a partition for all backbone reads. 
+//All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
+//readLimits contains the border of all reads aligning on each backbone, used later to recompute the coverage
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
         vector<unsigned long int> &backbones_reads, unordered_map <unsigned long int ,vector<pair<pair<int,int>, vector<int>>>> &partitions, 
-        bool assemble_on_assembly, unordered_map <int, std::pair<int,int>> &clusterLimits) {
+        bool assemble_on_assembly, unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits){
 
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     int index = 0;
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_1"){
+             && allreads[read].name == "edge_159"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -58,7 +60,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
             //first build an MSA
             cout << "Generating MSA" << endl;
             string truePar; //for debugging
-            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly);
+            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits);
 
             //then separate the MSA
             cout << "Separating reads" << endl;
@@ -84,7 +86,8 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 //input: a read with all its neighbor
 //outputs : the precise alignment of all reads against input read in the form of matrix snps, return the mean editDistance/lengthOfAlginment
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
-    std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly){
+    std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
+    unordered_map <int, vector<pair<int,int>>> &readLimits){
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -164,6 +167,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
             }
         }
     }
+    readLimits[read] = positionOfReads;
 
     // string consensus = consensus_reads(read_str , polishingReads);
     string consensus = read_str; //DEBUG
@@ -486,6 +490,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
     for (int position = 0 ; position < snps.size() ; position++){ 
 
+
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
         int numberOfReadsHere = 0;
@@ -516,6 +521,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 //     Partition(snps[position]).print();
                     
                 // }
+
                 if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
@@ -524,9 +530,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     }
 
                     // cout << "augmenting " << p << " now : " << partitions[p].number() << " " << position << " "<< endl;
-                    if (p == 0){
-                        interestingParts.push_back(position);
-                    }
+                    // if (p == 0){
+                    //     interestingParts.push_back(position);
+                    // }
 
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     found = true;
@@ -1321,8 +1327,8 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
             << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
         compatiblePartitions[par].number() << " for a length of " << (compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left()) << endl;
 
-        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.1 //then the partition is sure enough of itself 
-            && compatiblePartitions[par].number() > 0.002*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left())){ //and big enough
+        if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
+            && compatiblePartitions[par].number() > 20/allIdxs[par].size()*100){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }

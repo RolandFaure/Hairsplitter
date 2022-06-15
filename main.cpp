@@ -107,10 +107,11 @@ int main(int argc, char *argv[])
             std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
             cout << "Checking overlaps" << endl;
             std::unordered_map <int, std::pair<int,int>> clusterLimits;
-            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits);
+            std::unordered_map <int, vector<pair<int,int>>> readLimits;
+            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits, readLimits);
             cout << "Finished checking, now outputting" << endl;
 
-            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits);
+            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits, readLimits);
             output_GFA(allreads, backbone_reads, outputFile, allLinks);
             //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
         }

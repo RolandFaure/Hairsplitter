@@ -18,9 +18,11 @@ using std::make_pair;
 using std::set;
 using std::to_string;
 
-void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsigned long int> &backbones_reads, std::vector <Overlap> &allOverlaps,
-            std::unordered_map<unsigned long int, std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
-            std::unordered_map <int, std::pair<int,int>> &clusterLimits){
+//input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
+//output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
+void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
+            unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
+            unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     for (int b = 0 ; b < max_backbone ; b++){
@@ -128,6 +130,8 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
                 string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first);
                 vector<int> futureHangingLinks;
 
+                unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
+
                 for (auto group : readsPerPart){
                     
                     string newcontig = "";
@@ -153,6 +157,7 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
 
                     Read r(newcontig);
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
+                    r.depth = newdepths[group.first];
 
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
@@ -219,6 +224,8 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.str().size()-left);
             Read r (right);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
+            r.depth = allreads[backbone].depth;
+
             for (int h : hangingLinks){
                 Link leftLink;
                 leftLink.CIGAR = allLinks[h].CIGAR;
@@ -269,7 +276,8 @@ void modify_GFA(std::string refFile, std::vector <Read> &allreads, vector<unsign
     
 }
 
-
+//input : list of links from first par to second par and reciproqually
+//output : for each part of par, the set of parts of neighbor to which it should be linked
 unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
 
     unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
@@ -307,4 +315,42 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
     return stitch;
 }
 
+//input : an interval, the list of the limits of the reads on the backbone, the depth of the contig of origin
+//output : the recomputed read coverage for each of the new contigs, (scaled so that the total is the original depth)
+std::unordered_map<int, double> recompute_depths(std::pair<std::pair<int,int>, std::vector<int>> &interval, std::vector<std::pair<int,int>>& readBorders, double originalDepth){
+
+    unordered_map <int, double> newCoverage;
+    int lengthOfInterval = interval.first.second-interval.first.first;
+
+    for (auto c = 0 ; c < interval.second.size() ; c++){
+
+        if (newCoverage.find(interval.second[c]) == newCoverage.end()){
+            newCoverage[interval.second[c]] = 0;
+        }
+
+        newCoverage[interval.second[c]] += max(0.0, double(min(interval.first.second, readBorders[c].second)-max(interval.first.first, readBorders[c].first))/lengthOfInterval );
+
+    }
+
+    //now scale all the coverages to obtain exactly the original coverage
+    if (originalDepth != -1){ //that would mean we do not know anything about the original depth
+
+        double totalCoverage = 0;
+        for (auto cov : newCoverage){
+            if (cov.first != -1){
+                totalCoverage += cov.second;
+            }
+        }
+        
+        if (totalCoverage != 0){
+            for (auto cov : newCoverage){
+                newCoverage[cov.first] = cov.second * originalDepth/totalCoverage;
+            }
+        }
+
+    }
+
+    return newCoverage;
+
+}
 
