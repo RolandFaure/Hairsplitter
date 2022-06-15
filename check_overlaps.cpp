@@ -1516,16 +1516,14 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     vector<int> clusters (numberOfReads, -1); //this will contain only high-confidence reads
     vector<int> clustersAll (numberOfReads, -1); //this will contain all reads
+    vector<bool> presentReads (numberOfReads, false);
 
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
         int c = 0;
-        int lastRead = 0;
+
         for (auto read : listOfFinalPartitions[binary].getReads()){
 
-            for (int absentread = lastRead ; absentread < read ; absentread++) { //means that the read is absent in this interval 
-                clusters[absentread] = -pow(2, listOfFinalPartitions.size())-2;
-            }
-            lastRead = read+1;
+            presentReads[read] = true;
 
             auto camp = allPartitions[binary][c];
             if (clusters[read] == -1 && camp != 0){ //means that the read is present in one partition
@@ -1545,10 +1543,6 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
             c++;
         }
 
-        //the last stretch is also devoid of reads
-        for (int absentread = lastRead ; absentread < numberOfReads ; absentread++) { //means that the read is absent in this interval 
-            clusters[absentread] = -pow(2, listOfFinalPartitions.size())-2;
-        }
     }
 
     set<int> count; //a set of all existing groups
@@ -1622,55 +1616,55 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     //now most reads should be assigned to a cluster. Rescue those that have not been assigned or assigned to a rare cluster
 
-    for (auto read = 0 ; read < clusters.size() ; read++){
+    // for (auto read = 0 ; read < clusters.size() ; read++){
 
-        if (clusters[read] < 0){
-            clusters[read] = -1;
-        }
+    //     if (clusters[read] < 0){
+    //         clusters[read] = -1;
+    //     }
 
-        if (listOfGroups.find(clusters[read]) == listOfGroups.end() && clusters[read] >  -1){ //this means the read needs to be rescued 
+    //     if (listOfGroups.find(clusters[read]) == listOfGroups.end() && presentReads[read]){ //this means the read needs to be rescued 
 
-            //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
-            //iterate through the list of groups and choose the one that can be explained by the less mistakes
-            int bestGroup = -1;
-            int bestGroupScore = 0;
+    //         //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
+    //         //iterate through the list of groups and choose the one that can be explained by the less mistakes
+    //         int bestGroup = -1;
+    //         double bestGroupScore = 0;
 
-            //compute a score for assigning the read to each existing group, then assign the read to the best group
-            for (auto group : listOfGroups){
+    //         //compute a score for assigning the read to each existing group, then assign the read to the best group
+    //         for (auto group : listOfGroups){
 
-                int score = 0;
-                int groupDecomposition = group;
-                int readDecomposition = clustersAll[read];
+    //             double score = 0;
+    //             int groupDecomposition = group;
+    //             int readDecomposition = clustersAll[read];
 
-                for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
-                    int expectedAssignation = groupDecomposition%2;
-                    int actualAssignation = readDecomposition%32;
+    //             for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
+    //                 int expectedAssignation = groupDecomposition%2;
+    //                 int actualAssignation = readDecomposition%2;
 
-                    if (actualAssignation != expectedAssignation && allPartitions[binary][read] != 0){
-                        score -= allConfidences[binary][read]-0.5;
-                    }
-                    else if (actualAssignation == expectedAssignation){
-                        score += allConfidences[binary][read]-0.5;
-                    }
+    //                 if (actualAssignation != expectedAssignation && allPartitions[binary][read] != 0){
+    //                     score -= allConfidences[binary][read]-0.5;
+    //                 }
+    //                 else if (actualAssignation == expectedAssignation){
+    //                     score += allConfidences[binary][read]-0.5;
+    //                 }
 
-                    groupDecomposition /= 2;
-                    readDecomposition /= 2;
-                }
-                if (score > bestGroupScore){
-                    bestGroup = group;
-                    bestGroupScore = score;
-                }
-            }
-            clusters[read] = bestGroup;
+    //                 groupDecomposition /= 2;
+    //                 readDecomposition /= 2;
+    //             }
+    //             if (score > bestGroupScore){
+    //                 bestGroup = group;
+    //                 bestGroupScore = score;
+    //             }
+    //         }
+    //         clusters[read] = bestGroup;
 
-            // cout << "Rescuing ";
-            // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
-            //     cout << allMores[binary][read]<< "/" << allLess[binary][read] << " ";
-            // }
-            // cout << " as : " << bestGroup << endl;
+    //         // cout << "Rescuing ";
+    //         // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
+    //         //     cout << listOfFinalPartitions[binary].getMore()[read]<< "/" << listOfFinalPartitions[binary].getLess()[read] << " ";
+    //         // }
+    //         // cout << " as : " << bestGroup << endl;
             
-        }
-    }
+    //     }
+    // }
 
     // cout << "Res of thread haplotypes: ";
     // for (auto i : res){
