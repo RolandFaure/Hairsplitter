@@ -150,9 +150,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
 
     int n1 = 0;
     int n2 = 0;
-    cout << "going in the loop" << endl;
     for (auto read : supplementaryPartition.readIdxs){
-        cout << "1" << endl;
         while(*it1 < read && it1 != readIdx.end()){ //positions that existed in the old partitions that are not found here
             mostFrequentBases_2.push_back(mostFrequentBases[n1]);
             moreFrequence_2.push_back(moreFrequence[n1]);
@@ -162,11 +160,9 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             n1++;
         }
 
-        cout << "2" << endl;
         short s = 0;
         if (supplementaryPartition.content[n2] == 'a'){s=-1;}
         if (supplementaryPartition.content[n2] == 'A'){s=1;}
-        cout << "3" << endl;
         if (it1 == readIdx.end() || *it1 != read){ //then this is a new read
             n1--; //because n1++ further down
             if (s == 1){
@@ -213,11 +209,9 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             idxs1_2.push_back(read);
             it1++;
         }
-        cout << "4" << endl;
         n1++;
         n2++;
     }
-    cout << "out of loop" << endl;
     while(it1 != readIdx.end()){ //positions that existed in the old partitions that are not found in the new one
         mostFrequentBases_2.push_back(mostFrequentBases[n1]);
         moreFrequence_2.push_back(moreFrequence[n1]);
@@ -226,7 +220,6 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         it1++;
         n1++;
     }
-    cout << "copying" << endl;
 
     mostFrequentBases = mostFrequentBases_2;
     moreFrequence = moreFrequence_2;

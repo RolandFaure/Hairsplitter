@@ -53,7 +53,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_20"){
+             && allreads[read].name == "edge_153"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -529,7 +529,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         if (content[4] < 0.25*float(numberOfReadsHere) //not too many '-', because '-' are less specific than snps
             && *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
             // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
-            cout << "in a suspect pos" << endl;
 
             suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
@@ -562,11 +561,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     //     interestingParts.push_back(position);
                     // }
 
-                    cout << "augmenting " << endl;
-                    partitions[p].print();
-                    for (auto i : dis.partition_to_augment.content){cout << i;} cout << endl;
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
-                    cout << "augmented" << endl;
                     found = true;
                     break;
                 }
@@ -589,7 +584,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
             //two suspect positions next to each other can be artificially correlated through alignement artefacts
             position += 5;
-            cout << "out of suspect pos" << endl;
 
         }
     }
@@ -1367,7 +1361,7 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         compatiblePartitions[par].number() << " for a length of " << (compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left()) << endl;
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && compatiblePartitions[par].number() > 20/allIdxs[par].size()*100){ //and big enough
+            && compatiblePartitions[par].number() > max(20/double(allIdxs[par].size()*100), 10.0+numberOfUnsureReads*2)){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }

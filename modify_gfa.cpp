@@ -124,7 +124,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                         else {
                             readsPerPart[clust].push_back(clippedRead);
                         }
-                        cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
+                        // cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
                     }
                 }
                 cout << endl;
