@@ -233,6 +233,8 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         int length2= -1;
         bool positiveStrand;
 
+        int mapq_quality = 255;
+
         string cigar;
 
         bool allgood = true;
@@ -292,6 +294,9 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             else if (fieldnumber == 8){
                 pos2_2 = stoi(field);
             }
+            else if (fieldnumber == 11){
+                mapq_quality = stoi(field);
+            }
             else if (field.substr(0,5) == "cg:Z:"){
                 cigar = field.substr(5, field.size()-5);
                 cigar = convert_cigar(cigar);
@@ -300,12 +305,12 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             fieldnumber++;
         }
 
-        if (allgood && fieldnumber > 11 && sequence2 != sequence1){
+        if (allgood && mapq_quality > 5 && fieldnumber > 11 && sequence2 != sequence1){
 
-            //now let's check if this overlap extends to the end of the reads (else, it means the read did not come from the same region)
+            //now let's check if this overlap extends to the end of the reads (else, it means only a small portion of the read is aligned)
             bool fullOverlap = false;
-            float limit1 = float(pos1_2-pos1_1)/2;
-            float limit2 = float(pos2_2-pos2_1)/2;
+            float limit1 = std::min(float(1000), float(pos1_2-pos1_1)/7);
+            float limit2 = std::min(float(1000),float(pos2_2-pos2_1)/7);
             if (positiveStrand){
 
                 int slideLeft = min(pos1_1, pos2_1);
@@ -346,6 +351,11 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
 
             if (fullOverlap){
 
+                // cout << allreads[sequence1].name << endl;
+                // if (allreads[sequence1].name == "@2_@DRR198813.1544 1544 length=56567"){
+                //     cout << "Mapping 2_@DRR198813.1544 to " << allreads[sequence2].name << endl;
+                // }
+
                 Overlap overlap;
                 overlap.sequence1 = sequence1;
                 overlap.sequence2 = sequence2;
@@ -380,7 +390,6 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             // }
         }
     }
-
 
     //determine backbone_ reads if asked
     if (computeBackbones){

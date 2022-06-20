@@ -1,6 +1,7 @@
 #include "check_overlaps.h"
 // #include "spoa/spoa.hpp"
 #include "cluster_graph.h"
+#include "WFA2-lib/wavefront/wavefront_align.h"
 //#include "WFA2-lib/bindings/cpp/WFAligner.hpp"
 //using namespace wfa;
 
@@ -52,7 +53,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_159"){
+             && allreads[read].name == "edge_20"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -85,6 +86,19 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
 //input: a read with all its neighbor
 //outputs : the precise alignment of all reads against input read in the form of matrix snps, return the mean editDistance/lengthOfAlginment
+/**
+ * @brief Generates the MSA of all reads against a backbone
+ * 
+ * @param read Backbone read
+ * @param allOverlaps All the overlaps of the input reads 
+ * @param allreads All the input reads
+ * @param snps Result of the function: a vector of Column, each column corresponding to one position on the MSA
+ * @param backboneReadIndex Numerotation of the backbone read
+ * @param truePar Vector containing the true partitions (debug only)
+ * @param assemble_on_assembly Is backbone a read like any other (false), or rather a reference (true) ?
+ * @param readLimits Limits of the reads on the backbone. Used to recompute coverage of the backbone
+ * @return The mean distance between the aligned reads and the consensus backbone
+ */
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
     unordered_map <int, vector<pair<int,int>>> &readLimits){
@@ -188,6 +202,14 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
+
+        // wavefront_aligner_attr_t attributes = wavefront_aligner_attr_default;
+        // attributes.distance_metric = gap_affine;
+        // attributes.affine_penalties.mismatch = 4;
+        // attributes.affine_penalties.gap_opening = 6;
+        // attributes.affine_penalties.gap_extension = 2;
+        // // Initialize Wavefront Aligner
+        // wavefront_aligner_t* const wf_aligner = wavefront_aligner_new(&attributes);
 
         auto t1 = high_resolution_clock::now();
 
@@ -507,6 +529,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         if (content[4] < 0.25*float(numberOfReadsHere) //not too many '-', because '-' are less specific than snps
             && *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
             // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
+            cout << "in a suspect pos" << endl;
+
             suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
             vector<distPart> distances (distanceBetweenPartitions.size());
@@ -521,8 +545,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 //     Partition(snps[position]).print();
                     
                 // }
+                // if (dis.n00 + dis.n11 + dis.n01 + dis.n10 > 3){
+                //     cout << "comparison : " << dis.n00 << " " << dis.n11 << " " << dis.n01 << " " << dis.n10 << endl;
+                //     cout << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " ; " << meanDistance << " ; " << dis.augmented << " " << comparable << endl;
+                // }
 
-                if (float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+                if ((float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
                     if (position < allreads[read].size()){
@@ -534,7 +562,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     //     interestingParts.push_back(position);
                     // }
 
+                    cout << "augmenting " << endl;
+                    partitions[p].print();
+                    for (auto i : dis.partition_to_augment.content){cout << i;} cout << endl;
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
+                    cout << "augmented" << endl;
                     found = true;
                     break;
                 }
@@ -557,11 +589,18 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
             //two suspect positions next to each other can be artificially correlated through alignement artefacts
             position += 5;
+            cout << "out of suspect pos" << endl;
+
         }
     }
 
     cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
 
+    // for (auto p : partitions){
+    //     if (p.number() > 2){
+    //         p.print();
+    //     }
+    // }
 
     //for debugging only
     //outputMatrix(snps, suspectPostitions, std::to_string(read));
@@ -1476,20 +1515,20 @@ int compatible_partitions(Partition &p1 , Partition &p2){
     //additionally, ensure that the most specific parts are made up of ones
     int compatible = 0;
 
-    if (zero_in_0/numberOf0s > 0.9){
+    if (zero_in_0/numberOf0s > 0.8){
         p1.flipPartition();
         compatible += 1;
     }
-    else if(zero_in_1/numberOf0s > 0.9){
+    else if(zero_in_1/numberOf0s > 0.8){
         p1.flipPartition();
         p2.flipPartition();
         compatible += 1;
     }
 
-    if (one_in_0/numberOf1s > 0.9){
+    if (one_in_0/numberOf1s > 0.8){
         compatible += 1;
     }
-    else if (one_in_1/numberOf1s > 0.9){
+    else if (one_in_1/numberOf1s > 0.8){
         p2.flipPartition();
         compatible += 1;
     }
@@ -1613,6 +1652,14 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     if (listOfGroups.size() <= 1){
         return vector<int> (clusters.size(), 1);
     }
+
+    for (auto read = 0 ; read < clusters.size() ; read++){
+
+        if (clusters[read] < 0){
+            clusters[read] = -1;
+        }
+    }
+
 
     //now most reads should be assigned to a cluster. Rescue those that have not been assigned or assigned to a rare cluster
 

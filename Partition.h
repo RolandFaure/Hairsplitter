@@ -18,6 +18,10 @@ struct Separation{
 };
 
 //class partition : a partition of reads, as a consensus of many partitions
+/**
+ * @brief Class discribing an aggregation of several similar-looking columns of the MSA
+ * 
+ */
 class Partition {
 
 public :

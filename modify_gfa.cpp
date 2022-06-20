@@ -124,8 +124,10 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                         else {
                             readsPerPart[clust].push_back(clippedRead);
                         }
+                        cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
                     }
                 }
+                cout << endl;
 
                 string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first);
                 vector<int> futureHangingLinks;
@@ -212,7 +214,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
-                    cout << "now creating the different contigs : " << r.name << endl;
+                    cout << "created the contig " << r.name << endl;
 
                 }
                 hangingLinks = futureHangingLinks;
@@ -344,7 +346,7 @@ std::unordered_map<int, double> recompute_depths(std::pair<std::pair<int,int>, s
         
         if (totalCoverage != 0){
             for (auto cov : newCoverage){
-                newCoverage[cov.first] = cov.second * originalDepth/totalCoverage;
+                // newCoverage[cov.first] = cov.second * originalDepth/totalCoverage; DEBUG
             }
         }
 
