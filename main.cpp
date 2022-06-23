@@ -50,11 +50,13 @@ int main(int argc, char *argv[])
     check_dependancies();
 
     string fastqfile, allfile, refFile, alnOnRefFile, outputFile, samFile, vcfFile;
+    bool polish = false;
     auto cli = (
-            option("-f", "--fastq") & opt_value("fastqfile", fastqfile),
-        option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
-            option("-g", "--gfa") & opt_value("GFA file", refFile),
-            option("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
+            required("-f", "--fastq") & opt_value("fastqfile", fastqfile),
+            //option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
+            required("-g", "--gfa") & opt_value("GFA file", refFile),
+            required("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
+            option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--output") & opt_value("output", outputFile)
@@ -72,53 +74,22 @@ int main(int argc, char *argv[])
         vector <Link> allLinks;
 
         auto t1 = high_resolution_clock::now();
-
         
-        if (vcfFile != ""){
-            cout << "Parsing vcf..." << endl;
-            robin_hood::unordered_map<std::string, std::vector <Variant>> allvariants;
-            parse_VCF(vcfFile, allvariants);
-            parseSAM(samFile, allvariants);
-            phase_reads_with_variants(allvariants);
-        }
-        else if (refFile == "" ){   
+        cout << "Parsing reads..." << endl;
+        parse_reads(fastqfile, allreads, indices);
 
-            //to uncomment that, need to redo output_filtered paf with new "partitions"
+        parse_assembly(refFile, allreads, indices, backbone_reads, allLinks);
+        parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
 
-            // cout << "Parsing reads..." << endl;
-            // parse_reads(fastqfile, allreads, indices);         
-            // //parse_PAF("/home/rfaure/Documents/these/overlap_filtering/mock2_alignments.paf", allOverlaps, allreads, indices, backbone_reads);
-            // cout << "Parsing alignments..." << endl;
-            // parse_PAF(allfile, allOverlaps, allreads, indices, backbone_reads, true);
+        std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
+        cout << "Checking overlaps" << endl;
+        std::unordered_map <int, std::pair<int,int>> clusterLimits;
+        std::unordered_map <int, vector<pair<int,int>>> readLimits;
+        checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits, readLimits, polish);
+        cout << "Finished checking, now outputting" << endl;
 
-            // std::unordered_map<unsigned long int, vector<int>> partitions;
-            // checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, false);
-            // cout << "Finished checking overlaps, now outputting" << endl;
-
-            //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
-        }
-        else if (refFile != ""){
-            cout << "Parsing reads..." << endl;
-            parse_reads(fastqfile, allreads, indices);
-
-            parse_assembly(refFile, allreads, indices, backbone_reads, allLinks);
-            parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
-
-            std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
-            cout << "Checking overlaps" << endl;
-            std::unordered_map <int, std::pair<int,int>> clusterLimits;
-            std::unordered_map <int, vector<pair<int,int>>> readLimits;
-            checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits, readLimits);
-            cout << "Finished checking, now outputting" << endl;
-
-            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits, readLimits);
-            output_GFA(allreads, backbone_reads, outputFile, allLinks);
-            //output_filtered_PAF(outputFile, allfile, allreads, partitions, indices);
-        }
-        else{
-            cout << "Could not parse the arguments" << endl;
-            cout << make_man_page(cli, argv[0]);
-        }
+        modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits, readLimits);
+        output_GFA(allreads, backbone_reads, outputFile, allLinks);
 
         auto t2 = high_resolution_clock::now();
 

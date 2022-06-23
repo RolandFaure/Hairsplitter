@@ -48,6 +48,8 @@ public :
 
     void flipPartition(); //transforms all 1s in 0s and vice-versa
 
+    void new_corrected_partition(std::vector<short> newPartition); //Changes partition without changing anything else !!
+
 private :
     std::vector <int> readIdx; //the list of reads is sparse : here are the filled indices (ordered)
     std::vector<short> mostFrequentBases; // at each position, 3 possibilities : 1 for allele1, -1 for allele2 and 0 for non-attributed-yet

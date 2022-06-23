@@ -18,6 +18,7 @@ struct Overlap
     int position_2_1;
     int position_2_2;
     bool strand; //false if the two reads are on different strands
+    float diff; //indicative edit distance
 
     std::string CIGAR;
 };

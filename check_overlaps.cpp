@@ -10,7 +10,9 @@
 #include <unordered_map>
 #include <set>
 #include <fstream>
+#include <sstream>
 #include <chrono>
+#include <iterator>
 
 #include "robin_hood.h"
 #include "input_output.h"
@@ -28,6 +30,7 @@ using std::pair;
 using std::make_pair;
 using std::unordered_map;
 using std::set;
+using std::max_element;
 
 using namespace std::chrono;
 
@@ -46,22 +49,28 @@ bool comp (distPart i, distPart j){
 //readLimits contains the border of all reads aligning on each backbone, used later to recompute the coverage
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
         vector<unsigned long int> &backbones_reads, unordered_map <unsigned long int ,vector<pair<pair<int,int>, vector<int>>>> &partitions, 
-        bool assemble_on_assembly, unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits){
+        bool assemble_on_assembly, unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits,
+        bool polish){
 
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     int index = 0;
     for (unsigned long int read : backbones_reads){
         
-        if (allreads[read].neighbors_.size() > 20 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_153"){
+        if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
+             && allreads[read].name != "edge_15800"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
+            //now see if it looks like an easy separation or like an hard separation
+            
             vector<Column> snps;  //vector containing list of position, with SNPs at each position
             //first build an MSA
             cout << "Generating MSA" << endl;
             string truePar; //for debugging
-            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits);
+
+            vector<bool> misalignedReads;
+            string consensus;
+            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish);
 
             //then separate the MSA
             cout << "Separating reads" << endl;
@@ -97,11 +106,12 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
  * @param truePar Vector containing the true partitions (debug only)
  * @param assemble_on_assembly Is backbone a read like any other (false), or rather a reference (true) ?
  * @param readLimits Limits of the reads on the backbone. Used to recompute coverage of the backbone
+ * @param misalignedReads Reads aligned with <80% identity: the alignment is not good enough to consider phasing there
  * @return The mean distance between the aligned reads and the consensus backbone
  */
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
-    unordered_map <int, vector<pair<int,int>>> &readLimits){
+    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish){
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -109,6 +119,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //keep count of the distance between two reads to know the mean distance
     float totalDistance = 0;
     double totalLengthOfAlignment = 0;
+
+    misalignedReads = vector<bool> (allreads[read].neighbors_.size(), false);
     
     //first enter the sequence of the read in snps, if the backbone read is a read, not if it's a contig
 
@@ -131,11 +143,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         
         if (overlap.sequence1 == read){
 
-            truePar.push_back(allreads[overlap.sequence2].name[1]);
+            truePar.push_back(allreads[overlap.sequence2].name[7]);
             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }
         else{
-            truePar.push_back(allreads[overlap.sequence1].name[1]);
+            truePar.push_back(allreads[overlap.sequence1].name[7]);
             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }    
     }
@@ -183,9 +195,14 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
     readLimits[read] = positionOfReads;
 
-    // string consensus = consensus_reads(read_str , polishingReads);
-    string consensus = read_str; //DEBUG
-    cout << "Done building a consensus of the backbone" << endl;
+    string consensus;
+    if (polish){
+        consensus = consensus_reads(read_str , polishingReads);
+        cout << "Done polishing the contig" << endl;
+    }
+    else{
+        consensus = read_str; //if the input assembly is already polished
+    } 
 
     //snps = vector<vector<char>>(consensus.size(), vector<char>(polishingReads.size(), '?'));
     snps = vector<Column>(consensus.size());
@@ -218,6 +235,10 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                                     positionOfReads[n].second-positionOfReads[n].first,
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
+        if (result.alignmentLength>0 && result.editDistance/float(result.alignmentLength) > 0.2){
+            misalignedReads[n] = true;
+        }
+
         string alignment;
         char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
         for (int l = 0; l < result.alignmentLength; l++) {
@@ -228,8 +249,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         //     cout << "Aligning read of length " << polishingReads[n].size() << " : " << polishingReads[n].substr(0,100) << endl;
         //     cout << alignment.substr(0,100) << " " << result.startLocations[0]+positionOfReads[n].first << endl;
         // }
-
-        // cout << "Alignment : " << endl;
+        // if (n < 100){
+        //     cout << "Alignment : " << result.editDistance/float(result.alignmentLength)  << " " << n << endl;
+        // }
         // cout << alignment << endl;
         // cout << allOverlaps[allreads[read].neighbors_[n]].CIGAR << endl;
 
@@ -381,7 +403,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     // } cout << endl;
 
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-
+    // std::copy(misalignedReads.begin(), misalignedReads.end(), std::ostream_iterator<bool>(std::cout, " "));
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -512,7 +534,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
     for (int position = 0 ; position < snps.size() ; position++){ 
 
-
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
         int numberOfReadsHere = 0;
@@ -549,7 +570,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 //     cout << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " ; " << meanDistance << " ; " << dis.augmented << " " << comparable << endl;
                 // }
 
-                if ((float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) <= meanDistance || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
                     if (position < allreads[read].size()){
@@ -557,7 +578,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     }
 
                     // cout << "augmenting " << p << " now : " << partitions[p].number() << " " << position << " "<< endl;
-                    // if (p == 0){
+                    // if (p == 710){
                     //     interestingParts.push_back(position);
                     // }
 
@@ -754,6 +775,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         return vector<pair<pair<int,int>, vector<int>>> (0);
     }
 
+    for (auto par = 0 ; par < listOfFinalPartitions.size() ; par++){
+        clean_partition(read, listOfFinalPartitions[par], allreads, allOverlaps);
+    }
+
     // cout << "selecting partitions" << endl;
     vector<Partition> listOfFinalPartitionsTrimmed = select_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
 
@@ -839,9 +864,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // }
     // cout << "Here are the aligned reads : " << endl;
     // int index = 0;
+    // cout << " " << threadedClusters[threadedClusters.size()-1].second.size() << endl;
     // for (auto neighbor : reads){
-    //     if (neighbor[4] != '?'){
-    //         cout << neighbor << " " << index  << endl;
+    //     if (neighbor[4] != '?' && threadedClusters[threadedClusters.size()-1].second[index] != -1){
+    //         cout << neighbor.substr(0,150) << " " << index  << " " <<  threadedClusters[threadedClusters.size()-1].second[index]<< endl;
     //     }
     //     index++;
     // }
@@ -950,8 +976,10 @@ distancePartition distance(Partition &par1, Column &par2){
             newPartitions[1].content.push_back('A');
         }
         else{
-            newPartitions[0].content.push_back('0');
-            newPartitions[1].content.push_back('0');
+            // newPartitions[0].content.push_back('0');
+            // newPartitions[1].content.push_back('0');
+            newPartitions[0].content.push_back('a');
+            newPartitions[1].content.push_back('A');
         }
     }
 
@@ -985,7 +1013,7 @@ distancePartition distance(Partition &par1, Column &par2){
                     matches00[1] += 1;
                 }
             }
-            else if (par2.content[n2] == secondFrequent2){
+            else /*if (par2.content[n2] == secondFrequent2)*/{
 
                 if (part1[n1] == 1){
                     scores[0] -= conf;
@@ -1205,6 +1233,94 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
     res.phased = -2*maxScoreIdx + 1; // worth -1 or 1
 
     return res ;
+}
+
+/**
+ * @brief Given the original partition, forces each read to choose a camp given all suspect positions : some reads will change camp...
+ * 
+ * @param originalPartition Partition that we want to clean
+ * @param snps 
+ * @param suspectPositions Reads will choose based on all suspect positions
+ * @return Partition 
+ */
+void clean_partition(long int backbone, Partition &originalPartition, vector <Read> &allreads, vector <Overlap> &allOverlaps){
+
+    //first compute all the contigs as they would look like on one part or another
+    //inventoriate all the reads
+    cout << "cleaning partition..." << endl;
+    vector <string> polish_reads_0;
+    vector <string> polish_reads_1;
+
+    auto part = originalPartition.getPartition();
+        
+    std::ofstream polishseqs("tmp/polish.fasta", std::ofstream::trunc);
+
+    int n = 0;
+    for (auto ov : originalPartition.getReads()){
+        Overlap overlap = allOverlaps[allreads[backbone].neighbors_[ov]];
+        string read = allreads[overlap.sequence1].sequence_.str();
+        
+        if (part[n] == -1){
+            string r = read.substr(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1);
+            polish_reads_0.push_back(r);
+            polishseqs << ">"+std::to_string(n)+"\n" << r << "\n";
+        }
+        else if (part[n] == 1){
+            string r = read.substr(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1);
+            polish_reads_1.push_back(r);
+            polishseqs << ">"+std::to_string(n)+"\n" << r << "\n";
+        }
+        n++;
+    }
+    polishseqs.close();
+
+    //use the reads to polish the backbone
+    string toPolish = allreads[backbone].sequence_.str();
+    string consensus0 = consensus_reads(toPolish, polish_reads_0);
+    string consensus1 = consensus_reads(toPolish, polish_reads_1);
+
+    //now compare all reads to the two new polished consensus and re-assign them to their best match
+
+    std::ofstream consseqs("tmp/consensusSeqs.fasta");
+    consseqs << ">0\n" << consensus0 << "\n>1\n" << consensus1 << "\n";
+    consseqs.close();
+
+    system("minimap2 -x map-ont -N 0 -t1 tmp/consensusSeqs.fasta tmp/polish.fasta > tmp/choose_consensus.paf 2> tmp/trash.txt");
+
+    //now read the output
+    auto correctedPartition = originalPartition.getPartition();
+    std::ifstream in("tmp/choose_consensus.paf");
+    string line;
+    while(getline(in, line)){
+        string field;
+        std::istringstream line2(line);
+        int fieldnb = 0;
+        int readnb = -1;
+        while (getline(line2, field, '\t'))
+        {
+            if (fieldnb == 0){ //read
+                readnb = atoi(field.c_str());
+            }
+            else if (fieldnb == 5){ //the part on which the read mapped
+                if (field == "0"){
+                    correctedPartition[readnb] = -1;
+                }
+                else if (field == "1"){
+                    correctedPartition[readnb] = 1;
+                }
+            }
+            fieldnb++;
+        }
+    }
+    in.close();
+
+    // cout << "correcting this partition : " << endl;
+    // originalPartition.print();
+    originalPartition.new_corrected_partition(correctedPartition);
+    // originalPartition.print();
+
+    cout << "Done cleaning ! " << endl;
+
 }
 
 //input : a list of partitions
@@ -1459,8 +1575,11 @@ int compatible_partitions(Partition &p1 , Partition &p2){
 
     auto idxs = p1.getReads();
     auto content = p1.getPartition();
+    auto confidence1 = p1.getConfidence();
+
     auto idxs2 = p2.getReads();
     auto content2 = p2.getPartition();
+    auto confidence2 = p2.getConfidence();
 
     int n = 0;
     float numberOf1s = 0;
@@ -1470,6 +1589,9 @@ int compatible_partitions(Partition &p1 , Partition &p2){
     int one_in_0 = 0;
     int zero_in_1 = 0;
     int zero_in_0 = 0;
+
+    int unsureCalls = 0;
+    int confidentCalls = 0;
 
     int n2 = 0;
     for (auto idx1 : idxs){
@@ -1500,7 +1622,6 @@ int compatible_partitions(Partition &p1 , Partition &p2){
                     numberOf0s++;
                 } 
             }
-
         }
         n++;
     }
@@ -1549,14 +1670,14 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     vector<int> clusters (numberOfReads, -1); //this will contain only high-confidence reads
     vector<int> clustersAll (numberOfReads, -1); //this will contain all reads
-    vector<bool> presentReads (numberOfReads, false);
+    vector<int> presentReads (numberOfReads, listOfFinalPartitions.size()); 
 
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
         int c = 0;
 
         for (auto read : listOfFinalPartitions[binary].getReads()){
 
-            presentReads[read] = true;
+            presentReads[read] -= 1; //this happens only when read in in getReads
 
             auto camp = allPartitions[binary][c];
             if (clusters[read] == -1 && camp != 0){ //means that the read is present in one partition
@@ -1649,7 +1770,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     for (auto read = 0 ; read < clusters.size() ; read++){
 
-        if (clusters[read] < 0){
+        if (clusters[read] < 0 || presentReads[read] > 0){
             clusters[read] = -1;
         }
     }

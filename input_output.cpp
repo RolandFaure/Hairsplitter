@@ -232,6 +232,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         int pos2_2= -1;
         int length2= -1;
         bool positiveStrand;
+        float diff = -1; //distance between the sequences [0,1]
 
         int mapq_quality = 255;
 
@@ -301,6 +302,9 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 cigar = field.substr(5, field.size()-5);
                 cigar = convert_cigar(cigar);
             }
+            else if (field.substr(0,5) == "dv:f:"){
+                diff = std::atof(field.substr(5, field.size()-5).c_str());
+            }
             //std::cout << "my field is : " << field << std::endl;
             fieldnumber++;
         }
@@ -365,6 +369,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 overlap.position_2_2 = pos2_2;
                 overlap.strand = positiveStrand;
                 overlap.CIGAR = cigar;
+                overlap.diff = diff;
 
                 //cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
 

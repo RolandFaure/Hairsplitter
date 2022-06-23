@@ -23,10 +23,12 @@ struct distancePartition{
 
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
-            std::unordered_map <int, std::pair<int,int>> &clusterLimits, std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits);
+            std::unordered_map <int, std::pair<int,int>> &clusterLimits, std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
+            bool polish);
 
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, 
-    int backboneReadIndex, std::string &truePar, bool assemble_on_assembly,  std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits);
+    int backboneReadIndex, std::string &truePar, bool assemble_on_assembly, 
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish);
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads);
 std::string local_assembly(std::vector <std::string> &reads);
 
@@ -36,6 +38,8 @@ std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(lo
 distancePartition distance(Partition &par1, Column &par2);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
+
+void clean_partition(long int backbone, Partition &originalPartition, std::vector <Read> &allreads,std::vector <Overlap> &allOverlaps);
 
 std::vector<Partition> select_partitions(std::vector<Partition> &listOfFinalPartitions, int numberOfReads, float errorRate);
 

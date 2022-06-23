@@ -428,7 +428,7 @@ void Partition::print(){
             if (moreFrequence[n] == 0){
                 cout << "o";
             }
-            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.7){
+            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.6){
                 cout << "!";
             }
             else if (ch == 1){
@@ -494,4 +494,12 @@ void Partition::flipPartition(){
     }
 }
 
+/**
+ * @brief Changes the partition of reads: useful after making a correction to the partition
+ * 
+ * @param newPartition 
+ */
+void Partition::new_corrected_partition(vector<short> newPartition){
+    mostFrequentBases = newPartition;
+}
 
