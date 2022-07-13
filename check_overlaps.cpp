@@ -1,9 +1,9 @@
 #include "check_overlaps.h"
 // #include "spoa/spoa.hpp"
 #include "cluster_graph.h"
-#include "WFA2-lib/wavefront/wavefront_align.h"
-//#include "WFA2-lib/bindings/cpp/WFAligner.hpp"
-//using namespace wfa;
+#include <wavefront/wavefront_align.h>
+#include <bindings/cpp/WFAligner.hpp>
+// using namespace wfa;
 
 #include <cmath>
 #include <algorithm>
@@ -57,7 +57,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_15800"){
+             && allreads[read].name == "edge_6"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -107,6 +107,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
  * @param assemble_on_assembly Is backbone a read like any other (false), or rather a reference (true) ?
  * @param readLimits Limits of the reads on the backbone. Used to recompute coverage of the backbone
  * @param misalignedReads Reads aligned with <80% identity: the alignment is not good enough to consider phasing there
+ * @param polish True if the backbone reads are not polished
  * @return The mean distance between the aligned reads and the consensus backbone
  */
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
@@ -216,69 +217,42 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     vector<float> mappingQuality; //DEBUG
 
+    wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
 
-        // wavefront_aligner_attr_t attributes = wavefront_aligner_attr_default;
-        // attributes.distance_metric = gap_affine;
-        // attributes.affine_penalties.mismatch = 4;
-        // attributes.affine_penalties.gap_opening = 6;
-        // attributes.affine_penalties.gap_extension = 2;
-        // // Initialize Wavefront Aligner
-        // wavefront_aligner_t* const wf_aligner = wavefront_aligner_new(&attributes);
-
         auto t1 = high_resolution_clock::now();
-
-        EdlibAlignResult result = edlibAlign(polishingReads[n].c_str(), polishingReads[n].size(),
-                                    consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str(),
-                                    positionOfReads[n].second-positionOfReads[n].first,
-                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-
-        if (result.alignmentLength>0 && result.editDistance/float(result.alignmentLength) > 0.2){
-            misalignedReads[n] = true;
-        }
-
-        string alignment;
-        char moveCodeToChar[] = {'=', 'I', 'D', 'X'};
-        for (int l = 0; l < result.alignmentLength; l++) {
-            alignment += moveCodeToChar[result.alignment[l]];
-        }
-
-        // if (n > 1500){
-        //     cout << "Aligning read of length " << polishingReads[n].size() << " : " << polishingReads[n].substr(0,100) << endl;
-        //     cout << alignment.substr(0,100) << " " << result.startLocations[0]+positionOfReads[n].first << endl;
-        // }
-        // if (n < 100){
-        //     cout << "Alignment : " << result.editDistance/float(result.alignmentLength)  << " " << n << endl;
-        // }
-        // cout << alignment << endl;
-        // cout << allOverlaps[allreads[read].neighbors_[n]].CIGAR << endl;
-
-        auto t2 = high_resolution_clock::now();
         
-        // string ref = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first);
-        // aligner.alignEnd2End(polishingReads[n],ref);
+        string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
+        string re = polishingReads[n].c_str();
+        aligner.alignEndsFree(cons, 0,0,  re, 0,0);
 
-        auto t2_5 = high_resolution_clock::now();
+        string alignment = aligner.getAlignmentCigar();
+        // cout << "CIGAR: " << alignment  << endl;
+        // cout << "Alignment score " << aligner.getAlignmentScore() << endl;
 
-        totalLengthOfAlignment += result.alignmentLength;
-        totalDistance += result.editDistance;
-        mappingQuality.push_back(float(result.editDistance)/result.alignmentLength);
+
+        totalLengthOfAlignment += alignment.size();
+        totalDistance += -aligner.getAlignmentScore();
+        mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
         // cout << "Alignment distance : " << float(result.editDistance)/result.alignmentLength << endl;
 
         // if (n == 10) {break;}
 
         //a loop going through the CIGAR and modifyning snps
-        int indexQuery = result.startLocations[0]+positionOfReads[n].first; //query corresponds to consensus
+        int indexQuery = 0+positionOfReads[n].first; //query corresponds to consensus
+
+        auto t2 = high_resolution_clock::now();
+
+        // //a loop going through the CIGAR and modifyning snps
+        // int indexQuery = result.startLocations[0]+positionOfReads[n].first; //query corresponds to consensus
         int indexTarget = 0; //target corresponds to the read
         int numberOfInsertionsThere = 0;
 
         //cout << "beginning of query : " << indexQuery << " " << consensus.size() << " " << snps.size() << " " << result.alignmentLength << endl;
-        
-        // if (n == 169){
-        // for (int i = 0; i < result.alignmentLength; i++){cout << moveCodeToChar[result.alignment[i]];} cout << endl;}
-        
+
         for (int l = 0; l < alignment.size(); l++) {
 
             if (indexQuery < consensus.size()){
@@ -342,65 +316,65 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         // cout << "index query : " << indexQuery << endl;
         // cout << "consensus length : " << consensus.size() << endl;
         
-        edlibFreeAlignResult(result);
+        // edlibFreeAlignResult(result);
     }
 
     cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
     
     //print snps (just for debugging)
-    // int step = 1;
-    // int prop = 10; //1 for every base
-    // int firstRead = 1450;
-    // int lastRead = polishingReads.size();
-    // int numberOfReads = lastRead-firstRead;
-    // int start = 011;
-    // int end = 1060;
-    // vector<string> reads (numberOfReads);
-    // string cons = "";
-    // for (unsigned short i = start ; i < end; i+=prop){
+    int step = 1;
+    int prop = 1; //1 for every base
+    int firstRead = 0;
+    int lastRead = polishingReads.size();
+    int numberOfReads = lastRead-firstRead;
+    int start = 01;
+    int end = 106;
+    vector<string> reads (numberOfReads);
+    string cons = "";
+    for (unsigned short i = start ; i < end; i+=prop){
         
-    //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //         char c = '?';
-    //         int ri = 0;
-    //         int soughtRead = firstRead+n;
-    //         for (auto r : snps[i].readIdxs){
-    //             if (r == soughtRead){
-    //                 c = snps[i].content[ri];
-    //             }
-    //             ri ++;
-    //         }
-    //         reads[n/step] += c;
-    //     }
-    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //     //     int snpidx = insertionPos[10000*i+insert];
-    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //     //         char c = '?';
-    //     //         int ri = 0;
-    //     //         for (auto r : snps[snpidx].readIdxs){
-    //     //             if (r == n){
-    //     //                 c = snps[snpidx].content[ri];
-    //     //             }
-    //     //             ri ++;
-    //     //         }
-    //     //         reads[n/step] += c;
-    //     //     }
-    //     // }
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = firstRead;
-    // for (auto neighbor : reads){
-    //     if (neighbor[0] != '?'){
-    //         cout << neighbor << " " << index  << endl;
-    //     }
-    //     index+= step;
-    // }
-    // int n = 0;
-    // for(auto i : consensus.substr(start, end-start)){
-    //     if (n%prop == 0){
-    //         cout << i;
-    //     }
-    //     n+=1;
-    // } cout << endl;
+        for (short n = 0 ; n < numberOfReads*step ; n+= step){
+            char c = '?';
+            int ri = 0;
+            int soughtRead = firstRead+n;
+            for (auto r : snps[i].readIdxs){
+                if (r == soughtRead){
+                    c = snps[i].content[ri];
+                }
+                ri ++;
+            }
+            reads[n/step] += c;
+        }
+        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+        //     int snpidx = insertionPos[10000*i+insert];
+        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+        //         char c = '?';
+        //         int ri = 0;
+        //         for (auto r : snps[snpidx].readIdxs){
+        //             if (r == n){
+        //                 c = snps[snpidx].content[ri];
+        //             }
+        //             ri ++;
+        //         }
+        //         reads[n/step] += c;
+        //     }
+        // }
+    }
+    cout << "Here are the aligned reads : " << endl;
+    int index = firstRead;
+    for (auto neighbor : reads){
+        if (neighbor[0] != '?'){
+            cout << neighbor << " " << index  << endl;
+        }
+        index+= step;
+    }
+    int n = 0;
+    for(auto i : consensus.substr(start, end-start)){
+        if (n%prop == 0){
+            cout << i;
+        }
+        n+=1;
+    } cout << endl;
 
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     // std::copy(misalignedReads.begin(), misalignedReads.end(), std::ostream_iterator<bool>(std::cout, " "));
@@ -570,7 +544,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 //     cout << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " ; " << meanDistance << " ; " << dis.augmented << " " << comparable << endl;
                 // }
 
-                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*3 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
                     if (position < allreads[read].size()){
