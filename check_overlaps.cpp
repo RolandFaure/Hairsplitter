@@ -1,8 +1,6 @@
 #include "check_overlaps.h"
 // #include "spoa/spoa.hpp"
 #include "cluster_graph.h"
-#include <wavefront/wavefront_align.h>
-#include <bindings/cpp/WFAligner.hpp>
 // using namespace wfa;
 
 #include <cmath>
@@ -43,6 +41,36 @@ bool comp (distPart i, distPart j){
     return i.distance < j.distance;
 }
 
+void test_bug_WFA(){
+
+    string a = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    string b = "AAAAAAAAAAAAAAAAAAATAAAAAAAAAATAAAAAAAAAAAAATTAAAA";
+
+
+    // cout << "poutdfsjmfldqsj" << endl;
+    for (int i = 0 ; i < 1000 ; i++){
+        wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+        aligner.alignEndsFree(a,0,0,b,0,0);
+        aligner.alignEndsFree(b,0,0,a,0,0);
+        if (aligner.getAlignmentScore() != -5){
+            cout << aligner.getAlignmentScore() << endl;
+        }
+    }
+
+
+    // string c = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+    // string d = "CCCCCCCCCCCCCCTCCCCCCCCCCTCCCCCTCCCCCCCCCCCCCCCCCC";
+
+    // cout << "fdqjmdlfmkfm" << endl;
+    // for (int i = 0 ; i < 100 ; i++){
+    //     aligner.alignEndsFree(c,0,0,d,0,0);
+    //     if (aligner.getAlignmentScore() != -4){
+    //         cout << aligner.getAlignmentScore() << endl;
+    //     }
+    // }
+
+}
+
 //input : the set of all overlaps and the backbone reads
 //output : a partition for all backbone reads. 
 //All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
@@ -57,7 +85,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_6"){
+             && allreads[read].name == "edge_124"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -70,7 +98,9 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
             vector<bool> misalignedReads;
             string consensus;
-            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish);
+            wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+
+            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
 
             //then separate the MSA
             cout << "Separating reads" << endl;
@@ -91,6 +121,10 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
         }
         index++;
     }
+
+    // for (int i = 0 ; i< 100 ; i++){
+    //     test_bug_WFA();
+    // }
 }
 
 //input: a read with all its neighbor
@@ -112,7 +146,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
  */
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
-    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish){
+    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish, wfa::WFAlignerGapAffine& aligner){
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -215,9 +249,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     float alignmentTime = 0;
     float MSAtime = 0;
 
-    vector<float> mappingQuality; //DEBUG
+    // vector<float> mappingQuality; //DEBUG
 
-    wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+    // wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
@@ -229,15 +263,26 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         string re = polishingReads[n].c_str();
         aligner.alignEndsFree(cons, 0,0,  re, 0,0);
 
+        // wfa::WFAlignerGapAffine aligner2(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+        // aligner2.alignEndsFree(cons, 0,0,  re, 0,0);
+
+
         string alignment = aligner.getAlignmentCigar();
-        // cout << "CIGAR: " << alignment  << endl;
-        // cout << "Alignment score " << aligner.getAlignmentScore() << endl;
+        if (aligner.getAlignmentScore() <= -2147483648 /*|| n == 967*/){
+            cout << "CIGAR: " << alignment  << endl;
+            cout << "Alignment score " << aligner.getAlignmentScore() << endl;
+            // string reverse = Read(consensus).sequence_.reverse_complement().str();
+            // string rev = reverse.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
+            // string rev2 = Read(consensus).sequence_.reverse_complement().str().substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();;
+            // aligner.alignEndsFree(cons, 0,0,  re, 0,0);
+            // cout << "Alignment score now : " << aligner.getAlignmentScore() << endl;
+            // cout << re << endl << cons << endl;
+        }
 
 
         totalLengthOfAlignment += alignment.size();
         totalDistance += -aligner.getAlignmentScore();
-        mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
-        // cout << "Alignment distance : " << float(result.editDistance)/result.alignmentLength << endl;
+        // mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
 
         // if (n == 10) {break;}
 
@@ -312,13 +357,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
         alignmentTime += duration_cast<milliseconds>(t2-t1).count();
         MSAtime += duration_cast<milliseconds>(t3-t2).count();
-        // cout << "index target : " << indexTarget<< endl;
-        // cout << "index query : " << indexQuery << endl;
-        // cout << "consensus length : " << consensus.size() << endl;
         
-        // edlibFreeAlignResult(result);
     }
-
     cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
     
     //print snps (just for debugging)
@@ -749,9 +789,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         return vector<pair<pair<int,int>, vector<int>>> (0);
     }
 
-    for (auto par = 0 ; par < listOfFinalPartitions.size() ; par++){
-        clean_partition(read, listOfFinalPartitions[par], allreads, allOverlaps);
-    }
+    // for (auto par = 0 ; par < listOfFinalPartitions.size() ; par++){
+    //     clean_partition(read, listOfFinalPartitions[par], allreads, allOverlaps);
+    // }
 
     // cout << "selecting partitions" << endl;
     vector<Partition> listOfFinalPartitionsTrimmed = select_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
@@ -1494,8 +1534,10 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
     int lastRight = 0;
     for (auto b : borders){
         set <int> s;
-        intervals.push_back(make_pair(make_pair (lastRight, b), s ));
-        lastRight = b;
+        if (b > 0){
+            intervals.push_back(make_pair(make_pair (lastRight, b), s ));
+            lastRight = b;
+        }
     }
 
 

@@ -4,6 +4,8 @@
 #include "read.h"
 #include "Partition.h"
 #include "edlib.h"
+#include <bindings/cpp/WFAligner.hpp>
+
 
 #include <vector>
 #include <unordered_map>
@@ -28,7 +30,8 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, 
     int backboneReadIndex, std::string &truePar, bool assemble_on_assembly, 
-    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish);
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish,
+    wfa::WFAlignerGapAffine &aligner);
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads);
 std::string local_assembly(std::vector <std::string> &reads);
 

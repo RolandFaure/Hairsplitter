@@ -29,7 +29,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
         int backbone = backbones_reads[b];
 
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
+        if (partitions.find(backbone) != partitions.end()){
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
@@ -38,7 +38,6 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
                     auto stitchLeft = stitch(partitions[backbone][n].second, partitions[backbone][n-1].second);
-
                     auto stitchRight = stitch(partitions[backbone][n-1].second, partitions[backbone][n].second);
 
                     for (auto s : stitchLeft){
@@ -95,10 +94,6 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
             int n = 0;
             for (auto interval : partitions[backbone]){
 
-                if (interval.first.second == interval.first.first){ //to avoid stupid segfaults
-                    interval.first.second+= 1;
-                }
-
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
 
@@ -127,7 +122,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                         // cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
                     }
                 }
-                cout << endl;
+                // cout << endl;
 
                 string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first);
                 vector<int> futureHangingLinks;

@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
             //option("-a", "--all-vs-all").doc("PAF file of the input alignments") & opt_value("all-vs-all file", allfile),
             required("-g", "--gfa") & opt_value("GFA file", refFile),
             required("-i", "--aln-on-ref") & opt_value("aln on ref", alnOnRefFile),
-            option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
+            clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--output") & opt_value("output", outputFile)
