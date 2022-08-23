@@ -29,7 +29,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
         int backbone = backbones_reads[b];
 
-        if (partitions.find(backbone) != partitions.end()){
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
@@ -269,7 +269,6 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
         }
     }
-
     
 }
 
