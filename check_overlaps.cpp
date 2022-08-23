@@ -55,7 +55,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name == "edge_42"){
+             && allreads[read].name != "edge_155000"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -554,7 +554,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 //     cout << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " ; " << meanDistance << " ; " << dis.augmented << " " << comparable << endl;
                 // }
 
-                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*3 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
                     if (position < allreads[read].size()){
@@ -1463,7 +1463,7 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         cout << max(20/double(allIdxs[par].size())*100, 10.0+numberOfUnsureReads*2) << " " << float(numberOfUnsureReads)/numberOfPartitionnedRead <<endl;
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && compatiblePartitions[par].number() > float(numberOfUnsureReads)/numberOfPartitionnedRead/0.15*0.01*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left())){ //and big enough
+            && compatiblePartitions[par].number() > min(30.0,float(numberOfUnsureReads)/numberOfPartitionnedRead/0.15*0.01*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left()))){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }
@@ -1474,8 +1474,8 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
         if (trimmedListOfFinalPartitionBool[p]){
             trimmedListOfFinalPartition.push_back(compatiblePartitions[p]);
-            cout << "remaining partition : " << endl;
-            listOfFinalPartitions[p].print();
+            // cout << "remaining partition : " << endl;
+            // listOfFinalPartitions[p].print();
         }
     }
 

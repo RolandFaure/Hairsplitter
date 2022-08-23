@@ -107,10 +107,10 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                         string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
 
                         if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
-                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).str();
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
                         }
                         else{
-                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft).reverse_complement().str();
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).reverse_complement().str();
                         }
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
@@ -124,7 +124,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 }
                 // cout << endl;
 
-                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first);
+                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+2); //+2 to polish last base, which is a snp generally
                 vector<int> futureHangingLinks;
 
                 unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
@@ -143,7 +143,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                        newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
+                        newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
 
                         edlibFreeAlignResult(result);
                         
@@ -217,7 +217,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
             }
 
             //now wrap up the right of the contig
-            int left = partitions[backbone][partitions[backbone].size()-1].first.second; //rightmost interval
+            int left = partitions[backbone][partitions[backbone].size()-1].first.second+2; //rightmost interval
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.str().size()-left);
             Read r (right);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
