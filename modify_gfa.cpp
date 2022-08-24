@@ -91,6 +91,21 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 hangingLinks.push_back(linkIdx);
             }
 
+            //construct singlepolish, the sequence polished by all the reads.
+            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewheres
+            vector<string> allneighbors;
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
+                if (allOverlaps[allreads[backbone].neighbors_[n]].strand){
+                    allneighbors.push_back(allreads[idxRead].sequence_.str());
+                }
+                else{
+                    allneighbors.push_back(allreads[idxRead].sequence_.reverse_complement().str());
+                }
+            }
+            string seqbackbone = allreads[backbone].sequence_.str();
+            string singlepolish = consensus_reads(seqbackbone, allneighbors);
+
             int n = 0;
             for (auto interval : partitions[backbone]){
 
@@ -124,7 +139,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 }
                 // cout << endl;
 
-                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+2); //+2 to polish last base, which is a snp generally
+                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first+1, interval.first.second-interval.first.first-1); 
                 vector<int> futureHangingLinks;
 
                 unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
@@ -143,13 +158,18 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                        newcontig = newcontig.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
+                        newcontig = newcontig.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+3);
 
                         edlibFreeAlignResult(result);
                         
                     }
                     else {
-                        newcontig = toPolish;
+                        string extract = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
+                        EdlibAlignResult result = edlibAlign(extract.c_str(), extract.size(),
+                                    singlepolish.c_str(), singlepolish.size(),
+                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                        newcontig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
+
                     }
 
                     Read r(newcontig);
@@ -217,9 +237,11 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
             }
 
             //now wrap up the right of the contig
-            int left = partitions[backbone][partitions[backbone].size()-1].first.second+2; //rightmost interval
+            int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.str().size()-left);
-            Read r (right);
+            EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
+                singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+            Read r (singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1));
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = allreads[backbone].depth;
 

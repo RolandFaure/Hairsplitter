@@ -55,7 +55,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_155000"){
+             && allreads[read].name != "edge_73000"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -1495,20 +1495,20 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
 
     vector<pair<pair<int,int>, set<int>>> intervals; //list of intervals, with all partitions on each
 
-    vector<int> borders;
+    vector<pair<int,int>> borders;
     for (auto p : compatiblePartitions){
-        borders.push_back(p.get_left());
-        borders.push_back(p.get_right());
+        borders.push_back(make_pair(p.get_left(),1));
+        borders.push_back(make_pair(p.get_right(), 0));
     }
-    std::sort(borders.begin(), borders.end());
+    std::sort(borders.begin(), borders.end(), [](const auto& x, const auto& y){return x.first < y.first;} ); //sort by first element
 
     //list the limits of the intervals
     int lastRight = 0;
     for (auto b : borders){
         set <int> s;
-        if (b > 0){
-            intervals.push_back(make_pair(make_pair (lastRight, b), s ));
-            lastRight = b;
+        if (b.first > 0){
+            intervals.push_back(make_pair(make_pair (lastRight, b.first-b.second), s ));
+            lastRight = b.first-b.second+1;
         }
     }
 
@@ -1518,7 +1518,7 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
     for (auto p : compatiblePartitions){
         int n2 = 0;
         for (auto interval : intervals){
-            if (p.get_left() <= interval.first.first && p.get_right() >= interval.first.second){
+            if (p.get_left() <= interval.first.first+1 && p.get_right() >= interval.first.second-1){
                 intervals[n2].second.emplace(n);
             }
             n2++;
