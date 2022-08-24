@@ -151,14 +151,16 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                         // newcontig = local_assembly(group.second);
 
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
-                            string toPolish2 = allreads[backbone].sequence_.str();
+                            //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
+                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
+                                                    min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
                             newcontig = consensus_reads(toPolish2, group.second);
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                        newcontig = newcontig.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+3);
+                        newcontig = newcontig.substr(max(0,result.startLocations[0]-1), min(result.endLocations[0]-result.startLocations[0]+3, int(newcontig.size())-result.startLocations[0]));
 
                         edlibFreeAlignResult(result);
                         

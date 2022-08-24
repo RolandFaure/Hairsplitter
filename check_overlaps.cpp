@@ -55,7 +55,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_73000"){
+             && allreads[read].name != "edge_700000"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -148,11 +148,11 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         
         if (overlap.sequence1 == read){
 
-            truePar.push_back(allreads[overlap.sequence2].name[11]);
+            truePar.push_back(allreads[overlap.sequence2].name[10]);
             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }
         else{
-            truePar.push_back(allreads[overlap.sequence1].name[11]);
+            truePar.push_back(allreads[overlap.sequence1].name[10]);
             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
         }    
     }
@@ -1463,7 +1463,7 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         cout << max(20/double(allIdxs[par].size())*100, 10.0+numberOfUnsureReads*2) << " " << float(numberOfUnsureReads)/numberOfPartitionnedRead <<endl;
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && compatiblePartitions[par].number() > min(30.0,float(numberOfUnsureReads)/numberOfPartitionnedRead/0.15*0.01*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left()))){ //and big enough
+            && compatiblePartitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left())))){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }
