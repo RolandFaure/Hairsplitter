@@ -24,6 +24,8 @@ Partition::Partition(){
     lessFrequence = {};
     numberOfOccurences = 0;
     conf_score = 0;
+    pos_left = -1;
+    pos_right = -1;
 }
 
 Partition::Partition(Column& snp, int pos){
@@ -137,8 +139,9 @@ bool Partition::isInformative(float errorRate, bool lastReadBiased){
 void Partition::augmentPartition(Column& supplementaryPartition, int pos){
 
     //first adjust pos right and pos left if pos changes the limits of the partition
+    
     if (pos != -1){
-        if (pos < pos_left) {pos_left = pos;}
+        if (pos < pos_left || pos_left == -1) {pos_left = pos;}
         if (pos > pos_right) {pos_right = pos;}
     }
 
@@ -151,7 +154,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     int n1 = 0;
     int n2 = 0;
     for (auto read : supplementaryPartition.readIdxs){
-        while(*it1 < read && it1 != readIdx.end()){ //positions that existed in the old partitions that are not found here
+        while(it1 != readIdx.end() && *it1 < read){ //positions that existed in the old partitions that are not found here
             mostFrequentBases_2.push_back(mostFrequentBases[n1]);
             moreFrequence_2.push_back(moreFrequence[n1]);
             lessFrequence_2.push_back(lessFrequence[n1]);
@@ -159,7 +162,6 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             it1++;
             n1++;
         }
-
         short s = 0;
         if (supplementaryPartition.content[n2] == 'a'){s=-1;}
         if (supplementaryPartition.content[n2] == 'A'){s=1;}

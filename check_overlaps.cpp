@@ -55,7 +55,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_700000"){
+             && allreads[read].name == "edge_23"){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -566,7 +566,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                     //     Partition(snps[position], 0).print();
                     //     // interestingParts.push_back(position);
                     // }
-
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     found = true;
                     break;
@@ -594,22 +593,45 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         }
     }
 
-    cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
-
-    // for (auto p : partitions){
-    //     if (p.number() > 2){
-    //         p.print();
-    //     }
-    // }
-
-    //for debugging only
-    //outputMatrix(snps, suspectPostitions, std::to_string(read));
-
-
     if (partitions.size() == 0){ //there are no position of interest
         vector<pair<pair<int,int>, vector<int>>> e;
         return e;
     }
+
+    // //re-scanning all the positions now that we have a list of potential partitions
+    // vector<Partition> partitions_recomputed;
+    // for(auto c = 0 ; c < partitions.size() ; c++){
+    //     Partition p = Partition();
+    //     partitions_recomputed.push_back(p);
+    // }
+    // for (auto position : suspectPostitions){
+    //     vector<float> scores (partitions.size(), 0);
+    //     vector<Column> partitionToAugment(partitions.size());
+    //     for (auto p = 0 ; p < partitions.size() ; p++){
+    //         distancePartition dis = distance(partitions[p], snps[position]);
+    //         scores[p] = computeChiSquare(dis);
+    //         partitionToAugment[p] = dis.partition_to_augment;
+    //     }
+    //     int max_idx = std::distance(scores.begin(), std::max_element(scores.begin(), scores.end()));
+    //     cout << "max element : " << scores[max_idx] << endl;
+        
+    //     if (scores[max_idx] > 9){
+    //         int pos = -1;
+    //         if (position < allreads[read].size()){
+    //             pos = position;
+    //         }
+    //         partitions_recomputed[max_idx].augmentPartition(partitionToAugment[max_idx], pos);
+    //     }
+    // }
+    // cout << "recomputed partitions : " << endl;
+    // for (auto p : partitions_recomputed){
+    //     p.print();
+    // }
+
+    cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
+
+    //for debugging only
+    //outputMatrix(snps, suspectPostitions, std::to_string(read));
 
     // cout << "Outputting the graph" << endl;
 
@@ -765,7 +787,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // }
 
     // cout << "selecting partitions" << endl;
-    vector<Partition> listOfFinalPartitionsTrimmed = select_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
+    vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
+    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(listOfCompatiblePartitions, numberOfReads, meanDistance/2);
 
 
     // cout << "threading clusters" << endl;
@@ -1308,21 +1331,26 @@ void clean_partition(long int backbone, Partition &originalPartition, vector <Re
 
 }
 
-//input : a list of partitions
-//output : only the partitions that look very sure of themselves
-vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, int numberOfReads, float errorRate){
-    vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size()));
-
+/**
+ * @brief Takes all partition and returns a subset of compatible partitions
+ * 
+ * @param partitions 
+ * @param numberOfReads 
+ * @param errorRate 
+ * @return vector<Partition>  subset of compatible partitions
+ */
+vector<Partition> select_compatible_partitions(vector<Partition> &partitions, int numberOfReads, float errorRate){
+    
     vector<vector<int>> allIdxs;
-    for (auto i : listOfFinalPartitions){
+    for (auto i : partitions){
         allIdxs.push_back(i.getReads());
     }
     vector<vector<short>> allPartitions;
-    for (auto i : listOfFinalPartitions){
+    for (auto i : partitions){
         allPartitions.push_back(i.getPartition());
     }
     vector<vector<float>> allConfidences;
-    for (auto i : listOfFinalPartitions){
+    for (auto i : partitions){
         allConfidences.push_back(i.getConfidence());
     }
 
@@ -1334,7 +1362,7 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     
 
     vector<bool> readsClassified (numberOfReads, true);
-    for (int par = 0 ; par < listOfFinalPartitions.size() ; par++){
+    for (int par = 0 ; par < partitions.size() ; par++){
         int c = 0;
         for (auto read : allIdxs[par]){
             if (allPartitions[par][c] != 0 && allConfidences[par][c] >= 0.7){
@@ -1348,36 +1376,36 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     //now go through the partitions to discard those that are not compatible with each other. Take only the best one
 
     //as a first step, we'll compute a score for each partition evaluating on how confident it is and order the partitions by that score   
-    for (int par = 0 ; par < listOfFinalPartitions.size() ; par++){
+    for (int par = 0 ; par < partitions.size() ; par++){
         //compute a score evaluating the certainty of the partition
-        listOfFinalPartitions[par].compute_conf();
+        partitions[par].compute_conf();
     }
 
     struct {
         bool operator()(Partition a, Partition b) const { return a.get_conf() > b.get_conf(); }
     } customLess;
-    std::sort(listOfFinalPartitions.begin(), listOfFinalPartitions.end(), customLess);
+    std::sort(partitions.begin(), partitions.end(), customLess);
 
     cout << "Here are all the partitions, sorted : " << endl;
-    for (auto p : listOfFinalPartitions){
+    for (auto p : partitions){
         p.print();
     }
 
     //draw a list of compatible partitions
     
-    vector<bool> compatibles(listOfFinalPartitions.size(), false);
-    for (int p = 0 ; p < listOfFinalPartitions.size() ; p++){
+    vector<bool> compatibles(partitions.size(), false);
+    for (int p = 0 ; p < partitions.size() ; p++){
         bool compatible = true;
         for (int p2 = 0 ; p2 < p ; p2++){
             if (compatibles[p2]){ //for all more sturdy validated partitions, check if this one is compatible
-                int compCode = compatible_partitions(listOfFinalPartitions[p], listOfFinalPartitions[p2]);
+                int compCode = compatible_partitions(partitions[p], partitions[p2]);
                 if (compCode == 0){
                     compatible = false;
                     break;
                 }
                 else if (compCode == 2){ //means that they're the same partition
                     compatible = false;
-                    listOfFinalPartitions[p2].mergePartition(listOfFinalPartitions[p]);
+                    partitions[p2].mergePartition(partitions[p]);
                     break;
                 }
             }
@@ -1389,31 +1417,48 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     
     vector<Partition> compatiblePartitions;
     cout << "compatible partitions : " << endl;
-    for (auto p = 0 ; p < listOfFinalPartitions.size(); p++){
+    for (auto p = 0 ; p < partitions.size(); p++){
         if (compatibles[p]){
-            compatiblePartitions.push_back(listOfFinalPartitions[p]);
-            listOfFinalPartitions[p].print();
+            compatiblePartitions.push_back(partitions[p]);
+            partitions[p].print();
         }
     }
-    
-    //Now see if some partitions are just not sure enough of themselves
 
-    vector<bool> trimmedListOfFinalPartitionBool (compatiblePartitions.size(), false); //true if a partition is kept, false otherwise
+    return compatiblePartitions;
+}
 
-    allIdxs = {};
-    for (auto i : compatiblePartitions){
+//input : a list of partitions
+//output : only the partitions that look very sure of themselves
+vector<Partition> select_confident_partitions(vector<Partition> &partitions, int numberOfReads, float errorRate){
+
+    vector<bool> trimmedListOfFinalPartitionBool (partitions.size(), false); //true if a partition is kept, false otherwise
+
+    vector<vector<int>> allIdxs;
+    for (auto i : partitions){
         allIdxs.push_back(i.getReads());
     }
-    allPartitions = {};
-    for (auto i : compatiblePartitions){
+    vector<vector<short>> allPartitions;
+    for (auto i : partitions){
         allPartitions.push_back(i.getPartition());
     }
-    allConfidences = {};
-    for (auto i : compatiblePartitions){
+    vector<vector<float>> allConfidences;
+    for (auto i : partitions){
         allConfidences.push_back(i.getConfidence());
     }
 
-    for (int par = 0 ; par < compatiblePartitions.size() ; par++){
+    //first see which reads are well classified in at least one partition
+    vector<bool> readsClassified (numberOfReads, true);
+    for (int par = 0 ; par < partitions.size() ; par++){
+        int c = 0;
+        for (auto read : allIdxs[par]){
+            if (allPartitions[par][c] != 0 && allConfidences[par][c] >= 0.7){
+                readsClassified[read] = true;
+            }
+            c++;
+        }
+    }
+
+    for (int par = 0 ; par < partitions.size() ; par++){
 
         //because of the ref, the two haplotypes are not strictly equivalent : try to counterbalance that
         int numberOfPartitionnedRead = 0;
@@ -1456,14 +1501,16 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
         int numberOfUnsureReads = numberOfUnsureReads0+numberOfUnsureReads1;
 
         cout << "filtering partition, tolerating " << errors[0] << "," << errors[1] << endl;
-        compatiblePartitions[par].print();
+        partitions[par].print();
         cout << "There are " << numberOfUnsureReads << " unsure reads, (" << numberOfUnsureReads0 << "+" << numberOfUnsureReads1 << ") out of " 
             << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
-        compatiblePartitions[par].number() << " for a length of " << (compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left()) << endl;
+        partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left()) <<
+            ". Overall, do I take it : " <<(float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15
+            && partitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))) << endl;
         cout << max(20/double(allIdxs[par].size())*100, 10.0+numberOfUnsureReads*2) << " " << float(numberOfUnsureReads)/numberOfPartitionnedRead <<endl;
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && compatiblePartitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(compatiblePartitions[par].get_right()-compatiblePartitions[par].get_left())))){ //and big enough
+            && partitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }
@@ -1471,9 +1518,9 @@ vector<Partition> select_partitions(vector<Partition> &listOfFinalPartitions, in
     }
 
     vector<Partition> trimmedListOfFinalPartition;
-    for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
+    for (auto p = 0 ; p < partitions.size() ; p++){
         if (trimmedListOfFinalPartitionBool[p]){
-            trimmedListOfFinalPartition.push_back(compatiblePartitions[p]);
+            trimmedListOfFinalPartition.push_back(partitions[p]);
             // cout << "remaining partition : " << endl;
             // listOfFinalPartitions[p].print();
         }
@@ -1618,20 +1665,20 @@ int compatible_partitions(Partition &p1 , Partition &p2){
     //additionally, ensure that the most specific parts are made up of ones
     int compatible = 0;
 
-    if (zero_in_0/numberOf0s > 0.8){
+    if (zero_in_0/numberOf0s > 0.8 && zero_in_1/(numberOf0s+numberOf1s) < 0.1 ){
         p1.flipPartition();
         compatible += 1;
     }
-    else if(zero_in_1/numberOf0s > 0.8){
+    else if(zero_in_1/numberOf0s > 0.8 && zero_in_0/(numberOf0s+numberOf1s) < 0.1){
         p1.flipPartition();
         p2.flipPartition();
         compatible += 1;
     }
 
-    if (one_in_0/numberOf1s > 0.8){
+    if (one_in_0/numberOf1s > 0.8 && one_in_1/(numberOf0s+numberOf1s) < 0.1){
         compatible += 1;
     }
-    else if (one_in_1/numberOf1s > 0.8){
+    else if (one_in_1/numberOf1s > 0.8 && one_in_0/(numberOf0s+numberOf1s) < 0.1){
         p2.flipPartition();
         compatible += 1;
     }

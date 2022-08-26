@@ -44,7 +44,8 @@ float computeChiSquare(distancePartition dis);
 
 void clean_partition(long int backbone, Partition &originalPartition, std::vector <Read> &allreads,std::vector <Overlap> &allOverlaps);
 
-std::vector<Partition> select_partitions(std::vector<Partition> &listOfFinalPartitions, int numberOfReads, float errorRate);
+std::vector<Partition> select_compatible_partitions(std::vector<Partition> &partitions, int numberOfReads, float errorRate);
+std::vector<Partition> select_confident_partitions(std::vector<Partition> &partitions, int numberOfReads, float errorRate);
 
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > threadHaplotypes(std::vector<Partition> &compatiblePartitions, int numberOfReads,
     std::unordered_map <int, std::pair<int,int>> &clusterLimits);
