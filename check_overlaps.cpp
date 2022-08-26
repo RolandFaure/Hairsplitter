@@ -598,36 +598,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         return e;
     }
 
-    // //re-scanning all the positions now that we have a list of potential partitions
-    // vector<Partition> partitions_recomputed;
-    // for(auto c = 0 ; c < partitions.size() ; c++){
-    //     Partition p = Partition();
-    //     partitions_recomputed.push_back(p);
-    // }
-    // for (auto position : suspectPostitions){
-    //     vector<float> scores (partitions.size(), 0);
-    //     vector<Column> partitionToAugment(partitions.size());
-    //     for (auto p = 0 ; p < partitions.size() ; p++){
-    //         distancePartition dis = distance(partitions[p], snps[position]);
-    //         scores[p] = computeChiSquare(dis);
-    //         partitionToAugment[p] = dis.partition_to_augment;
-    //     }
-    //     int max_idx = std::distance(scores.begin(), std::max_element(scores.begin(), scores.end()));
-    //     cout << "max element : " << scores[max_idx] << endl;
-        
-    //     if (scores[max_idx] > 9){
-    //         int pos = -1;
-    //         if (position < allreads[read].size()){
-    //             pos = position;
-    //         }
-    //         partitions_recomputed[max_idx].augmentPartition(partitionToAugment[max_idx], pos);
-    //     }
-    // }
-    // cout << "recomputed partitions : " << endl;
-    // for (auto p : partitions_recomputed){
-    //     p.print();
-    // }
-
     cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
 
     //for debugging only
@@ -788,7 +758,38 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
     // cout << "selecting partitions" << endl;
     vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
-    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(listOfCompatiblePartitions, numberOfReads, meanDistance/2);
+    
+    //re-scanning all the positions now that we have a list of potential partitions
+    vector<Partition> partitions_recomputed;
+    for(auto c = 0 ; c < listOfFinalPartitions.size() ; c++){
+        Partition p = Partition();
+        partitions_recomputed.push_back(p);
+    }
+    for (auto position : suspectPostitions){
+        vector<float> scores (listOfFinalPartitions.size(), 0);
+        vector<Column> partitionToAugment(listOfFinalPartitions.size());
+        for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
+            distancePartition dis = distance(listOfFinalPartitions[p], snps[position]);
+            scores[p] = computeChiSquare(dis);
+            partitionToAugment[p] = dis.partition_to_augment;
+        }
+        int max_idx = std::distance(scores.begin(), std::max_element(scores.begin(), scores.end()));
+        // cout << "max element : " << scores[max_idx] << endl;
+        
+        if (scores[max_idx] > 9){
+            int pos = -1;
+            if (position < allreads[read].size()){
+                pos = position;
+            }
+            partitions_recomputed[max_idx].augmentPartition(partitionToAugment[max_idx], pos);
+        }
+    }
+    cout << "recomputed partitions : " << endl;
+    for (auto p : partitions_recomputed){
+        p.print();
+    }
+
+    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(partitions_recomputed, numberOfReads, meanDistance/2);
 
 
     // cout << "threading clusters" << endl;
@@ -1506,11 +1507,11 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, int
             << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
         partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left()) <<
             ". Overall, do I take it : " <<(float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15
-            && partitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))) << endl;
+            && partitions[par].number() > max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))) << endl;
         cout << max(20/double(allIdxs[par].size())*100, 10.0+numberOfUnsureReads*2) << " " << float(numberOfUnsureReads)/numberOfPartitionnedRead <<endl;
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && partitions[par].number() > max(15.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))){ //and big enough
+            && partitions[par].number() > max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))){ //and big enough
 
             trimmedListOfFinalPartitionBool[par] = true;
         }
@@ -1590,8 +1591,8 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
     n = 0;
     for (auto interval : intervals){
         cout << interval.first.first << " <-> " << interval.first.second << " : ";
-        for (auto p : interval.second){cout << p << ",";} cout << endl;
-        for (auto r : res[n].second){cout << r+1;} cout << endl;
+        // for (auto p : interval.second){cout << p << ",";} cout << endl;
+        for (auto r : res[n].second){cout << r+1 << ",";} cout << endl;
         n++;
     }
 
@@ -1691,7 +1692,6 @@ int compatible_partitions(Partition &p1 , Partition &p2){
 //output : a single partition, with several number corresponding to several clusters
 vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads){
 
-
     vector<vector<short>> allPartitions;
     for (auto i : listOfFinalPartitions){
         allPartitions.push_back(i.getPartition());
@@ -1780,8 +1780,8 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
         // cout << "likelihoods : " << endl;
         // for (auto a : listOfLikelihoods) {cout << a << ",";}cout << endl;
-        cout << "minElements : " << endl;
-        for (auto m : minElements) {cout << m << ",";} cout << endl;
+        // cout << "minElements : " << endl;
+        // for (auto m : minElements) {cout << m << ",";} cout << endl;
     }
 
     
