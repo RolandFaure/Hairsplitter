@@ -1590,7 +1590,7 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
     cout << "here are the intervals : " << endl;
     n = 0;
     for (auto interval : intervals){
-        cout << interval.first.first << " <-> " << interval.first.second << " : ";
+        cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
         // for (auto p : interval.second){cout << p << ",";} cout << endl;
         for (auto r : res[n].second){cout << r+1 << ",";} cout << endl;
         n++;
