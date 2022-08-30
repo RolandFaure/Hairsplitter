@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 {   
     check_dependancies();
 
-    string fastqfile, allfile, refFile, alnOnRefFile, outputFile, samFile, vcfFile;
+    string fastqfile, allfile, refFile, alnOnRefFile, outputFile, outputGAF, samFile, vcfFile;
     bool polish = false;
     auto cli = (
             required("-f", "--fastq") & opt_value("fastqfile", fastqfile),
@@ -59,7 +59,8 @@ int main(int argc, char *argv[])
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
-            required("-o", "--output") & opt_value("output", outputFile)
+            required("-q", "--outputGAF") & opt_value("output GAF", outputGAF),
+            required("-o", "--outputGFA") & opt_value("output GFA", outputFile)
         );
 
     if(!parse(argc, argv, cli)) {
@@ -88,6 +89,11 @@ int main(int argc, char *argv[])
         checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits, readLimits, polish);
         cout << "Finished checking, now outputting" << endl;
 
+        //output GAF, the path of all reads on the new contigs
+        cout << "Outputting GAF" << endl;
+        output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
+
+        cout << "Outputting GFA" << endl;
         modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits, readLimits);
         output_GFA(allreads, backbone_reads, outputFile, allLinks);
 

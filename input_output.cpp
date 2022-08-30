@@ -3,6 +3,7 @@
 #include <set>
 #include <fstream>
 #include <sstream>
+#include <tuple>
 
 #include "input_output.h"
 #include "tools.h"
@@ -12,6 +13,10 @@ using std::endl;
 using std::vector;
 using std::list;
 using std::pair;
+using std::tuple;
+using std::make_tuple;
+using std::get;
+using std::make_pair;
 using std::string;
 using std::ofstream;
 using std::ifstream;
@@ -725,6 +730,165 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
     }
     // cout << "number of non-common overlaps : " << numberOfNotBb << endl;
 }
+
+/**
+ * @brief Creates the GAF corresponding to the mapping of the reads on the new GFA
+ * 
+ * @param allreads vector of all reads (including backbone reads which can be contigs)
+ * @param backbone_reads vector of all the indices of the backbone reads in allreads
+ * @param allLinks vector of all links of the GFA
+ * @param allOverlaps vector of all overlaps between backbone reads and normal reads
+ * @param partitions contains all the conclusions of the separate_reads algorithm
+ * @param outputGAF name of the output file
+ */
+typedef std::tuple<int, vector<pair<string, bool>>, long int> Path; //a path is a starting position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
+void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks,
+    std::vector <Overlap> &allOverlaps, std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, std::string outputGAF){
+
+    vector<vector<Path>> readPaths (allreads.size()); //to each read we associate a path on the graph
+
+    int max_backbone = backbone_reads.size(); //fix that because backbones will be added to the list but not separated 
+    for (int b = 0 ; b < max_backbone ; b++){
+
+        long int backbone = backbone_reads[b];
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
+                long int read;
+                int start = -1;
+                if (ov.sequence1 != backbone){
+                    read = ov.sequence1;
+                    start = min(ov.position_1_1, ov.position_1_2);
+                }
+                else{
+                    read = ov.sequence2;
+                    start = min(ov.position_2_1, ov.position_2_2);
+                }
+
+                //go through all the intervals and see through which version this read passes
+                vector<pair<string, bool>> sequence_of_traversed_contigs;
+                bool stop = false;
+                for (auto interval : partitions[backbone]){
+                    if (interval.second[n] != -1){
+                        sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second[n])
+                            , ov.strand));
+                    }
+                    else{
+                        stop = true;
+                    }
+                }
+                //last contig
+                if (!stop){
+                    int right = partitions[backbone][partitions[backbone].size()-1].first.second+1;
+                    sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(right)+"_0"
+                            , ov.strand));
+                }
+
+                if (!ov.strand){ //then mirror the vector
+                    std::reverse(sequence_of_traversed_contigs.begin(), sequence_of_traversed_contigs.end());
+                }
+                
+                Path contigpath = make_tuple(start,sequence_of_traversed_contigs, backbone);
+                readPaths[read].push_back(contigpath);
+            }
+        }
+        else{
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
+                long int read;
+                int start = -1;
+                if (ov.sequence1 != backbone){
+                    read = ov.sequence1;
+                    start = min(ov.position_1_1, ov.position_1_2);
+                }
+                else{
+                    read = ov.sequence2;
+                    start = min(ov.position_2_1, ov.position_2_2);
+                }
+                
+                vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
+                Path contigpath = make_tuple(start,v, backbone);
+                readPaths[read].push_back(contigpath);
+            }
+        }
+    }
+
+    //now merge the paths that were on different contigs
+    for (auto r = 0 ; r < readPaths.size() ; r++){
+
+        if (readPaths[r].size() > 0){
+            std::sort(readPaths[r].begin(), readPaths[r].end(),
+                [] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
+
+            vector<Path> mergedPaths;
+            Path currentPath = readPaths[r][0];
+            //check if each path can be merged with next path
+            for (auto p = 0 ; p<readPaths[r].size()-1 ; p++){
+                long int contig = get<2> (currentPath);
+                bool orientation = get<1>(currentPath)[get<1>(currentPath).size()-1].second;
+
+                long int nextContig = get<2> (readPaths[r][p+1]);
+
+                if (contig != nextContig){
+
+                    vector<size_t> links;
+                    if (orientation){
+                        links = allreads[contig].get_links_right();
+                    }
+                    else{
+                        links = allreads[contig].get_links_left();
+                    }
+
+                    bool merge = false;
+                    for (auto li : links){
+                        Link l = allLinks[li];
+                        if (l.neighbor1 == nextContig || l.neighbor2 == nextContig){ //then merge
+                            if ((l.end1==l.end2 && get<1>(readPaths[r][p+1])[0].second != orientation) 
+                                || (l.end1!=l.end2 && get<1>(readPaths[r][p+1])[0].second == orientation)){
+                                merge = true;
+                            }
+                        }
+                    }
+
+                    if (merge){
+                        get<1>(currentPath).insert(get<1>(currentPath).end(), get<1> (readPaths[r][p+1]).begin(), get<1> (readPaths[r][p+1]).end());
+                        get<2>(currentPath) = get<2> (readPaths[r][p+1]);
+                    }
+                    else{
+                        mergedPaths.push_back(currentPath);
+                        currentPath = readPaths[r][p+1];
+                    }
+                }
+            }
+            mergedPaths.push_back(currentPath);
+            readPaths[r] = mergedPaths;
+        }
+    }
+
+
+    //now the paths have been determined, output the file
+    ofstream out(outputGAF);
+    for (auto p = 0 ; p < readPaths.size() ; p++){
+        for (Path path : readPaths[p]){
+            if (get<1>(path).size() > 1){
+                //output the path
+                out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
+                for (auto contig : get<1>(path)){
+                    if (contig.second){
+                        out << ">";
+                    }
+                    else{
+                        out << "<";
+                    }
+                    out << contig.first;
+                }
+                out << "\t-1\t-1\t-1\t-1\t-1\t255\n";
+            }
+        }
+    }
+}
+
 
 //input : the list of all reads. Among those, backbone reads are actually contigs
 //output : a new gfa file with all contigs splitted
