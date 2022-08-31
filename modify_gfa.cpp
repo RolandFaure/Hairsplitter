@@ -237,13 +237,20 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 hangingLinks = futureHangingLinks;
                 n += 1;
             }
-
             //now wrap up the right of the contig
             int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
-            string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.str().size()-left);
-            EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
-                singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-            Read r (singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1));
+            string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
+
+            string contig;
+            if (right.size() > 0){
+                EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
+                    singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                contig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
+            }
+            else{
+                contig = "";
+            }
+            Read r (contig);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = allreads[backbone].depth;
 

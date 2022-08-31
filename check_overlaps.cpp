@@ -55,7 +55,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
     for (unsigned long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_172000"){
+             && allreads[read].name != "edge_14800" ){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
@@ -761,15 +761,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     
     //re-scanning all the positions now that we have a list of potential partitions
     vector<Partition> partitions_recomputed;
-    for(auto c = 0 ; c < listOfFinalPartitions.size() ; c++){
+    for(auto c = 0 ; c < listOfCompatiblePartitions.size() ; c++){
         Partition p = Partition();
         partitions_recomputed.push_back(p);
     }
     for (auto position : suspectPostitions){
-        vector<float> scores (listOfFinalPartitions.size(), 0);
-        vector<Column> partitionToAugment(listOfFinalPartitions.size());
-        for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
-            distancePartition dis = distance(listOfFinalPartitions[p], snps[position]);
+        vector<float> scores (listOfCompatiblePartitions.size(), 0);
+        vector<Column> partitionToAugment(listOfCompatiblePartitions.size());
+        for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
+            distancePartition dis = distance(listOfCompatiblePartitions[p], snps[position]);
             scores[p] = computeChiSquare(dis);
             partitionToAugment[p] = dis.partition_to_augment;
         }
@@ -789,7 +789,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         p.print();
     }
 
-    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(partitions_recomputed, numberOfReads, meanDistance/2);
+    //mark as valid partitions which have collected much more positions in the second round
+    vector<bool> keptPartitions (partitions_recomputed.size(), false);
+    for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
+        if  (partitions_recomputed[p].number() > 2*listOfCompatiblePartitions[p].number()){
+            keptPartitions[p] = true;
+        }
+    }
+
+    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(partitions_recomputed, keptPartitions, numberOfReads, meanDistance/2);
 
 
     // cout << "threading clusters" << endl;
@@ -802,86 +810,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     // //rescue reads that have not been assigned to a cluster
     // vector<int> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
 
-    //print snps (just for debugging)
-    // int step = 1;
-    // int prop = 1; //1 for every base
-    // int numberOfDisplayedReads = numberOfReads;
-    // int start = 011;
-    // int end = 10000000;
-    // vector<string> reads (numberOfDisplayedReads);
-    // string cons = "";
-    // auto n = 0;
-    // for (auto i : interestingParts){
-        
-    //     if (i < end && n%prop == 0){
-
-    //         for (short n = 0 ; n < numberOfDisplayedReads*step ; n+= step){
-    //             char c = '?';
-    //             char justBefore = '?';
-    //             char justAfter = '?';
-    //             int ri = 0;
-    //             for (auto r : snps[i].readIdxs){
-    //                 if (r == n){
-    //                     c = snps[i].content[ri];
-    //                 }
-    //                 ri ++;
-    //             }
-                
-    //             ri = 0;
-    //             for (auto r : snps[i-1].readIdxs){
-    //                 if (r == n){
-    //                     justBefore = snps[i-1].content[ri];
-    //                 }
-    //                 ri ++;
-    //             }
-
-    //             ri = 0;
-    //             for (auto r : snps[i+1].readIdxs){
-    //                 if (r == n){
-    //                     justAfter = snps[i+1].content[ri];
-    //                 }
-    //                 ri ++;
-    //             }
-
-    //             // if (justAfter != '-' && justAfter != '?'){
-    //             //     justAfter += 32;
-    //             // }
-    //             // if (justBefore != '-' && justBefore != '?'){
-    //             //     justBefore += 32;
-    //             // }
-    //             // reads[n/step] = reads[n/step] + "...";
-    //             // reads[n/step] += justBefore;
-    //             reads[n/step] += c;
-    //             // reads[n/step] += justAfter;
-    //         }
-    //         // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //         //     int snpidx = insertionPos[10000*i+insert];
-    //         //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //         //         char c = '?';
-    //         //         int ri = 0;
-    //         //         for (auto r : snps[snpidx].readIdxs){
-    //         //             if (r == n){
-    //         //                 c = snps[snpidx].content[ri];
-    //         //             }
-    //         //             ri ++;
-    //         //         }
-    //         //         reads[n/step] += c;
-    //         //     }
-    //         // }
-    //     }
-    //     n++;
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = 0;
-    // cout << " " << threadedClusters[threadedClusters.size()-1].second.size() << endl;
-    // for (auto neighbor : reads){
-    //     if (neighbor[4] != '?' && threadedClusters[threadedClusters.size()-1].second[index] != -1){
-    //         cout << neighbor.substr(0,150) << " " << index  << " " <<  threadedClusters[threadedClusters.size()-1].second[index]<< endl;
-    //     }
-    //     index++;
-    // }
-
-    // return finalClusters;
     return threadedClusters;
 }
 
@@ -1430,9 +1358,16 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
 
 //input : a list of partitions
 //output : only the partitions that look very sure of themselves
-vector<Partition> select_confident_partitions(vector<Partition> &partitions, int numberOfReads, float errorRate){
-
-    vector<bool> trimmedListOfFinalPartitionBool (partitions.size(), false); //true if a partition is kept, false otherwise
+/**
+ * @brief Point out the partitions that are very sure of themselves and that should be kekt
+ * 
+ * @param partitions list of candidate partitions
+ * @param trimmedListOfFinalPartitionBool true if a partition is kept, false otherwise. May be initialized with some pre-selected partitions
+ * @param numberOfReads 
+ * @param errorRate 
+ * @return vector<Partition> All the confident partitions
+ */
+vector<Partition> select_confident_partitions(vector<Partition> &partitions, std::vector<bool> trimmedListOfFinalPartitionBool, int numberOfReads, float errorRate){
 
     vector<vector<int>> allIdxs;
     for (auto i : partitions){
@@ -1505,16 +1440,16 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, int
         partitions[par].print();
         cout << "There are " << numberOfUnsureReads << " unsure reads, (" << numberOfUnsureReads0 << "+" << numberOfUnsureReads1 << ") out of " 
             << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
-        partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left()) <<
-            ". Overall, do I take it : " <<(float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15
-            && partitions[par].number() > max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))) << endl;
-        cout << max(20/double(allIdxs[par].size())*100, 10.0+numberOfUnsureReads*2) << " " << float(numberOfUnsureReads)/numberOfPartitionnedRead <<endl;
+        partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left());
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
             && partitions[par].number() > max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))){ //and big enough
-
             trimmedListOfFinalPartitionBool[par] = true;
         }
+        else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.2 && (par>0||partitions[par].number() < 30)){ //if it's not the best partition it may be a weird version of the best partition
+            trimmedListOfFinalPartitionBool[par] = false;
+        }
+        cout << ". Overall, do I take it : " << trimmedListOfFinalPartitionBool[par] << endl;
 
     }
 

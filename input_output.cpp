@@ -754,7 +754,9 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
         if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
             for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
+
                 long int read;
                 int start = -1;
                 if (ov.sequence1 != backbone){
@@ -789,8 +791,10 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                     std::reverse(sequence_of_traversed_contigs.begin(), sequence_of_traversed_contigs.end());
                 }
                 
-                Path contigpath = make_tuple(start,sequence_of_traversed_contigs, backbone);
-                readPaths[read].push_back(contigpath);
+                if (sequence_of_traversed_contigs.size()>0){ //this should almost always be true, but it's still safer to test
+                    Path path = make_tuple(start,sequence_of_traversed_contigs, backbone);
+                    readPaths[read].push_back(path);
+                }
             }
         }
         else{
@@ -820,18 +824,16 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
         if (readPaths[r].size() > 0){
             std::sort(readPaths[r].begin(), readPaths[r].end(),
                 [] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
-
             vector<Path> mergedPaths;
             Path currentPath = readPaths[r][0];
             //check if each path can be merged with next path
             for (auto p = 0 ; p<readPaths[r].size()-1 ; p++){
+
                 long int contig = get<2> (currentPath);
                 bool orientation = get<1>(currentPath)[get<1>(currentPath).size()-1].second;
-
                 long int nextContig = get<2> (readPaths[r][p+1]);
 
                 if (contig != nextContig){
-
                     vector<size_t> links;
                     if (orientation){
                         links = allreads[contig].get_links_right();
@@ -865,7 +867,6 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             readPaths[r] = mergedPaths;
         }
     }
-
 
     //now the paths have been determined, output the file
     ofstream out(outputGAF);
