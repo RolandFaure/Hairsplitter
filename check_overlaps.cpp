@@ -29,6 +29,8 @@ using std::make_pair;
 using std::unordered_map;
 using std::set;
 using std::max_element;
+using std::thread;
+using std::ref;
 
 using namespace std::chrono;
 
@@ -47,54 +49,95 @@ bool comp (distPart i, distPart j){
 //readLimits contains the border of all reads aligning on each backbone, used later to recompute the coverage
 void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
         vector<unsigned long int> &backbones_reads, unordered_map <unsigned long int ,vector<pair<pair<int,int>, vector<int>>>> &partitions, 
-        bool assemble_on_assembly, unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits,
-        bool polish){
+        bool assemble_on_assembly, unordered_map <int, vector<pair<int,int>>> &readLimits,
+        bool polish, int num_threads){
+
+    vector<int> active_threads(num_threads, 0); //vector keeping track of which threads are active
 
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     int index = 0;
-    for (unsigned long int read : backbones_reads){
+    for (long int read : backbones_reads){
         
         if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_14800" ){
+             && allreads[read].name != "edge_55000" ){
+
+            //choose on which thread this contig will run
+            char find_thread = 0;
+            while(active_threads[find_thread%num_threads]>0){
+                ++find_thread;
+            }
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
 
-            //now see if it looks like an easy separation or like an hard separation
-            
-            vector<Column> snps;  //vector containing list of position, with SNPs at each position
-            //first build an MSA
-            cout << "Generating MSA" << endl;
-            string truePar; //for debugging
-
-            vector<bool> misalignedReads;
-            string consensus;
-            wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-
-            float meanDistance = generate_msa(read, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
-
-            //then separate the MSA
-            cout << "Separating reads" << endl;
-            vector<pair<pair<int,int>, vector<int>> > par = separate_reads(read, allOverlaps, allreads, snps, meanDistance, 
-                                                                allreads[read].neighbors_.size()+1-int(assemble_on_assembly), clusterLimits);
-            
-            cout << "True partition : " << endl;
-            cout << truePar << endl;
-            
-            // auto par = truePar.getPartition();//DEBUG
-            // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
-            // cout << "Proposed partition : " << endl;
-            // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
-            // cout << endl;
-
-            partitions[read] = par;
+            // active_threads[find_thread] = 1;
+            // thread t(compute_partition_on_this_contig, read, ref(allreads), ref(allOverlaps), ref(backbones_reads), ref(partitions),
+            //      assemble_on_assembly, ref(clusterLimits), ref(readLimits), polish, ref(active_threads[find_thread]));
+            // t.detach();
+            compute_partition_on_this_contig(read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
+                readLimits, polish, active_threads[find_thread]);
     
         }
         index++;
     }
 
-    // for (int i = 0 ; i< 100 ; i++){
-    //     test_bug_WFA();
-    // }
+    //ensure all threads are finished
+    int lastPositive = 0;
+    int idx = 0;
+    while(lastPositive < num_threads+1){
+        ++idx;
+        ++lastPositive;
+        if (active_threads[idx]>0){
+            lastPositive = 0;
+        }
+    }
+}
+
+/**
+ * @brief Computes the partition of contig and adds it in the map "partitions"
+ * 
+ * @param contig
+ * @param allreads 
+ * @param allOverlaps 
+ * @param backbones_reads 
+ * @param partitions 
+ * @param assemble_on_assembly 
+ * @param clusterLimits 
+ * @param readLimits 
+ * @param polish 
+ * @param thread 
+ */
+void compute_partition_on_this_contig(long int contig, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
+            std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
+            std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
+            bool polish, int &active_thread){
+    
+    vector<Column> snps;  //vector containing list of position, with SNPs at each position
+    //first build an MSA
+    cout << "Generating MSA" << endl;
+    string truePar; //for debugging
+
+    vector<bool> misalignedReads;
+    string consensus;
+    wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+
+    float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
+
+    //then separate the MSA
+    cout << "Separating reads" << endl;
+    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(contig, allOverlaps, allreads, snps, meanDistance, 
+                                                        allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
+    
+    cout << "True partition : " << endl;
+    cout << truePar << endl;
+    
+    // auto par = truePar.getPartition();//DEBUG
+    // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
+    // cout << "Proposed partition : " << endl;
+    // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
+    // cout << endl;
+
+    partitions[contig] = par;
+    active_thread = 0;
 }
 
 //input: a read with all its neighbor
@@ -491,7 +534,7 @@ string local_assembly(vector <string> &reads){
 //input : a set of reads aligned to read in matrix snps
 //output : reads separated by their region of origin
 vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
-        std::vector<Column> &snps, float meanDistance, int numberOfReads, unordered_map <int, std::pair<int,int>> &clusterLimits){
+        std::vector<Column> &snps, float meanDistance, int numberOfReads){
 
     /*
     The null model is described as uniform error rate -> binomial error distribution on one position
@@ -802,6 +845,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
     // cout << "threading clusters" << endl;
     //now aggregate all those binary partitions in one final partition. There could be up to 2^numberBinaryPartitions final groups
+    unordered_map <int, std::pair<int,int>> clusterLimits;
     vector<pair<pair<int,int>, vector<int>>> threadedClusters = threadHaplotypes(listOfFinalPartitionsTrimmed, numberOfReads, clusterLimits);
 
     // cout << "threaded clusters ! " << endl;
@@ -1443,7 +1487,7 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left());
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && partitions[par].number() > max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left())))){ //and big enough
+            && partitions[par].number() > min(20.0, 0.01*(partitions[par].get_right()-partitions[par].get_left()))){ //and big enough //max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left()))
             trimmedListOfFinalPartitionBool[par] = true;
         }
         else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.2 && (par>0||partitions[par].number() < 30)){ //if it's not the best partition it may be a weird version of the best partition

@@ -22,7 +22,7 @@ using std::to_string;
 //output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
 void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
             unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
-            unordered_map <int, std::pair<int,int>> &clusterLimits, unordered_map <int, vector<pair<int,int>>> &readLimits){
+            unordered_map <int, vector<pair<int,int>>> &readLimits){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     for (int b = 0 ; b < max_backbone ; b++){

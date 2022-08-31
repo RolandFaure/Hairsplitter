@@ -752,7 +752,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
         long int backbone = backbone_reads[b];
 
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1){
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
             for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
 
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
@@ -771,17 +771,26 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 //go through all the intervals and see through which version this read passes
                 vector<pair<string, bool>> sequence_of_traversed_contigs;
                 bool stop = false;
+                bool firsthere = false;
+                bool lasthere = false;
+                int inter = 0;
                 for (auto interval : partitions[backbone]){
                     if (interval.second[n] != -1){
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second[n])
                             , ov.strand));
+                        if (inter == 0){
+                            firsthere = true;
+                        }
                     }
                     else{
                         stop = true;
                     }
+                    cout << inter << " " << allreads[read].name << " " << interval.second[n] << endl;
+                    inter++;
                 }
                 //last contig
                 if (!stop){
+                    lasthere = true;
                     int right = partitions[backbone][partitions[backbone].size()-1].first.second+1;
                     sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(right)+"_0"
                             , ov.strand));
@@ -789,6 +798,16 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
                 if (!ov.strand){ //then mirror the vector
                     std::reverse(sequence_of_traversed_contigs.begin(), sequence_of_traversed_contigs.end());
+                }
+
+                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
+                    sequence_of_traversed_contigs.push_back(make_pair("&", ov.strand));
+                }
+                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
+                    sequence_of_traversed_contigs.push_back(make_pair("+", ov.strand));
+                }
+                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
+                    sequence_of_traversed_contigs.push_back(make_pair("-", ov.strand));
                 }
                 
                 if (sequence_of_traversed_contigs.size()>0){ //this should almost always be true, but it's still safer to test
@@ -821,9 +840,10 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
     //now merge the paths that were on different contigs
     for (auto r = 0 ; r < readPaths.size() ; r++){
 
+
         if (readPaths[r].size() > 0){
-            std::sort(readPaths[r].begin(), readPaths[r].end(),
-                [] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
+
+            std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
             vector<Path> mergedPaths;
             Path currentPath = readPaths[r][0];
             //check if each path can be merged with next path
@@ -853,6 +873,16 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                         }
                     }
 
+                    //if & in name, there is a cut there
+                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+                    char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
+                    if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
+                        merge = false;
+                    }
+                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+                    }
+
                     if (merge){
                         get<1>(currentPath).insert(get<1>(currentPath).end(), get<1> (readPaths[r][p+1]).begin(), get<1> (readPaths[r][p+1]).end());
                         get<2>(currentPath) = get<2> (readPaths[r][p+1]);
@@ -862,6 +892,11 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                         currentPath = readPaths[r][p+1];
                     }
                 }
+            }
+            //if & in name, delete it
+            char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+            if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                get<1>(currentPath).erase(get<1>(currentPath).end()-1);
             }
             mergedPaths.push_back(currentPath);
             readPaths[r] = mergedPaths;

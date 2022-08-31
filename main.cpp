@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
     check_dependancies();
 
     string fastqfile, allfile, refFile, alnOnRefFile, outputFile, outputGAF, samFile, vcfFile;
+    int num_threads = 1;
     bool polish = false;
     auto cli = (
             required("-f", "--fastq") & opt_value("fastqfile", fastqfile),
@@ -60,7 +61,8 @@ int main(int argc, char *argv[])
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-q", "--outputGAF") & opt_value("output GAF", outputGAF),
-            required("-o", "--outputGFA") & opt_value("output GFA", outputFile)
+            required("-o", "--outputGFA") & opt_value("output GFA", outputFile),
+            clipp::option("-t", "--threads") & opt_value("number of threads", num_threads)
         );
 
     if(!parse(argc, argv, cli)) {
@@ -84,9 +86,8 @@ int main(int argc, char *argv[])
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
         cout << "Checking overlaps" << endl;
-        std::unordered_map <int, std::pair<int,int>> clusterLimits;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
-        checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, clusterLimits, readLimits, polish);
+        checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
         cout << "Finished checking, now outputting" << endl;
 
         //output GAF, the path of all reads on the new contigs
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
         output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
 
         cout << "Outputting GFA" << endl;
-        modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, clusterLimits, readLimits);
+        modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, readLimits);
         output_GFA(allreads, backbone_reads, outputFile, allLinks);
 
         auto t2 = high_resolution_clock::now();
