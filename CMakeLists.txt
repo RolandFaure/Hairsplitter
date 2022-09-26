@@ -52,16 +52,40 @@ target_include_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib)
 target_link_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib/lib)
 target_link_libraries(wfa2 INTERFACE wfa wfacpp)
 
-
-
 file(GLOB SOURCES "*.cpp")
 add_executable(OverlapCheck ${SOURCES} edlib/src/edlib.cpp)
 add_dependencies(OverlapCheck WFA)
 
 target_include_directories(OverlapCheck PRIVATE edlib/include)
+target_compile_options (OverlapCheck PRIVATE -fopenmp)
 target_compile_options (OverlapCheck PRIVATE -std=c++17)
 target_compile_options (OverlapCheck PRIVATE -O3)
-target_link_libraries(OverlapCheck wfa2 pthread)
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(OverlapCheck PRIVATE OpenMP::OpenMP_CXX)
+endif()
+target_link_libraries(OverlapCheck PRIVATE wfa2 pthread)
+
+#for OpenMP: https://answers.ros.org/question/64231/error-in-rosmake-rgbdslam_freiburg-undefined-reference-to-gomp/
+#set(CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS}")
+#set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DELAYLOAD:${OPENMP_DLL}.dll")
+
+# #check for OpenMP
+# find_package(OpenMP)
+# if(OPENMP_FOUND)
+#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+#   if(MSVC90 OR MSVC10)
+#     if(MSVC90)
+#       set(OPENMP_DLL VCOMP90)
+#     elseif(MSVC10)
+#       set(OPENMP_DLL VCOMP100)
+#     endif(MSVC90)
+#     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DELAYLOAD:${OPENMP_DLL}D.dll")
+#     set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DELAYLOAD:${OPENMP_DLL}.dll")
+#   endif()
+# endif()
+
+
 
 #if (NOT TARGET spoa)
 #  add_subdirectory(spoa EXCLUDE_FROM_ALL)

@@ -11,6 +11,7 @@
 #include <sstream>
 #include <chrono>
 #include <iterator>
+#include <omp.h> //for efficient parallelization
 
 #include "robin_hood.h"
 #include "input_output.h"
@@ -52,42 +53,33 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
         bool assemble_on_assembly, unordered_map <int, vector<pair<int,int>>> &readLimits,
         bool polish, int num_threads){
 
-    vector<int> active_threads(num_threads, 0); //vector keeping track of which threads are active
-
     //main loop : for each backbone read, build MSA (Multiple Sequence Alignment) and separate the reads
     int index = 0;
-    for (long int read : backbones_reads){
+
+omp_set_num_threads(num_threads);
+#pragma omp parallel
+    {
+#pragma omp for
+        for (long int read : backbones_reads){
+            
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name >= "edge_8" ){
+
+                //choose on which thread this contig will run
+                // char find_thread = 0;
+                // while(active_threads[find_thread%num_threads]>0){
+                //     ++find_thread;
+                // }
+
+                #pragma omp critical
+                {
+                    cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << endl;
+                }
+
+                compute_partition_on_this_contig(read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
+                    readLimits, polish);
         
-        if (allreads[read].neighbors_.size() > 10 && (true || allreads[read].get_links_left().size()>0 || allreads[read].get_links_right().size()>0) 
-             && allreads[read].name != "edge_55000" ){
-
-            //choose on which thread this contig will run
-            char find_thread = 0;
-            while(active_threads[find_thread%num_threads]>0){
-                ++find_thread;
             }
-
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << endl;
-
-            // active_threads[find_thread] = 1;
-            // thread t(compute_partition_on_this_contig, read, ref(allreads), ref(allOverlaps), ref(backbones_reads), ref(partitions),
-            //      assemble_on_assembly, ref(clusterLimits), ref(readLimits), polish, ref(active_threads[find_thread]));
-            // t.detach();
-            compute_partition_on_this_contig(read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
-                readLimits, polish, active_threads[find_thread]);
-    
-        }
-        index++;
-    }
-
-    //ensure all threads are finished
-    int lastPositive = 0;
-    int idx = 0;
-    while(lastPositive < num_threads+1){
-        ++idx;
-        ++lastPositive;
-        if (active_threads[idx]>0){
-            lastPositive = 0;
+            index++;
         }
     }
 }
@@ -109,7 +101,7 @@ void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverl
 void compute_partition_on_this_contig(long int contig, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-            bool polish, int &active_thread){
+            bool polish){
     
     vector<Column> snps;  //vector containing list of position, with SNPs at each position
     //first build an MSA
@@ -137,7 +129,6 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
     // cout << endl;
 
     partitions[contig] = par;
-    active_thread = 0;
 }
 
 //input: a read with all its neighbor
@@ -245,7 +236,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     string consensus;
     if (polish){
-        consensus = consensus_reads(read_str , polishingReads);
+        string thread_id = std::to_string(omp_get_thread_num());
+        consensus = consensus_reads(read_str , polishingReads, thread_id);
         cout << "Done polishing the contig" << endl;
     }
     else{
@@ -436,26 +428,33 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //*/
 }
 
-//input : a backbone read with a list of all reads aligning on it
-//output : a polished backbone read
-//function using Racon to consensus all reads
-string consensus_reads(string &backbone, vector <string> &polishingReads){
+/**
+ * @brief Function that uses racon to polish a sequence
+ * 
+ * @param backbone sequence to be polished
+ * @param polishingReads list of reads to polish it
+ * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
+ * @return polished sequence 
+ */
+string consensus_reads(string &backbone, vector <string> &polishingReads, string &id){
     
     system("mkdir tmp/ 2> trash.txt");
-    std::ofstream outseq("tmp/unpolished.fasta");
+    std::ofstream outseq("tmp/unpolished_"+id+".fasta");
     outseq << ">seq\n" << backbone;
     outseq.close();
 
-    std::ofstream polishseqs("tmp/reads.fasta");
+    std::ofstream polishseqs("tmp/reads_"+id+".fasta");
     for (int read =0 ; read < polishingReads.size() ; read++){
         polishseqs << ">read"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
     }
     polishseqs.close();
 
-    system("minimap2 -t 1 -x map-ont tmp/unpolished.fasta tmp/reads.fasta > tmp/mapped.paf 2>tmp/trash.txt");
-    system("racon -e 1 -t 1 tmp/reads.fasta tmp/mapped.paf tmp/unpolished.fasta > tmp/polished.fasta 2>tmp/trash.txt");
+    string commandMap = "minimap2 -t 1 -x map-ont tmp/unpolished_"+id+".fasta tmp/reads_"+id+".fasta > tmp/mapped_"+id+".paf 2>tmp/trash.txt";
+    system(commandMap.c_str());
+    string commandPolish = "racon -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+    system(commandPolish.c_str());
 
-    std::ifstream polishedRead("tmp/polished.fasta");
+    std::ifstream polishedRead("tmp/polished_"+id+".fasta");
     string line;
     string consensus;
     while(getline(polishedRead, line)){
@@ -559,7 +558,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     vector<size_t> suspectPostitions;
     vector <int> interestingParts; //DEBUG
 
-    for (int position = 0 ; position < snps.size() ; position++){ 
+    for (int position = 0 ; position < allreads[read].size() ; position++){ 
 
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
@@ -573,9 +572,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         }
 
         float threshold = 1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2));
-        //threshold = 3; //DEBUG
+        // threshold = 3; //DEBUG
         if (content[4] < 0.25*float(numberOfReadsHere) //not too many '-', because '-' are less specific than snps
             && *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
+           
             // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
 
             suspectPostitions.push_back(position);
@@ -1257,8 +1257,9 @@ void clean_partition(long int backbone, Partition &originalPartition, vector <Re
 
     //use the reads to polish the backbone
     string toPolish = allreads[backbone].sequence_.str();
-    string consensus0 = consensus_reads(toPolish, polish_reads_0);
-    string consensus1 = consensus_reads(toPolish, polish_reads_1);
+    string thread_id = std::to_string(omp_get_thread_num());
+    string consensus0 = consensus_reads(toPolish, polish_reads_0, thread_id);
+    string consensus1 = consensus_reads(toPolish, polish_reads_1, thread_id);
 
     //now compare all reads to the two new polished consensus and re-assign them to their best match
 

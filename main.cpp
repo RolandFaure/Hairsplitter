@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
         output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
 
         cout << "Outputting GFA" << endl;
-        modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, readLimits);
+        modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, outputFile, allLinks, readLimits, num_threads);
         output_GFA(allreads, backbone_reads, outputFile, allLinks);
 
         auto t2 = high_resolution_clock::now();

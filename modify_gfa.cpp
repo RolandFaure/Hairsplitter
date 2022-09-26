@@ -1,6 +1,7 @@
 #include "modify_gfa.h"
 #include<algorithm> //for "sort"
 #include <fstream>
+#include <omp.h>
 
 using std::string;
 using std::cout;
@@ -22,11 +23,20 @@ using std::to_string;
 //output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
 void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
             unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
-            unordered_map <int, vector<pair<int,int>>> &readLimits){
+            unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
+
+omp_set_num_threads(num_threads);
+#pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
+        #pragma omp critical
+        {
+            cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+        }
+
+        string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
 
         if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
@@ -104,13 +114,15 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 }
             }
             string seqbackbone = allreads[backbone].sequence_.str();
-            string singlepolish = consensus_reads(seqbackbone, allneighbors);
+            string singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
 
             int n = 0;
             for (auto interval : partitions[backbone]){
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
-                cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
+                if (omp_get_thread_num() == 0){
+                    cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
+                }
 
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] != -1){
@@ -154,7 +166,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                             //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
                             string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
                                                     min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
-                            newcontig = consensus_reads(toPolish2, group.second);
+                            newcontig = consensus_reads(toPolish2, group.second, thread_id);
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
@@ -231,7 +243,9 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
-                    cout << "created the contig " << r.name << endl;
+                    if (omp_get_thread_num() == 0){
+                        cout << "created the contig " << r.name << endl;
+                    }
 
                 }
                 hangingLinks = futureHangingLinks;
@@ -294,7 +308,9 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
 
             allreads.push_back(r);
             backbones_reads.push_back(allreads.size()-1);
-            cout << "now creating the different contigs : " << r.name << endl;
+            if (omp_get_thread_num() == 0){
+                cout << "now creating the different contigs : " << r.name << endl;
+            }
 
             allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
 

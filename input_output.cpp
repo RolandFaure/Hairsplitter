@@ -785,7 +785,6 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                     else{
                         stop = true;
                     }
-                    cout << inter << " " << allreads[read].name << " " << interval.second[n] << endl;
                     inter++;
                 }
                 //last contig
