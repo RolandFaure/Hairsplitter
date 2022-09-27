@@ -105,7 +105,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 //input : file containing an assembly in fasta format
 //output : the contigs appended to the end of allreads and marked as backbones
 void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices
-    , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks){
+    , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks, string &format){
 
     ifstream in(fileAssembly);
     if (!in){
@@ -117,90 +117,143 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
 
     string line;
     string nameOfSequence = "";
+    string comments = "";
 
-    while(getline(in, line)){
+    if (format == "fasta"){
 
-        if (line[0] == 'S'){
-            
-            string field;
-            std::istringstream line2(line);
-            int fieldNb = 0;
-            while(getline(line2, field, '\t')){
-                if (fieldNb == 1){ // name of the sequence
-                    nameOfSequence = field;
-                }
-                else if (fieldNb == 2){ //here is the sequence
-                    Read r(field);
-                    r.name = nameOfSequence;
-                    backbone_reads.push_back(sequenceID);
-                    allreads.push_back(r);
+        string nameOfSequence;
+        string seq;
+        while(getline(in, line)){
+            if (line[0] == '>'){
+                
+                Read r(seq);
+                r.name = nameOfSequence;
+                r.comments = comments;
+                backbone_reads.push_back(sequenceID);
+                allreads.push_back(r);
 
-                    //link the minimap name to the index in allreads
-                    indices[nameOfSequence] = sequenceID;
-                    sequenceID++;
-                }
-                else if (field.substr(0,2) == "dp" || field.substr(0,2) == "DP"){
-                    allreads[allreads.size()-1].depth = std::atoi(field.substr(5, field.size()-5).c_str());
-                }
-                else if (fieldNb > 2){
-                    allreads[allreads.size()-1].comments += "\t"+field;
-                }
+                //link the minimap name to the index in allreads
+                indices[nameOfSequence] = sequenceID;
+                sequenceID++;
 
-                fieldNb += 1;
+                seq = "";
+                comments= "";
+
+                std::istringstream line2(line);
+                string field;
+                int fieldNumber = 0;
+                while(getline(line2, field, ' ')){ //to get the name of the sequence found in the paf file
+                    if (fieldNumber == 0){
+                        nameOfSequence = field.substr(1, field.size()-1); //to get rid of the '>'
+                    }
+                    else{
+                        comments += field;
+                        comments += " ";
+                    }
+                }
+            }
+            else{
+                seq += line;
             }
         }
 
-        if (line[0] == 'L'){
-            
-            string field;
-            std::istringstream line2(line);
-            int fieldNb = 0;
-            Link link;
-            
-            try{
+        //last sequence
+        Read r(seq);
+        r.name = nameOfSequence;
+        backbone_reads.push_back(sequenceID);
+        allreads.push_back(r);
+
+        //link the minimap name to the index in allreads
+        indices[nameOfSequence] = sequenceID;
+        sequenceID++;
+    }
+    else if (format == "gfa"){
+
+        while(getline(in, line)){
+
+            if (line[0] == 'S'){
+                
+                string field;
+                std::istringstream line2(line);
+                int fieldNb = 0;
                 while(getline(line2, field, '\t')){
-                    if (fieldNb == 1){ // name of the sequence1
-                        link.neighbor1 = indices[field];
+                    if (fieldNb == 1){ // name of the sequence
+                        nameOfSequence = field;
                     }
                     else if (fieldNb == 2){ //here is the sequence
-                        if (field == "+"){
-                            link.end1 = 1;
-                        }
-                        else if (field == "-"){
-                            link.end1 = 0;
-                        }
-                        else{
-                            cout << "Problem in reading the link : " << line << endl;
-                        }
+                        Read r(field);
+                        r.name = nameOfSequence;
+                        backbone_reads.push_back(sequenceID);
+                        allreads.push_back(r);
+
+                        //link the minimap name to the index in allreads
+                        indices[nameOfSequence] = sequenceID;
+                        sequenceID++;
                     }
-                    else if (fieldNb == 3){ // name of the sequence1
-                        link.neighbor2 = indices[field];
+                    else if (field.substr(0,2) == "dp" || field.substr(0,2) == "DP"){
+                        allreads[allreads.size()-1].depth = std::atoi(field.substr(5, field.size()-5).c_str());
                     }
-                    else if (fieldNb == 4){ //here is the sequence
-                        if (field == "+"){
-                            link.end2 = 0;
-                        }
-                        else if (field == "-"){
-                            link.end2 = 1;
-                        }
-                        else{
-                            cout << "Problem in reading the link : " << line << endl;
-                        }
-                    }
-                    else if (fieldNb == 5){
-                        link.CIGAR = field;
+                    else if (fieldNb > 2){
+                        allreads[allreads.size()-1].comments += "\t"+field;
                     }
 
                     fieldNb += 1;
                 }
-                allLinks.push_back(link);
-                allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
-                allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);
             }
-            catch(...){
-                cout << "Problem while reading your GFA file. Please ensure all 'L' lines are below 'S' lines" << endl;
-                throw std::invalid_argument("Invalid GFA");
+
+            if (line[0] == 'L'){
+                
+                string field;
+                std::istringstream line2(line);
+                int fieldNb = 0;
+                Link link;
+                
+                try{
+                    while(getline(line2, field, '\t')){
+                        if (fieldNb == 1){ // name of the sequence1
+                            link.neighbor1 = indices[field];
+                        }
+                        else if (fieldNb == 2){ //here is the sequence
+                            if (field == "+"){
+                                link.end1 = 1;
+                            }
+                            else if (field == "-"){
+                                link.end1 = 0;
+                            }
+                            else{
+                                cout << "Problem in reading the link : " << line << endl;
+                            }
+                        }
+                        else if (fieldNb == 3){ // name of the sequence1
+                            link.neighbor2 = indices[field];
+                        }
+                        else if (fieldNb == 4){ //here is the sequence
+                            if (field == "+"){
+                                link.end2 = 0;
+                            }
+                            else if (field == "-"){
+                                link.end2 = 1;
+                            }
+                            else{
+                                cout << "Problem in reading the link : " << line << endl;
+                            }
+                        }
+                        else if (fieldNb == 5){
+                            link.CIGAR = field;
+                        }
+
+                        fieldNb += 1;
+                    }
+                    allLinks.push_back(link);
+                    allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
+                    allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);
+                }
+                catch(...){
+                    cout << "Problem while reading your GFA file. Please ensure all 'L' lines are below 'S' lines" << endl;
+                    throw std::invalid_argument("Invalid GFA");
+                }
             }
+
         }
 
     }
@@ -924,6 +977,22 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
     }
 }
 
+/**
+ * @brief Outputs the fasta file
+ * 
+ * @param allreads vector of all reads (including backbone reads which can be contigs)
+ * @param backbone_reads vector of all the indices of the backbone reads in allreads
+ * @param fileOut output file
+ */
+void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut){
+    ofstream out(fileOut);
+    for (auto r : backbone_reads){
+        if (allreads[r].name != "delete_me" && allreads[r].sequence_.size() > 0){
+            Read read = allreads[r];
+            out << ">" << read.name << " "<< read.comments << "\n" << read.sequence_.str() << "\n" ;    
+        }
+    }
+}
 
 //input : the list of all reads. Among those, backbone reads are actually contigs
 //output : a new gfa file with all contigs splitted

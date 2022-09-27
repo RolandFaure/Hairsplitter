@@ -19,10 +19,170 @@ using std::make_pair;
 using std::set;
 using std::to_string;
 
+/**
+ * @brief Computes all the new contigs resulting from the splitting of old ones
+ * 
+ * @param refFile Assembly file
+ * @param allreads 
+ * @param backbones_reads List of all reads that are backbone amist all the reads 
+ * @param allOverlaps 
+ * @param partitions Maps to each coordinate merking the beginning of a contig the list of reads that should go in each contig
+ * @param outputFile 
+ * @param readLimits 
+ * @param polish 
+ * @param thread 
+ */
+void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions,
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads){
+
+    int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
+
+omp_set_num_threads(num_threads);
+#pragma omp parallel for
+    for (int b = 0 ; b < max_backbone ; b++){
+
+        #pragma omp critical
+        {
+            cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+        }
+
+        string thread_id = std::to_string(omp_get_thread_num());
+        int backbone = backbones_reads[b];
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
+
+            //construct singlepolish, the sequence polished by all the reads.
+            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere
+            vector<string> allneighbors;
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
+                if (allOverlaps[allreads[backbone].neighbors_[n]].strand){
+                    allneighbors.push_back(allreads[idxRead].sequence_.str());
+                }
+                else{
+                    allneighbors.push_back(allreads[idxRead].sequence_.reverse_complement().str());
+                }
+            }
+            string seqbackbone = allreads[backbone].sequence_.str();
+            string singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
+
+            int n = 0;
+            for (auto interval : partitions[backbone]){
+
+                unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
+                if (omp_get_thread_num() == 0){
+                    cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
+                }
+
+                for (int r = 0 ; r < interval.second.size(); r++){
+                    if (interval.second[r] != -1){
+                        int clust = interval.second[r];
+                        int limitLeft = allOverlaps[allreads[backbone].neighbors_[r]].position_1_1; //the limit of the read that we should use
+                        int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
+                        auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
+
+                        string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
+
+                        if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
+                        }
+                        else{
+                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).reverse_complement().str();
+                        }
+
+                        if (readsPerPart.find(clust) == readsPerPart.end()){
+                            readsPerPart[clust] = {clippedRead};
+                        }
+                        else {
+                            readsPerPart[clust].push_back(clippedRead);
+                        }
+                        // cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
+                    }
+                }
+                // cout << endl;
+
+                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first+1, interval.first.second-interval.first.first-1); 
+
+                unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
+
+                for (auto group : readsPerPart){
+                    
+                    string newcontig = "";
+                    if (readsPerPart.size() > 1){
+                        // newcontig = local_assembly(group.second);
+
+                        if (newcontig == ""){//if the assembly was not successful for one reason or another
+                            //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
+                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
+                                                    min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
+                            newcontig = consensus_reads(toPolish2, group.second, thread_id);
+                        }
+                        EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
+                                    newcontig.c_str(), newcontig.size(),
+                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+
+                        newcontig = newcontig.substr(max(0,result.startLocations[0]-1), min(result.endLocations[0]-result.startLocations[0]+3, int(newcontig.size())-result.startLocations[0]));
+
+                        edlibFreeAlignResult(result);
+                        
+                    }
+                    else {
+                        string extract = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
+                        EdlibAlignResult result = edlibAlign(extract.c_str(), extract.size(),
+                                    singlepolish.c_str(), singlepolish.size(),
+                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                        newcontig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
+
+                    }
+
+                    Read r(newcontig);
+                    r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
+                    r.depth = newdepths[group.first];
+     
+                    allreads.push_back(r);
+                    backbones_reads.push_back(allreads.size()-1);
+                    if (omp_get_thread_num() == 0){
+                        cout << "created the contig " << r.name << endl;
+                    }
+
+                }
+                n += 1;
+            }
+            //now wrap up the right of the contig
+            int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
+            string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
+
+            string contig;
+            if (right.size() > 0){
+                EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
+                    singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+                contig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
+            }
+            else{
+                contig = "";
+            }
+            Read r (contig);
+            r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
+            r.depth = allreads[backbone].depth;
+
+            allreads.push_back(r);
+            backbones_reads.push_back(allreads.size()-1);
+            if (omp_get_thread_num() == 0){
+                cout << "now creating the different contigs : " << r.name << endl;
+            }
+
+            allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
+
+        }
+    }
+
+}
+
 //input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
 //output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
 void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
-            unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, string outputFile, vector<Link> &allLinks,
+            unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, vector<Link> &allLinks,
             unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -102,7 +262,7 @@ omp_set_num_threads(num_threads);
             }
 
             //construct singlepolish, the sequence polished by all the reads.
-            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewheres
+            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere
             vector<string> allneighbors;
             for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
                 auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;

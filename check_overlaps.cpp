@@ -35,6 +35,10 @@ using std::ref;
 
 using namespace std::chrono;
 
+extern string MINIMAP; //path to the minimap executable
+extern string MINIASM; //path to the miniasm executable
+extern string RACON; //path to the racon executable
+
 //definition of a small struct that will be useful later
 struct distPart{
     float distance = 1;
@@ -449,9 +453,12 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
     }
     polishseqs.close();
 
-    string commandMap = "minimap2 -t 1 -x map-ont tmp/unpolished_"+id+".fasta tmp/reads_"+id+".fasta > tmp/mapped_"+id+".paf 2>tmp/trash.txt";
+    string com = " -t 1 -x map-ont tmp/unpolished_"+id+".fasta tmp/reads_"+id+".fasta > tmp/mapped_"+id+".paf 2>tmp/trash.txt";
+    string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
-    string commandPolish = "racon -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+
+    com = " -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+    string commandPolish = RACON + com;
     system(commandPolish.c_str());
 
     std::ifstream polishedRead("tmp/polished_"+id+".fasta");
@@ -516,9 +523,12 @@ string local_assembly(vector <string> &reads){
     }
     polishseqs.close();
 
-    system("minimap2 -x ava-ont -t1 tmp/reads.fasta tmp/reads.fasta > tmp/local_overlaps.paf 2> tmp/trash.txt");
-    string command = "miniasm -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $3;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
-    cout << command << endl;
+    string com = " -x ava-ont -t1 tmp/reads.fasta tmp/reads.fasta > tmp/local_overlaps.paf 2> tmp/trash.txt";
+    string command = MINIMAP+com;
+    system(command.c_str());
+
+    com = " -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $3;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
+    command = MINIASM+com;
     system(command.c_str());
 
     std::ifstream newcontig("tmp/local_assembly.txt");
@@ -1267,7 +1277,9 @@ void clean_partition(long int backbone, Partition &originalPartition, vector <Re
     consseqs << ">0\n" << consensus0 << "\n>1\n" << consensus1 << "\n";
     consseqs.close();
 
-    system("minimap2 -x map-ont -N 0 -t1 tmp/consensusSeqs.fasta tmp/polish.fasta > tmp/choose_consensus.paf 2> tmp/trash.txt");
+    string com = " -x map-ont -N 0 -t1 tmp/consensusSeqs.fasta tmp/polish.fasta > tmp/choose_consensus.paf 2> tmp/trash.txt";
+    string command = MINIMAP+com;
+    system(command.c_str());
 
     //now read the output
     auto correctedPartition = originalPartition.getPartition();

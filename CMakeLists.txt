@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.8.12)
 
-project(OverlapCheck)
+project(Hairsplitter)
 #add_executable(${PROJECT_NAME} "main.cpp")
 
 # Local header files here ONLY
@@ -53,18 +53,18 @@ target_link_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib/lib)
 target_link_libraries(wfa2 INTERFACE wfa wfacpp)
 
 file(GLOB SOURCES "*.cpp")
-add_executable(OverlapCheck ${SOURCES} edlib/src/edlib.cpp)
-add_dependencies(OverlapCheck WFA)
+add_executable(Hairsplitter ${SOURCES} edlib/src/edlib.cpp)
+add_dependencies(Hairsplitter WFA)
 
-target_include_directories(OverlapCheck PRIVATE edlib/include)
-target_compile_options (OverlapCheck PRIVATE -fopenmp)
-target_compile_options (OverlapCheck PRIVATE -std=c++17)
-target_compile_options (OverlapCheck PRIVATE -O3)
+target_include_directories(Hairsplitter PRIVATE edlib/include)
+target_compile_options (Hairsplitter PRIVATE -fopenmp)
+target_compile_options (Hairsplitter PRIVATE -std=c++17)
+target_compile_options (Hairsplitter PRIVATE -O3)
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(OverlapCheck PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
 endif()
-target_link_libraries(OverlapCheck PRIVATE wfa2 pthread)
+target_link_libraries(Hairsplitter PRIVATE wfa2 pthread)
 
 #for OpenMP: https://answers.ros.org/question/64231/error-in-rosmake-rgbdslam_freiburg-undefined-reference-to-gomp/
 #set(CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS}")
@@ -90,4 +90,4 @@ target_link_libraries(OverlapCheck PRIVATE wfa2 pthread)
 #if (NOT TARGET spoa)
 #  add_subdirectory(spoa EXCLUDE_FROM_ALL)
 #endif ()
-#target_link_libraries(OverlapCheck spoa::spoa)
+#target_link_libraries(Hairsplitter spoa::spoa)
