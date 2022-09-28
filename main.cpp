@@ -19,7 +19,6 @@ using namespace std::chrono;
 using namespace clipp;
 
 string MINIMAP;
-string MINIASM;
 string RACON;
 string GRAPHUNZIP;
 
@@ -35,9 +34,9 @@ void check_dependancies(){
     auto command = MINIMAP + com;
     auto res = system(command.c_str());
 
-    com = " -V > tmp/trash.txt 2> tmp/trash.txt";
-    command = MINIASM + com;
-    auto miniasm = system(command.c_str());
+    // com = " -V > tmp/trash.txt 2> tmp/trash.txt";
+    // command = MINIASM + com;
+    // auto miniasm = system(command.c_str());
 
     command = "python3 --version > tmp/trash.txt 2> tmp/trash.txt";
     auto python3 = system(command.c_str());
@@ -56,9 +55,9 @@ void check_dependancies(){
     if (res != 0){
         cout << "MISSING DEPENDANCY: minimap2" << endl;
     }
-    if (miniasm != 0){
-        cout << "MISSING DEPENDANCY: miniasm" << endl;
-    }
+    // if (miniasm != 0){
+    //     cout << "MISSING DEPENDANCY: miniasm" << endl;
+    // }
     if (racon != 0){
         cout << "MISSING DEPENDANCY: racon" << endl;
     }
@@ -67,7 +66,15 @@ void check_dependancies(){
         cout << "MISSING DEPENDANCY: python3" << endl;
     }
     else if (graphunzip != 0){
-        cout << "MISSING DEPENDANCY: graphunzip" << endl;
+        command = "GraphUnzip -h > tmp/trash.txt 2> tmp/trash.txt";
+        auto graphunzip2 = system(command.c_str());
+        if (graphunzip2 == 0){
+            graphunzip = 0;
+            GRAPHUNZIP = "GraphUnzip";
+        }
+        else{
+            cout << "MISSING DEPENDANCY: graphunzip" << endl;
+        }
     }
 
     if (awk != 0){
@@ -75,7 +82,7 @@ void check_dependancies(){
     }
 
 
-    if (res != 0 || miniasm != 0 || racon != 0 || graphunzip != 0 || python3 != 0){
+    if (res != 0 || racon != 0 || graphunzip != 0 || python3 != 0){
         exit(EXIT_FAILURE);
     }
 }
@@ -98,17 +105,17 @@ int main(int argc, char *argv[])
     bool dont_simplify = false;
     auto cli = (
             required("-f", "--fastq").doc("Sequencing reads") & value("raw reads", fastqfile),
-            required("-i", "--assembly").doc("Original assembly in GFA or FASTA format") & value("GFA assembly", refFile),
+            required("-i", "--assembly").doc("Original assembly in GFA or FASTA format") & value("assembly", refFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--outputGFA").doc("Output assembly file, same format as input") & value("output assembly", outputFile),
             clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (PAF format)") & value("aligned reads", alnOnRefFile),
-            clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
+            // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
             clipp::option("-s", "--dont_simplify").set(dont_simplify).doc("Don't rename the contigs and don't merge them"),
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
-            clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
+            // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
             clipp::option("--path-to-graphunzip").doc("Path to graphunzip.py (if not in PATH)") & value("path to graphunzip", path_graphunzip)
         );
@@ -120,7 +127,6 @@ int main(int argc, char *argv[])
     else {
 
         MINIMAP = path_minimap;
-        MINIASM = path_miniasm;
         RACON = path_racon;
         GRAPHUNZIP = path_graphunzip;
 
@@ -151,7 +157,10 @@ int main(int argc, char *argv[])
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
 
-            cout << "Aligning reads on the reference" << endl;
+            cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
+
+
+
             alnOnRefFile = "reads_aligned_on_assembly.paf";
 
             if (format == "gfa"){
@@ -162,16 +171,20 @@ int main(int argc, char *argv[])
                     cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                     exit(EXIT_FAILURE);
                 }
-                command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/trash.txt"; 
+                command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt";
+                cout << " - Running minimap with command line:\n   " << command << "\nThe output of minimap2 is dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
             else{
-                string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/trash.txt"; 
+                string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
+                cout << " - Running minimap with command line:\n   " << command << "\nThe output of minimap2 is dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
         }
 
-        cout << "Parsing reads..." << endl;
+        cout << "\n===== STAGE 2: Loading data\n\n" << endl;
+
+        cout << " - Loading all reads from " << fastqfile << " in memory\n";
         parse_reads(fastqfile, allreads, indices);
 
         cout << "Now parsing the assembly" << endl;

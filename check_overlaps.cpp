@@ -36,7 +36,7 @@ using std::ref;
 using namespace std::chrono;
 
 extern string MINIMAP; //path to the minimap executable
-extern string MINIASM; //path to the miniasm executable
+// extern string MINIASM; //path to the miniasm executable
 extern string RACON; //path to the racon executable
 
 //definition of a small struct that will be useful later
@@ -66,7 +66,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name >= "edge_8" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name >= "edge_9" ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -515,30 +515,30 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
 //input : a list of reads
 //output : an assembled contig
 //function using miniasm+minimap to build an assembly
-string local_assembly(vector <string> &reads){
+// string local_assembly(vector <string> &reads){
 
-    std::ofstream polishseqs("tmp/reads.fasta");
-    for (int read=0 ; read < reads.size() ; read++){
-        polishseqs << ">read"+std::to_string(read)+"\n" << reads[read] << "\n";
-    }
-    polishseqs.close();
+//     std::ofstream polishseqs("tmp/reads.fasta");
+//     for (int read=0 ; read < reads.size() ; read++){
+//         polishseqs << ">read"+std::to_string(read)+"\n" << reads[read] << "\n";
+//     }
+//     polishseqs.close();
 
-    string com = " -x ava-ont -t1 tmp/reads.fasta tmp/reads.fasta > tmp/local_overlaps.paf 2> tmp/trash.txt";
-    string command = MINIMAP+com;
-    system(command.c_str());
+//     string com = " -x ava-ont -t1 tmp/reads.fasta tmp/reads.fasta > tmp/local_overlaps.paf 2> tmp/trash.txt";
+//     string command = MINIMAP+com;
+//     system(command.c_str());
 
-    com = " -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $3;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
-    command = MINIASM+com;
-    system(command.c_str());
+//     com = " -1 -2 -f tmp/reads.fasta tmp/local_overlaps.paf 2> tmp/trash.txt | awk \'{if ($1 == \"S\") print $3;}\' > tmp/local_assembly.txt 2> tmp/trash.txt";
+//     command = MINIASM+com;
+//     system(command.c_str());
 
-    std::ifstream newcontig("tmp/local_assembly.txt");
-    string line;
-    string contig;
-    while(getline(newcontig, line)){
-        contig = line; 
-    }
-    return contig;
-}
+//     std::ifstream newcontig("tmp/local_assembly.txt");
+//     string line;
+//     string contig;
+//     while(getline(newcontig, line)){
+//         contig = line; 
+//     }
+//     return contig;
+// }
 
 //input : a set of reads aligned to read in matrix snps
 //output : reads separated by their region of origin
