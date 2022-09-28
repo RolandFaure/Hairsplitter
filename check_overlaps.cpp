@@ -38,6 +38,7 @@ using namespace std::chrono;
 extern string MINIMAP; //path to the minimap executable
 // extern string MINIASM; //path to the miniasm executable
 extern string RACON; //path to the racon executable
+extern bool DEBUG; //running debug mode ?
 
 //definition of a small struct that will be useful later
 struct distPart{
@@ -73,11 +74,13 @@ omp_set_num_threads(num_threads);
                 // while(active_threads[find_thread%num_threads]>0){
                 //     ++find_thread;
                 // }
-
-                #pragma omp critical
-                {
-                    cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << endl;
+                if (DEBUG){
+                    #pragma omp critical
+                    {
+                        cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << "\r";
+                    }
                 }
+                
 
                 compute_partition_on_this_contig(read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
                     readLimits, polish);
@@ -86,6 +89,7 @@ omp_set_num_threads(num_threads);
             index++;
         }
     }
+    cout << "                                                                       \n";
 }
 
 /**
@@ -109,7 +113,6 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
     
     vector<Column> snps;  //vector containing list of position, with SNPs at each position
     //first build an MSA
-    cout << "Generating MSA" << endl;
     string truePar; //for debugging
 
     vector<bool> misalignedReads;
@@ -119,12 +122,12 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
 
     //then separate the MSA
-    cout << "Separating reads" << endl;
+    // cout << "Separating reads" << endl;
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(contig, allOverlaps, allreads, snps, meanDistance, 
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
-    cout << "True partition : " << endl;
-    cout << truePar << endl;
+    // cout << "True partition : " << endl;
+    // cout << truePar << endl;
     
     // auto par = truePar.getPartition();//DEBUG
     // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
@@ -179,20 +182,22 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     string read_str = allreads[read].sequence_.str();
 
     //small loop to compute truePartition DEBUG
-    for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+    if (DEBUG){
+        for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
 
-        long int neighbor = allreads[read].neighbors_[n];
-        Overlap overlap = allOverlaps[neighbor];
-        
-        if (overlap.sequence1 == read){
+            long int neighbor = allreads[read].neighbors_[n];
+            Overlap overlap = allOverlaps[neighbor];
+            
+            if (overlap.sequence1 == read){
 
-            truePar.push_back(allreads[overlap.sequence2].name[10]);
-            // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+                truePar.push_back(allreads[overlap.sequence2].name[10]);
+                // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+            }
+            else{
+                truePar.push_back(allreads[overlap.sequence1].name[10]);
+                // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+            }    
         }
-        else{
-            truePar.push_back(allreads[overlap.sequence1].name[10]);
-            // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-        }    
     }
 
     // string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/answer_"+std::to_string(read)+".tsv";
@@ -242,7 +247,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     if (polish){
         string thread_id = std::to_string(omp_get_thread_num());
         consensus = consensus_reads(read_str , polishingReads, thread_id);
-        cout << "Done polishing the contig" << endl;
+        if (DEBUG){
+            cout << "Done polishing the contig" << endl;
+        }
     }
     else{
         consensus = read_str; //if the input assembly is already polished
@@ -264,7 +271,9 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
-        cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
+        if (DEBUG){
+            cout << "Aligned " << n << " reads out of " << allreads[read].neighbors_.size() << " on the backbone\r";
+        }
 
         auto t1 = high_resolution_clock::now();
         
@@ -277,17 +286,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
 
         string alignment = aligner.getAlignmentCigar();
-        if (aligner.getAlignmentScore() <= -2147483648 /*|| n == 967*/){
-            cout << "CIGAR: " << alignment  << endl;
-            cout << "Alignment score " << aligner.getAlignmentScore() << endl;
-            // string reverse = Read(consensus).sequence_.reverse_complement().str();
-            // string rev = reverse.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
-            // string rev2 = Read(consensus).sequence_.reverse_complement().str().substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();;
-            // aligner.alignEndsFree(cons, 0,0,  re, 0,0);
-            // cout << "Alignment score now : " << aligner.getAlignmentScore() << endl;
-            // cout << re << endl << cons << endl;
-        }
-
 
         totalLengthOfAlignment += alignment.size();
         totalDistance += -aligner.getAlignmentScore();
@@ -368,7 +366,10 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         MSAtime += duration_cast<milliseconds>(t3-t2).count();
         
     }
-    cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
+
+    if (DEBUG){
+        cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
+    }
     
     //print snps (just for debugging)
     // int step = 1;
@@ -583,8 +584,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
 
         float threshold = 1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2));
         // threshold = 3; //DEBUG
-        if (content[4] < 0.25*float(numberOfReadsHere) //not too many '-', because '-' are less specific than snps
-            && *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
+        if (//content[4] < 0.25*float(numberOfReadsHere) && //not too many '-', because '-' are less specific than snps
+             *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
            
             // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
 
@@ -651,7 +652,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         return e;
     }
 
-    cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
+    if (DEBUG){
+        cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
+    }
 
     //for debugging only
     //outputMatrix(snps, suspectPostitions, std::to_string(read));
@@ -837,9 +840,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
             partitions_recomputed[max_idx].augmentPartition(partitionToAugment[max_idx], pos);
         }
     }
-    cout << "recomputed partitions : " << endl;
-    for (auto p : partitions_recomputed){
-        p.print();
+
+    if (DEBUG){
+        cout << "recomputed partitions : " << endl;
+        for (auto p : partitions_recomputed){
+            p.print();
+        }
     }
 
     //mark as valid partitions which have collected much more positions in the second round
@@ -1238,7 +1244,9 @@ void clean_partition(long int backbone, Partition &originalPartition, vector <Re
 
     //first compute all the contigs as they would look like on one part or another
     //inventoriate all the reads
-    cout << "cleaning partition..." << endl;
+    if (DEBUG){
+        cout << "cleaning partition..." << endl;
+    }
     vector <string> polish_reads_0;
     vector <string> polish_reads_1;
 
@@ -1308,13 +1316,14 @@ void clean_partition(long int backbone, Partition &originalPartition, vector <Re
     }
     in.close();
 
-    cout << "correcting this partition : " << endl;
-    originalPartition.print();
-    originalPartition.new_corrected_partition(correctedPartition);
-    originalPartition.print();
+    if (DEBUG){
+        cout << "correcting this partition : " << endl;
+        originalPartition.print();
+        originalPartition.new_corrected_partition(correctedPartition);
+        originalPartition.print();
 
-    cout << "Done cleaning ! " << endl;
-
+        cout << "Done cleaning ! " << endl;
+    }
 }
 
 /**
@@ -1372,9 +1381,11 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
     } customLess;
     std::sort(partitions.begin(), partitions.end(), customLess);
 
-    cout << "Here are all the partitions, sorted : " << endl;
-    for (auto p : partitions){
-        p.print();
+    if (DEBUG){
+            cout << "Here are all the partitions, sorted : " << endl;
+        for (auto p : partitions){
+            p.print();
+        }
     }
 
     //draw a list of compatible partitions
@@ -1402,11 +1413,12 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
     }
     
     vector<Partition> compatiblePartitions;
-    cout << "compatible partitions : " << endl;
+
+    if (DEBUG){cout << "compatible partitions : " << endl;}
     for (auto p = 0 ; p < partitions.size(); p++){
         if (compatibles[p]){
             compatiblePartitions.push_back(partitions[p]);
-            partitions[p].print();
+            if (DEBUG){partitions[p].print();}
         }
     }
 
@@ -1493,11 +1505,13 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         }
         int numberOfUnsureReads = numberOfUnsureReads0+numberOfUnsureReads1;
 
-        cout << "filtering partition, tolerating " << errors[0] << "," << errors[1] << endl;
-        partitions[par].print();
-        cout << "There are " << numberOfUnsureReads << " unsure reads, (" << numberOfUnsureReads0 << "+" << numberOfUnsureReads1 << ") out of " 
-            << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
-        partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left());
+        if (DEBUG){
+            cout << "filtering partition, tolerating " << errors[0] << "," << errors[1] << endl;
+            partitions[par].print();
+            cout << "There are " << numberOfUnsureReads << " unsure reads, (" << numberOfUnsureReads0 << "+" << numberOfUnsureReads1 << ") out of " 
+                << numberOfPartitionnedRead << " partitionned reads, and in terms of size, the het rate is " <<
+            partitions[par].number() << " for a length of " << (partitions[par].get_right()-partitions[par].get_left());
+        }
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
             && partitions[par].number() > min(20.0, 0.01*(partitions[par].get_right()-partitions[par].get_left()))){ //and big enough //max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left()))
@@ -1506,7 +1520,7 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.2 && (par>0||partitions[par].number() < 30)){ //if it's not the best partition it may be a weird version of the best partition
             trimmedListOfFinalPartitionBool[par] = false;
         }
-        cout << ". Overall, do I take it : " << trimmedListOfFinalPartitionBool[par] << endl;
+        if(DEBUG){cout << ". Overall, do I take it : " << trimmedListOfFinalPartitionBool[par] << endl;}
 
     }
 
@@ -1579,13 +1593,15 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
         res.push_back(make_pair(make_pair(interval.first.first, interval.first.second), localPartition));
     }
 
-    cout << "here are the intervals : " << endl;
-    n = 0;
-    for (auto interval : intervals){
-        cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
-        // for (auto p : interval.second){cout << p << ",";} cout << endl;
-        for (auto r : res[n].second){cout << r+1 << ",";} cout << endl;
-        n++;
+    if (DEBUG){
+        cout << "here are the intervals : " << endl;
+        n = 0;
+        for (auto interval : intervals){
+            cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
+            // for (auto p : interval.second){cout << p << ",";} cout << endl;
+            for (auto r : res[n].second){cout << r+1 << ",";} cout << endl;
+            n++;
+        }
     }
 
     return res;
@@ -1676,7 +1692,7 @@ int compatible_partitions(Partition &p1 , Partition &p2){
         compatible += 1;
     }
 
-    cout << "Compatibility : " << numberOf0s << " " << zero_in_0 << " " << zero_in_1 << " ; " << numberOf1s << " " << one_in_0 << " " << one_in_1 << " ; " << compatible << endl;
+    if(DEBUG){cout << "Compatibility : " << numberOf0s << " " << zero_in_0 << " " << zero_in_1 << " ; " << numberOf1s << " " << one_in_0 << " " << one_in_1 << " ; " << compatible << endl;}
     return compatible;
 }
 
@@ -2035,7 +2051,7 @@ bool extend_with_partition_if_compatible(vector<int> &alreadyThreadedHaplotypes,
 //output : reassign ALL reads to the cluster where they fit best
 vector<int> rescue_reads(vector<int> &threadedClusters, vector<Column> &snps, vector<size_t> &suspectPostitions){
 
-    cout << "Rescuing reads\r" << endl;
+    if(DEBUG){cout << "Rescuing reads\r" << endl;}
 
     //list all the clusters in a map
     std::unordered_map <int, int> clusterIdx;

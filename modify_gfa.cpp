@@ -19,6 +19,8 @@ using std::make_pair;
 using std::set;
 using std::to_string;
 
+extern bool DEBUG;
+
 /**
  * @brief Computes all the new contigs resulting from the splitting of old ones
  * 
@@ -37,15 +39,20 @@ void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
+    string log_text = ""; //text that will be printed out in the output.txt
 
 omp_set_num_threads(num_threads);
 #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
-
-        #pragma omp critical
-        {
-            cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+        
+        string local_log_text = "";
+        if (DEBUG){
+            #pragma omp critical
+            {
+                cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+            }
         }
+        local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
@@ -74,6 +81,8 @@ omp_set_num_threads(num_threads);
                 if (omp_get_thread_num() == 0){
                     cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
                 }
+                local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
+
 
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] != -1){
@@ -145,6 +154,7 @@ omp_set_num_threads(num_threads);
                     if (omp_get_thread_num() == 0){
                         cout << "created the contig " << r.name << endl;
                     }
+                    local_log_text += "   - " + r.name + "\n";
 
                 }
                 n += 1;
@@ -171,12 +181,22 @@ omp_set_num_threads(num_threads);
             if (omp_get_thread_num() == 0){
                 cout << "now creating the different contigs : " << r.name << endl;
             }
+            local_log_text += " - Between positions " + to_string(left) + " and " + to_string(allreads[backbone].sequence_.size()) + " of the contig, I've created these contigs:\n";
+            local_log_text +=  "   - " + r.name + "\n\n";
 
             allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
 
         }
+        else{
+                local_log_text += "Nothing to do\n\n";
+        }
+        #pragma omp critical
+        {
+            log_text += local_log_text;
+        }
     }
-
+    std::ofstream o("output.txt");
+    o << log_text << endl;
 }
 
 //input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
@@ -186,15 +206,20 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
             unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
+    string log_text = ""; //text that will be printed out in the output.txt
 
 omp_set_num_threads(num_threads);
 #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        #pragma omp critical
-        {
-            cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+        string local_log_text = ""; //text that will be printed out in the output.txt generated in this thread
+        if (DEBUG){
+            #pragma omp critical
+            {
+                cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+            }
         }
+        local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
@@ -280,10 +305,12 @@ omp_set_num_threads(num_threads);
             for (auto interval : partitions[backbone]){
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
-                if (omp_get_thread_num() == 0){
+                if (omp_get_thread_num() == 0 && DEBUG){
                     cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
                 }
+                local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
+                //taking exactly the right portion of read we need
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] != -1){
                         int clust = interval.second[r];
@@ -403,10 +430,10 @@ omp_set_num_threads(num_threads);
 
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
-                    if (omp_get_thread_num() == 0){
+                    if (omp_get_thread_num() == 0 && DEBUG){
                         cout << "created the contig " << r.name << endl;
                     }
-
+                    local_log_text += "   - " + r.name + "\n";
                 }
                 hangingLinks = futureHangingLinks;
                 n += 1;
@@ -468,15 +495,25 @@ omp_set_num_threads(num_threads);
 
             allreads.push_back(r);
             backbones_reads.push_back(allreads.size()-1);
-            if (omp_get_thread_num() == 0){
+            if (omp_get_thread_num() == 0 && DEBUG){
                 cout << "now creating the different contigs : " << r.name << endl;
             }
+            local_log_text += " - Between positions " + to_string(left) + " and " + to_string(allreads[backbone].sequence_.size()) + " of the contig, I've created these contigs:\n";
+            local_log_text +=  "   - " + r.name + "\n\n";
 
             allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
 
         }
+        else{
+            local_log_text += "Nothing to do\n\n";
+        }
+        #pragma omp critical
+        {
+            log_text += local_log_text;
+        }
     }
-    
+    std::ofstream o("output.txt");
+    o << log_text << endl;
 }
 
 //input : list of links from first par to second par and reciproqually

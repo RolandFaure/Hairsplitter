@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <fstream>
 
 #include "edlib.h"
 #include "input_output.h"
@@ -21,6 +22,7 @@ using namespace clipp;
 string MINIMAP;
 string RACON;
 string GRAPHUNZIP;
+bool DEBUG;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
@@ -103,6 +105,7 @@ int main(int argc, char *argv[])
     int num_threads = 1;
     bool polish = false;
     bool dont_simplify = false;
+    DEBUG = false;
     auto cli = (
             required("-f", "--fastq").doc("Sequencing reads") & value("raw reads", fastqfile),
             required("-i", "--assembly").doc("Original assembly in GFA or FASTA format") & value("assembly", refFile),
@@ -117,7 +120,8 @@ int main(int argc, char *argv[])
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
-            clipp::option("--path-to-graphunzip").doc("Path to graphunzip.py (if not in PATH)") & value("path to graphunzip", path_graphunzip)
+            clipp::option("--path-to-graphunzip").doc("Path to graphunzip.py (if not in PATH)") & value("path to graphunzip", path_graphunzip),
+            clipp::option("-d", "--debug").set(DEBUG)
         );
 
     if(!parse(argc, argv, cli)) {
@@ -154,12 +158,13 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
 
+        cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
+        cout << "-- Please note that details on what Hairsplitter does will be jotted down in file output.txt --\n";
+
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
 
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
-
-
 
             alnOnRefFile = "reads_aligned_on_assembly.paf";
 
@@ -172,53 +177,71 @@ int main(int argc, char *argv[])
                     exit(EXIT_FAILURE);
                 }
                 command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt";
-                cout << " - Running minimap with command line:\n   " << command << "\nThe output of minimap2 is dumped on tmp/logminimap.txt\n";
+                cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
             else{
                 string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
-                cout << " - Running minimap with command line:\n   " << command << "\nThe output of minimap2 is dumped on tmp/logminimap.txt\n";
+                cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is being dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
         }
+        else{
+            cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
+            cout << "  Skipped because alignments already inputted with option -a.\n";
+        }
 
-        cout << "\n===== STAGE 2: Loading data\n\n" << endl;
+        cout << "\n===== STAGE 2: Loading data\n\n";
 
         cout << " - Loading all reads from " << fastqfile << " in memory\n";
         parse_reads(fastqfile, allreads, indices);
 
-        cout << "Now parsing the assembly" << endl;
-
+        cout << " - Loading all contigs from " << refFile << " in memory\n";
         parse_assembly(refFile, allreads, indices, backbone_reads, allLinks, format);
+
+        cout << " - Loading alignments of the reads on the contigs from " << alnOnRefFile << "\n";
         parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
 
+        cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
+        cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
+        cout << "  - See if the reads disagreeing seem always to be the same ones\n  - If they are always the same ones, they probably come from another haplotype, so separate!\n\n";
+        cout << " *To see in more details what contigs have been separated, check the output.txt*\n";
+
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
-        cout << "Checking overlaps" << endl;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
         checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
-        cout << "Finished checking, now outputting" << endl;
 
         //output GAF, the path of all reads on the new contigs
         if (format == "gfa"){
-            cout << "Outputting GAF" << endl;
+            // cout << "Outputting GAF" << endl;
             output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
         }
         
-        cout << "Generating new assembly" << endl;
+        cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
         if (format == "gfa"){
-            cout << "Separating the contigs..." << endl;
             modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
             string zipped_GFA = "zipped_gfa.gfa";
             output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
             //now "unzip" the assembly, improving the contiguity where it can be improved
-            cout << "Unzipping the contigs" << endl;
+            cout << "\n===== STAGE 5: Linking all the new contigs that have been produced (maybe bridging repeated regions)\n\n";
             string simply = "";
             if (dont_simplify){
                 simply = " --dont_merge -r";
             }
-            string com = " unzip -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/trash.txt 2>tmp/trash.txt";
+            string com = " unzip -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
             string command = GRAPHUNZIP + com;
+            cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
+            system(command.c_str());
+
+            cout << "\n *To see in more details what supercontigs were created with GraphUnziop, check the output.txt*\n";
+            string output = "output.txt";
+            std::ofstream o(output, std::ios_base::app);//appending to the file
+            o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
+            o.close();
+            command = "cat output.txt supercontigs.txt > output2.txt";
+            system(command.c_str());
+            command =  "mv output2.txt output.txt & rm supercontigs.txt";
             system(command.c_str());
         }
         else if (format == "fasta"){
@@ -228,18 +251,8 @@ int main(int argc, char *argv[])
         
         auto t2 = high_resolution_clock::now();
 
-        cout << "Finished in " << duration_cast<seconds>(t2-t1).count() << "s"  << endl;
+        cout << "\n\nFinished in " << duration_cast<seconds>(t2-t1).count() << "s. If you experienced any trouble running Hairsplitter, contact us via an issue on github, github.com/RolandFaure/hairsplitter :-)\n\n"  << endl;
     }
-
-    // string sequence1 = "ACTGGCTCGTTCGAAAGCTCGT";
-    // string sequence2 = "TTACTGGCTCATTCGAAACGCTCGT";
-    // string sequence3 = "GCTCGTTGAAAAGCTCGTTGGCT";
-
-    // EdlibAlignResult result = edlibAlign(sequence1.c_str(), sequence1.size(), sequence2.c_str(), sequence2.size(),
-    //                                     edlibNewAlignConfig(42, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
-
-    // cout << edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD) << endl;  
-
     
     return 0;
 }
