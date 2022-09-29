@@ -37,7 +37,7 @@ make
 
 Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler). To improve/phase your assembly using `Hairsplitter`, run
 ```
-Hairsplitter -f reads.fastq -i assembly.gfa
+Hairsplitter -f reads.fastq -i assembly.gfa -o new_assembly.gfa
 ```
 
 ## Options
