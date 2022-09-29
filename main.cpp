@@ -239,9 +239,9 @@ int main(int argc, char *argv[])
             std::ofstream o(output, std::ios_base::app);//appending to the file
             o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
             o.close();
-            command = "cat output.txt supercontigs.txt > output2.txt";
+            command = "cat output.txt supercontigs.txt > output2.txt 2> tmp/trash.txt";
             system(command.c_str());
-            command =  "mv output2.txt output.txt & rm supercontigs.txt";
+            command =  "mv output2.txt output.txt & rm supercontigs.txt 2> tmp/trash.txt";
             system(command.c_str());
         }
         else if (format == "fasta"){

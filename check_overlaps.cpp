@@ -67,7 +67,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name >= "edge_9" ){
+            if (allreads[read].neighbors_.size() > 10 /*&& allreads[read].name >= "edge_9"*/ ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;

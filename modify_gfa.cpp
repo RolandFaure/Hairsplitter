@@ -39,10 +39,10 @@ void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
-    string log_text = ""; //text that will be printed out in the output.txt
+    string log_text = "\n*****Separating the contigs*****\n\n"; //text that will be printed out in the output.txt
 
-omp_set_num_threads(num_threads);
-#pragma omp parallel for
+    omp_set_num_threads(num_threads);
+    #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
         
         string local_log_text = "";
@@ -57,7 +57,21 @@ omp_set_num_threads(num_threads);
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
 
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
+        //if partitions[backbone].size() == 1, see if we need to repolish or not, depending on wether the coverage is coherent or not
+        bool dont_recompute_contig = false;
+        if (partitions[backbone].size() == 1 && allreads[backbones_reads[b]].depth > 1){
+            double total_depth = 0;
+            for (auto n : allreads[backbones_reads[b]].neighbors_){
+                total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
+            }
+            double new_depth = total_depth / allreads[backbones_reads[b]].sequence_.size();
+
+            if (new_depth / allreads[backbones_reads[b]].depth > 0.7){
+                dont_recompute_contig = true;
+            }
+        }
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1 && !dont_recompute_contig){
 
             //construct singlepolish, the sequence polished by all the reads.
             //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere
@@ -197,6 +211,7 @@ omp_set_num_threads(num_threads);
     }
     std::ofstream o("output.txt");
     o << log_text << endl;
+    o.close();
 }
 
 //input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
@@ -208,8 +223,8 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     string log_text = ""; //text that will be printed out in the output.txt
 
-omp_set_num_threads(num_threads);
-#pragma omp parallel for
+    omp_set_num_threads(num_threads);
+    #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
         string local_log_text = ""; //text that will be printed out in the output.txt generated in this thread
@@ -224,7 +239,21 @@ omp_set_num_threads(num_threads);
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
 
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
+        //if partitions[backbone].size() == 1, see if we need to repolish or not, depending on wether the coverage is coherent or not
+        bool dont_recompute_contig = false;
+        if (partitions[backbone].size() == 1 && allreads[backbones_reads[b]].depth > 1){
+            double total_depth = 0;
+            for (auto n : allreads[backbones_reads[b]].neighbors_){
+                total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
+            }
+            double new_depth = total_depth / allreads[backbones_reads[b]].sequence_.size();
+
+            if (new_depth / allreads[backbones_reads[b]].depth > 0.7){
+                dont_recompute_contig = true;
+            }
+        }
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1 && !dont_recompute_contig){
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
