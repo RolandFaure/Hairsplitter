@@ -1,3 +1,6 @@
 [submodule "GraphUnzip"]
 	path = GraphUnzip
 	url = ./GraphUnzip
+[submodule "WFA2-lib"]
+        path = WFA2-lib
+        url = ./WFA2-lib
