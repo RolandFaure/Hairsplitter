@@ -1,6 +1,6 @@
 [submodule "GraphUnzip"]
 	path = GraphUnzip
-	url = ./GraphUnzip
+	url = https://github.com/nadegeguiglielmoni/GraphUnzip
 [submodule "WFA2-lib"]
         path = WFA2-lib
-        url = ./WFA2-lib
+        url = https://github.com/smarco/WFA2-lib
