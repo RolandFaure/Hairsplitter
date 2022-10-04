@@ -176,12 +176,12 @@ int main(int argc, char *argv[])
                     cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                     exit(EXIT_FAILURE);
                 }
-                command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt";
+                command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt";
                 cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
             else{
-                string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
+                string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
                 cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is being dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }

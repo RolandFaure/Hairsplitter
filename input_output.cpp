@@ -465,6 +465,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
 
 }
 
+/*
 //input : a VCF file containing a list of variants
 //output : all variants loaded in a variant list
 void parse_VCF(std::string fileVCF, robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants){
@@ -584,6 +585,7 @@ void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::
         }
     }
 }
+*/
 
 //input : original file of overlaps, allreads and partitions
 //output : the same file of overlaps, but with all spurious overlap filtered out

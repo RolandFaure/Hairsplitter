@@ -60,6 +60,8 @@ target_include_directories(Hairsplitter PRIVATE edlib/include)
 target_compile_options (Hairsplitter PRIVATE -fopenmp)
 target_compile_options (Hairsplitter PRIVATE -std=c++17)
 target_compile_options (Hairsplitter PRIVATE -O3)
+target_compile_options (Hairsplitter PRIVATE -no-pie)
+
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
