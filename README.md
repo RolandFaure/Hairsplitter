@@ -61,9 +61,6 @@ OPTIONS
         -a, --aln-on-asm
                     Reads aligned on assembly (PAF format)
 
-        -q, --outputGAF
-                    Output GAF file
-
         -p, --polish
                     Use this option if the assembly is not polished
 
