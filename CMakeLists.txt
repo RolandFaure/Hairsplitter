@@ -50,7 +50,7 @@ ExternalProject_Add(
 add_library(wfa2 INTERFACE)
 target_include_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib)
 target_link_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib/lib)
-target_link_libraries(wfa2 INTERFACE wfa wfacpp)
+target_link_libraries(wfa2 INTERFACE wfa wfacpp rt)
 
 file(GLOB SOURCES "*.cpp")
 add_executable(Hairsplitter ${SOURCES} edlib/src/edlib.cpp)
@@ -60,7 +60,7 @@ target_include_directories(Hairsplitter PRIVATE edlib/include)
 target_compile_options (Hairsplitter PRIVATE -fopenmp)
 target_compile_options (Hairsplitter PRIVATE -std=c++17)
 target_compile_options (Hairsplitter PRIVATE -O3)
-target_compile_options (Hairsplitter PRIVATE -no-pie)
+target_compile_options (Hairsplitter PRIVATE -march=x86-64)
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
@@ -69,27 +69,4 @@ endif()
 target_link_libraries(Hairsplitter PRIVATE wfa2 pthread)
 
 #for OpenMP: https://answers.ros.org/question/64231/error-in-rosmake-rgbdslam_freiburg-undefined-reference-to-gomp/
-#set(CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS}")
-#set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DELAYLOAD:${OPENMP_DLL}.dll")
 
-# #check for OpenMP
-# find_package(OpenMP)
-# if(OPENMP_FOUND)
-#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-#   if(MSVC90 OR MSVC10)
-#     if(MSVC90)
-#       set(OPENMP_DLL VCOMP90)
-#     elseif(MSVC10)
-#       set(OPENMP_DLL VCOMP100)
-#     endif(MSVC90)
-#     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /DELAYLOAD:${OPENMP_DLL}D.dll")
-#     set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DELAYLOAD:${OPENMP_DLL}.dll")
-#   endif()
-# endif()
-
-
-
-#if (NOT TARGET spoa)
-#  add_subdirectory(spoa EXCLUDE_FROM_ALL)
-#endif ()
-#target_link_libraries(Hairsplitter spoa::spoa)

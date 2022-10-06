@@ -18,18 +18,23 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 - [minimap2](https://github.com/lh3/minimap2): this is not absolutely necessary. Another aligner can be used to manually align the reads.
 - [racon](https://github.com/isovic/racon)
-- CMake >= 3.8.12, make, C++11
+- CMake >= 3.8.12, make, gcc >= 11
+- Python3 with numpy and scipy
 - [GraphUnzip](https://github.com/nadegeguiglielmoni/GraphUnzip): this is included in the `Hairsplitter` folder in Hairsplitter/GraphUnzip/graphunzip.py, you do not need to install it separately. It is a python file, thus it will not work if taken out of its folder.
  
 ## Download & Compilation
 
 To download and compile, run
 ```
-git clone https://github.com/RolandFaure/Hairsplitter.git
+git clone --recursive https://github.com/RolandFaure/Hairsplitter.git
 cd Hairsplitter
-cmake .
+mkdir build
+cd build
+cmake .. -DCMAKE_CXX_COMPILER=g++
 make
 ```
+
+Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter only runs on not-too-old CPUs. We hope another solution will be found soon.
 
 # Usage
 

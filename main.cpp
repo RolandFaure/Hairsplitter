@@ -9,7 +9,7 @@
 #include "check_overlaps.h"
 #include "modify_gfa.h"
 #include "clipp.h" //library to build command line interfaces
-#include "phase_variants.h"
+//#include "phase_variants.h"
 
 using std::cout;
 using std::endl;
@@ -51,7 +51,7 @@ void check_dependancies(){
     command = GRAPHUNZIP + com;
     auto graphunzip = system(command.c_str());
 
-    command = "awk -h > tmp/trash.txt 2> tmp/trash.txt";
+    command = "awk --help > tmp/trash.txt 2> tmp/trash.txt";
     auto awk = system(command.c_str());
     
     if (res != 0){
@@ -75,7 +75,7 @@ void check_dependancies(){
             GRAPHUNZIP = "GraphUnzip";
         }
         else{
-            cout << "MISSING DEPENDANCY: graphunzip" << endl;
+            cout << "MISSING DEPENDANCY: could not run graphunzip. Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed" << endl;
         }
     }
 
@@ -134,9 +134,8 @@ int main(int argc, char *argv[])
         RACON = path_racon;
         GRAPHUNZIP = path_graphunzip;
 
-        check_dependancies();
-
         system("mkdir tmp/ 2> trash.txt");
+        check_dependancies();
 
         std::vector <Read> allreads; 
         robin_hood::unordered_map<std::string, unsigned long int> indices;
@@ -181,8 +180,8 @@ int main(int argc, char *argv[])
                 system(command.c_str());
             }
             else{
-                string command = MINIMAP + " " + refFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
-                cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is being dumped on tmp/logminimap.txt\n";
+                string command = MINIMAP + " " + refFile + " " + fastqfile + " -t " + num_threads + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
+                cout << " - Running minimap with command line:\n     " << command << "\n   The log of minimap2 is being dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }
         }
