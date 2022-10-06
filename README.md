@@ -16,6 +16,16 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 ## Dependancies
 
+### Quick conda dependancies
+
+You can create a conda environment with all dependencies installed by typing: 
+```
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gcc=12.1.0 python=3.10.4 scipy numpy 
+conda activate hairsplitter
+```
+
+### List of dependencies
+
 - [minimap2](https://github.com/lh3/minimap2): this is not absolutely necessary. Another aligner can be used to manually align the reads.
 - [racon](https://github.com/isovic/racon)
 - CMake >= 3.8.12, make, gcc >= 11
