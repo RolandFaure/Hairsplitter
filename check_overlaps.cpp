@@ -67,7 +67,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 /*&& allreads[read].name >= "edge_9"*/ ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_72"  ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -77,7 +77,7 @@ omp_set_num_threads(num_threads);
                 if (DEBUG){
                     #pragma omp critical
                     {
-                        cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << "\r";
+                        cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << "\n";
                     }
                 }
                 
@@ -368,7 +368,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
 
     if (DEBUG){
-        cout << "Building MSA took time... " << alignmentTime << " for edlib and " << MSAtime << " for filling the vector" << endl;
+        cout << "Building MSA took time... " << alignmentTime << " for WFA and " << MSAtime << " for filling the vector" << endl;
     }
     
     //print snps (just for debugging)
@@ -849,10 +849,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     }
 
     //mark as valid partitions which have collected much more positions in the second round
+    //choose which of the recomputed partition or original partition you want to keep
     vector<bool> keptPartitions (partitions_recomputed.size(), false);
     for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
         if  (partitions_recomputed[p].number() > 2*listOfCompatiblePartitions[p].number()){
             keptPartitions[p] = true;
+        }
+        if(partitions_recomputed[p].get_conf() < listOfCompatiblePartitions[p].get_conf()){
+            listOfCompatiblePartitions[p].new_number(partitions_recomputed[p].number()); //keep the number of SNP of partitions_recomputed
+            partitions_recomputed[p] = listOfCompatiblePartitions[p];
         }
     }
 
@@ -1520,6 +1525,9 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.2 && (par>0||partitions[par].number() < 30)){ //if it's not the best partition it may be a weird version of the best partition
             trimmedListOfFinalPartitionBool[par] = false;
         }
+        else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.3){ //a partition could have been marked as true if it augmented enough when recomputed, but more than 30% is too much
+            trimmedListOfFinalPartitionBool[par] = false;
+        }
         if(DEBUG){cout << ". Overall, do I take it : " << trimmedListOfFinalPartitionBool[par] << endl;}
 
     }
@@ -1599,7 +1607,7 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
         for (auto interval : intervals){
             cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
             // for (auto p : interval.second){cout << p << ",";} cout << endl;
-            for (auto r : res[n].second){cout << r+1 << ",";} cout << endl;
+            for (auto r : res[n].second){if (r>=0){cout << r+1;}else{cout<< " ";}} cout << endl;
             n++;
         }
     }
@@ -1741,6 +1749,9 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
 
     }
+    // cout << "here is the clusters: ";
+    // for (auto i : clusters) {cout << i << " ";}
+    // cout << endl;
 
     set<int> count; //a set of all existing groups
     vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size())); 
@@ -1752,12 +1763,19 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
     }
     
-    //to make sure we don't over-estimate the number of clusters, we'll make the assumption that all haplotypes have haplotype-specific mutation => the number of final cluster cannot be higher than the number of partitions
+    /*
+        As a first approximation:
+        to make sure we don't over-estimate the number of clusters, we'll make the assumption that all haplotypes have haplotype-specific mutation => the number of final cluster cannot be higher than the number of partitions
+        Then:
+        also count the number of solid clusters (i.e. frequent)
+    */
     vector<float> proportionOf1;
     for (auto p : listOfFinalPartitions){
         proportionOf1.push_back(p.proportionOf1());  
     }
     vector<float> listOfLikelihoods;
+    vector<float> listOfProbas;
+    size_t max_number_of_cluster = 0; //count the number of clusters that look solid
     for (auto group : count){
         int id = group;
         double proba = 1;
@@ -1770,40 +1788,58 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
             }
             id = int(id / 2);
         }
-        // cout << "group " << group.first << " is expected " << numberOfAssignedReads*proba << " times and arrives " << group.second << " times " << endl;
-        listOfLikelihoods.push_back(float(frequenceOfPart[group] -numberOfAssignedReads*proba) / frequenceOfPart[group]);
+        cout << "group " << group << " is expected " << numberOfAssignedReads*proba << " times and arrives " << frequenceOfPart[group] << " times " << endl;
+        listOfLikelihoods.push_back(float(frequenceOfPart[group]-numberOfAssignedReads*proba) / frequenceOfPart[group]);
+        listOfProbas.push_back(proba);
+        // if (frequenceOfPart[group] > 20 && numberOfAssignedReads*proba < frequenceOfPart[group]*3){
+        //     max_number_of_cluster++;
+        // }
+        // cout << "group " << group << " likelihood: " << float(frequenceOfPart[group] -numberOfAssignedReads*proba) / frequenceOfPart[group] << endl;
     }
 
     float minLikelihood = -1000;
     if (listOfLikelihoods.size() > listOfFinalPartitions.size() && listOfFinalPartitions.size()>1){
-        int extra = 0;
+        int extra = 0; //when there is only 1 partitions there is actually 2 parts
         if (listOfFinalPartitions.size()<=2){extra=1;}
         vector <float> minElements (listOfLikelihoods.size());
         std::partial_sort_copy(listOfLikelihoods.begin(),  listOfLikelihoods.end(), minElements.begin(), minElements.end());
         if (minElements.size() >= listOfFinalPartitions.size()+extra){
-            minLikelihood = minElements[minElements.size()-extra-listOfFinalPartitions.size()];
+            auto number_of_cluster = max(max_number_of_cluster, listOfFinalPartitions.size()+extra);
+            minLikelihood = minElements[minElements.size()-number_of_cluster];
         }
         else{
             minLikelihood = minElements[0];
         }
-        // cout << "likelihoods : " << endl;
-        // for (auto a : listOfLikelihoods) {cout << a << ",";}cout << endl;
-        // cout << "minElements : " << endl;
-        // for (auto m : minElements) {cout << m << ",";} cout << endl;
     }
 
     
-    // cout << "min likelihood : " << minLikelihood << endl;
-
     //establish a list of possible clusters
     std::set <int> listOfGroups;
     int indexOfCount = 0;
+
+    int numberOfAssignedReads2 = numberOfAssignedReads;
+    float newtotalproba = 1;
     for (auto group : count){
         if (listOfLikelihoods[indexOfCount] >= minLikelihood && frequenceOfPart[group] > 5){ //>5 because we want at least 5 reads per haplotype
             listOfGroups.emplace(group);
+            numberOfAssignedReads2 -= frequenceOfPart[group];
+            newtotalproba -= listOfProbas[indexOfCount];
         }
         indexOfCount++;
     }
+    //now maybe rescue cluster that were not 100% sure but in hindsight seem good
+    // indexOfCount = 0;
+    // for (auto group : count){
+    //     float newproba = listOfProbas[indexOfCount]/newtotalproba;
+    //     cout << "bbcxv trying to see if should rescue " << group << " is now expected " << numberOfAssignedReads2*newproba << " times and arrives " << frequenceOfPart[group] << " times " << endl;
+    //     if (listOfGroups.find(group) == listOfGroups.end() 
+    //         && (numberOfAssignedReads2*newproba < 0.67*frequenceOfPart[group] || (numberOfAssignedReads2-frequenceOfPart[group]) < 0.5*(numberOfAssignedReads2-numberOfAssignedReads2*newproba)) 
+    //         && newproba < 0.9 && frequenceOfPart[group] > 5){ //>5 because we want at least 5 reads per haplotype
+    //         listOfGroups.emplace(group);
+    //         cout << "rescuing " << group << endl;
+    //     }
+    //     indexOfCount++;
+    // }
 
     // cout << "possible clusters : "; for (auto g : listOfGroups){cout << g << " ";} cout << endl;
     // cout << "Res : ";

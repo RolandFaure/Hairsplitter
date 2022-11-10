@@ -505,3 +505,11 @@ void Partition::new_corrected_partition(vector<short> newPartition){
     mostFrequentBases = newPartition;
 }
 
+/**
+ * @brief Sets a new numberOfOccurences, when other positions should be considered
+ * 
+ * @param n 
+ */
+void Partition::new_number(int n){
+    numberOfOccurences = n;
+} 

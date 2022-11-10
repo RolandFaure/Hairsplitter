@@ -24,6 +24,7 @@ using std::array;
 using std::set;
 using std::stoi;
 using std::min;
+using std::max;
 using robin_hood::unordered_map;
 using namespace std::chrono;
 
@@ -273,7 +274,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
     vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
 
     string line;
-
+    long int linenumber = 0;
     while(getline(in, line)){
 
         string field;
@@ -452,6 +453,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             //     << " " << pos1_1 << "," << pos1_2 << "," << pos2_1 << "," << pos2_2 << " " << length1-pos1_2 << "," << length2-pos2_2 << endl;
             // }
         }
+        linenumber++;
     }
 
     //determine backbone_ reads if asked
@@ -802,7 +804,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
     vector<vector<Path>> readPaths (allreads.size()); //to each read we associate a path on the graph
 
-    int max_backbone = backbone_reads.size(); //fix that because backbones will be added to the list but not separated 
+    int max_backbone = backbone_reads.size(); 
     for (int b = 0 ; b < max_backbone ; b++){
 
         long int backbone = backbone_reads[b];
@@ -813,14 +815,17 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
 
                 long int read;
+                long int end;
                 int start = -1;
                 if (ov.sequence1 != backbone){
                     read = ov.sequence1;
                     start = min(ov.position_1_1, ov.position_1_2);
+                    end = max(ov.position_1_1, ov.position_1_2);
                 }
                 else{
                     read = ov.sequence2;
                     start = min(ov.position_2_1, ov.position_2_2);
+                    end = max(ov.position_2_1, ov.position_2_2);
                 }
 
                 //go through all the intervals and see through which version this read passes
@@ -830,11 +835,15 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 bool lasthere = false;
                 int inter = 0;
                 for (auto interval : partitions[backbone]){
-                    if (interval.second[n] != -1){
+                    if (interval.second[n] != -1 && !stop){
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second[n])
                             , ov.strand));
                         if (inter == 0){
                             firsthere = true;
+                        }
+
+                        if (stop){
+                            cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
                         }
                     }
                     else{

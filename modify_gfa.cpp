@@ -239,9 +239,9 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
 
-        //if partitions[backbone].size() == 1, see if we need to repolish or not, depending on wether the coverage is coherent or not
+        //if partitions[backbone].size() == 0, see if we need to repolish or not, depending on wether the coverage is coherent or not
         bool dont_recompute_contig = false;
-        if (partitions[backbone].size() == 1 && allreads[backbones_reads[b]].depth > 1){
+        if (partitions[backbone].size() == 0 && allreads[backbones_reads[b]].depth > 1){
             double total_depth = 0;
             for (auto n : allreads[backbones_reads[b]].neighbors_){
                 total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
@@ -252,9 +252,7 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
                 dont_recompute_contig = true;
             }
         }
-
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 1 && !dont_recompute_contig){
-
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0 && !dont_recompute_contig){
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
 

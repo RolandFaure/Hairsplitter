@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 
     //try linking to the local copy of GraphUnzip that comes with HairSplitter
     string path_graphunzip_path = argv[0];
-    string path_graphunzip = path_graphunzip_path.substr(0, path_graphunzip_path.size()-12) + "GraphUnzip/graphunzip.py";
+    string path_graphunzip = path_graphunzip_path.substr(0, path_graphunzip_path.size()-18) + "GraphUnzip/graphunzip.py";
 
     int num_threads = 1;
     bool polish = false;
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
                 system(command.c_str());
             }
             else{
-                string command = MINIMAP + " " + refFile + " " + fastqfile + " -t " + num_threads + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
+                string command = MINIMAP + " " + refFile + " " + fastqfile + " -t " + std::to_string(num_threads) + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
                 cout << " - Running minimap with command line:\n     " << command << "\n   The log of minimap2 is being dumped on tmp/logminimap.txt\n";
                 system(command.c_str());
             }

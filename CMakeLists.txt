@@ -56,17 +56,19 @@ file(GLOB SOURCES "*.cpp")
 add_executable(Hairsplitter ${SOURCES} edlib/src/edlib.cpp)
 add_dependencies(Hairsplitter WFA)
 
-target_include_directories(Hairsplitter PRIVATE edlib/include)
-target_compile_options (Hairsplitter PRIVATE -fopenmp)
-target_compile_options (Hairsplitter PRIVATE -std=c++17)
-target_compile_options (Hairsplitter PRIVATE -O3)
-target_compile_options (Hairsplitter PRIVATE -march=x86-64)
-
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
 endif()
-target_link_libraries(Hairsplitter PRIVATE wfa2 pthread)
+
+target_link_libraries(Hairsplitter PRIVATE wfa2)#pthread)
+
+target_include_directories(Hairsplitter PRIVATE edlib/include)
+target_compile_options (Hairsplitter PRIVATE -lm)
+target_compile_options (Hairsplitter PRIVATE -fopenmp)
+target_compile_options (Hairsplitter PRIVATE -std=c++17)
+target_compile_options (Hairsplitter PRIVATE -O3)
+target_compile_options (Hairsplitter PRIVATE -march=x86-64)
 
 #for OpenMP: https://answers.ros.org/question/64231/error-in-rosmake-rgbdslam_freiburg-undefined-reference-to-gomp/
 
