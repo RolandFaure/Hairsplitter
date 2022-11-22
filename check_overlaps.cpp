@@ -67,7 +67,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_72"  ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_13200"  ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -458,7 +458,7 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 
-    com = " -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+    com = " --no-trimming -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
     string commandPolish = RACON + com;
     system(commandPolish.c_str());
 
