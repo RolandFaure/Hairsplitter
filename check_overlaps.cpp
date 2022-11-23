@@ -53,7 +53,7 @@ bool comp (distPart i, distPart j){
 //output : a partition for all backbone reads. 
 //All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
 //readLimits contains the border of all reads aligning on each backbone, used later to recompute the coverage
-void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
+void checkOverlaps(std::string fileReads, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
         vector<unsigned long int> &backbones_reads, unordered_map <unsigned long int ,vector<pair<pair<int,int>, vector<int>>>> &partitions, 
         bool assemble_on_assembly, unordered_map <int, vector<pair<int,int>>> &readLimits,
         bool polish, int num_threads){
@@ -67,7 +67,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_13200"  ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_113"  ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -82,7 +82,7 @@ omp_set_num_threads(num_threads);
                 }
                 
 
-                compute_partition_on_this_contig(read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
+                compute_partition_on_this_contig(fileReads, read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
                     readLimits, polish);
         
             }
@@ -95,6 +95,7 @@ omp_set_num_threads(num_threads);
 /**
  * @brief Computes the partition of contig and adds it in the map "partitions"
  * 
+ * @param fileReads file containing all the reads
  * @param contig
  * @param allreads 
  * @param allOverlaps 
@@ -106,10 +107,12 @@ omp_set_num_threads(num_threads);
  * @param polish 
  * @param thread 
  */
-void compute_partition_on_this_contig(long int contig, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
+void compute_partition_on_this_contig(std::string fileReads, long int contig, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish){
+
+    parse_reads_on_contig(fileReads, contig, allOverlaps, allreads);
     
     vector<Column> snps;  //vector containing list of position, with SNPs at each position
     //first build an MSA
@@ -119,14 +122,13 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
     string consensus;
     wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
+    cout << "creating MSA" << endl;
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
 
     //then separate the MSA
-    // cout << "Separating reads" << endl;
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(contig, allOverlaps, allreads, snps, meanDistance, 
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
-    // cout << "True partition : " << endl;
     // cout << truePar << endl;
     
     // auto par = truePar.getPartition();//DEBUG
@@ -136,6 +138,16 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
     // cout << endl;
 
     partitions[contig] = par;
+
+    //free up memory by deleting the sequence of the reads used there
+    for (auto n : allreads[contig].neighbors_){
+        if (allOverlaps[n].sequence1 != contig){
+            allreads[allOverlaps[n].sequence1].delete_sequence();
+        }
+        else{
+            allreads[allOverlaps[n].sequence2].delete_sequence();
+        }
+    }
 }
 
 //input: a read with all its neighbor
@@ -158,6 +170,7 @@ void compute_partition_on_this_contig(long int contig, std::vector <Read> &allre
 float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
     unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish, wfa::WFAlignerGapAffine& aligner){
+
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -206,7 +219,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     // cout << "name : " << allreads[read].name << " " << allreads[read].name[1] << " " << truePartition[truePartition.size()-1] << endl;
 
     // /* compute only true partition
-
     //now mark down on which backbone read those reads are leaning
     //in the same loop, inventoriate all the polishing reads
     vector <string> polishingReads;
@@ -214,8 +226,10 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
-        // cout << "overlap : " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " "
+        
+        // cout << "overlap : " << allreads[overlap.sequence1].name << " on " <<allreads[overlap.sequence2].name << ", " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " "
         //     << overlap.position_2_2 << endl;
+
         if (overlap.sequence1 == read){
             // cout << "Neighbor of " << allreads[overlap.sequence1].name << " : " << allreads[overlap.sequence2].name << endl;
             allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
@@ -869,7 +883,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     unordered_map <int, std::pair<int,int>> clusterLimits;
     vector<pair<pair<int,int>, vector<int>>> threadedClusters = threadHaplotypes(listOfFinalPartitionsTrimmed, numberOfReads, clusterLimits);
 
-    // cout << "threaded clusters ! " << endl;
     // for (auto i = 0 ; i < threadedClusters.size() ; i++){cout << threadedClusters[i];}cout << endl;
 
     // //rescue reads that have not been assigned to a cluster

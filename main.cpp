@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
-        checkOverlaps(allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
+        checkOverlaps(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
 
         //output GAF, the path of all reads on the new contigs
         if (format == "gfa"){
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
         if (format == "gfa"){
-            modify_GFA(refFile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
+            modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
             string zipped_GFA = "zipped_gfa.gfa";
             output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
@@ -244,7 +244,7 @@ int main(int argc, char *argv[])
             system(command.c_str());
         }
         else if (format == "fasta"){
-            modify_FASTA(refFile, allreads, backbone_reads, allOverlaps, partitions, readLimits, num_threads);
+            modify_FASTA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, readLimits, num_threads);
             output_FASTA(allreads, backbone_reads, outputFile);
         }
         

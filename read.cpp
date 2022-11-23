@@ -17,6 +17,14 @@ Read::Read(std::string s)
     depth = -1;
 }
 
+void Read::set_sequence(std::string s){
+    sequence_ = Sequence(s);
+}
+
+void Read::delete_sequence(){
+    sequence_ = Sequence();
+}
+
 void Read::add_overlap(long int o){
 
     neighbors_.push_back(o);
@@ -54,4 +62,12 @@ std::vector<size_t> Read::get_links_left(){
 
 std::vector<size_t> Read::get_links_right(){
     return links_right;
+}
+
+void Read::set_position_in_file(long int p){
+    positionInFile_ = p;
+}
+
+long int Read::get_position_in_file(){
+    return positionInFile_;
 }

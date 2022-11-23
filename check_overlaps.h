@@ -25,12 +25,12 @@ struct distancePartition{
 };
 
 
-void checkOverlaps(std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
+void checkOverlaps(std::string fileReads, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish, int num_threads);
 
-void compute_partition_on_this_contig(long int contig,std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
+void compute_partition_on_this_contig(std::string fileReads, long int contig,std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
             std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish);
@@ -40,7 +40,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish,
     wfa::WFAlignerGapAffine &aligner);
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads, std::string &id);
-std::string local_assembly(std::vector <std::string> &reads);
+// std::string local_assembly(std::vector <std::string> &reads);
 
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
         std::vector<Column> &snps, float minDistance, int numberOfReads);

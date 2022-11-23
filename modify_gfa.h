@@ -5,11 +5,11 @@
 #include <unordered_map>
 #include <set>
 
-void modify_GFA(std::string refFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
+void modify_GFA(std::string refFile, std::string readsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, std::vector<Link> &allLinks,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads);
 
-void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
+void modify_FASTA(std::string refFile, std::string readsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads);
 

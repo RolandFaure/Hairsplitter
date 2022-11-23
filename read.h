@@ -39,6 +39,9 @@ class Read
 public:
     Read();
     Read(std::string s);
+
+    void set_sequence(std::string s);
+    void delete_sequence();
     Sequence sequence_;
 
     std::string name;
@@ -48,6 +51,10 @@ public:
     void add_overlap(long int o);
     size_t size();
     void new_backbone(std::pair<int, int> pair, size_t size);
+
+    void set_position_in_file(long int p);
+    long int get_position_in_file();
+
     std::vector <long int> neighbors_; //list of long int referring to indices in allOverlaps
 
     void add_link(size_t l, short end); //that's when reads are actually contigs
@@ -59,6 +66,8 @@ public:
 private : //when reads are actually contigs
     std::vector<size_t> links_left; //indices of links in allLinks vector
     std::vector<size_t> links_right;
+
+    long int positionInFile_;
 };
 
 

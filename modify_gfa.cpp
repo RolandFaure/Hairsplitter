@@ -2,6 +2,7 @@
 #include<algorithm> //for "sort"
 #include <fstream>
 #include <omp.h>
+#include "input_output.h"
 
 using std::string;
 using std::cout;
@@ -34,7 +35,7 @@ extern bool DEBUG;
  * @param polish 
  * @param thread 
  */
-void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
+void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads){
 
@@ -56,6 +57,9 @@ void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector
 
         string thread_id = std::to_string(omp_get_thread_num());
         int backbone = backbones_reads[b];
+
+        //load all the reads needed
+        parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
 
         //if partitions[backbone].size() == 1, see if we need to repolish or not, depending on wether the coverage is coherent or not
         bool dont_recompute_contig = false;
@@ -208,6 +212,16 @@ void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector
         {
             log_text += local_log_text;
         }
+
+        //free up memory by deleting the sequence of the reads used there
+        for (auto n : allreads[backbones_reads[b]].neighbors_){
+            if (allOverlaps[n].sequence1 != backbones_reads[b]){
+                allreads[allOverlaps[n].sequence1].delete_sequence();
+            }
+            else{
+                allreads[allOverlaps[n].sequence2].delete_sequence();
+            }
+        }
     }
     std::ofstream o("output.txt");
     o << log_text << endl;
@@ -216,7 +230,7 @@ void modify_FASTA(std::string refFile, std::vector <Read> &allreads, std::vector
 
 //input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
 //output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
-void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
+void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
             unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, vector<Link> &allLinks,
             unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
 
@@ -226,6 +240,11 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
+
+        //first load all the reads
+        parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
+
+        //then separate the contigs
 
         string local_log_text = ""; //text that will be printed out in the output.txt generated in this thread
         if (DEBUG){
@@ -537,6 +556,16 @@ void modify_GFA(std::string refFile, vector <Read> &allreads, vector<unsigned lo
         #pragma omp critical
         {
             log_text += local_log_text;
+        }
+
+        //free up memory by deleting the sequence of the reads used there
+        for (auto n : allreads[backbones_reads[b]].neighbors_){
+            if (allOverlaps[n].sequence1 != backbones_reads[b]){
+                allreads[allOverlaps[n].sequence1].delete_sequence();
+            }
+            else{
+                allreads[allOverlaps[n].sequence2].delete_sequence();
+            }
         }
     }
     std::ofstream o("output.txt");

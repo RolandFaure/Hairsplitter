@@ -48,13 +48,18 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
     string line;
     vector<string> buffer;
     long int linecount = 0;
+    long int lastoffset = 0;
+    long int offset = 0;
 
     while(getline(in, line)){
 
-        if (line[0] == format && buffer.size() > 0 && linecount%4 == 0){
+        if (line[0] == format && buffer.size() > 0){
             //then first we append the last read we saw
-            Read r(buffer[1]);
+            //Read r(buffer[1]);
+            Read r(""); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
             r.name = buffer[0];
+            r.set_position_in_file(lastoffset+buffer[0].size()+1);
+            lastoffset = offset;
             allreads.push_back(r);
 
             ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
@@ -80,7 +85,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
         }
 
         linecount++;
-
+        offset += 1+line.size();
     }
 
     //now append the last read
@@ -103,7 +108,39 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
 }
 
-//input : file containing an assembly in fasta format
+/**
+ * @brief Uploads the sequence of the reads that align on backbone in allreads
+ * 
+ * @param fileReads file containing the reads
+ * @param backbone index of the backbone read in allreads
+ * @param allOverlaps vector of all overlaps between backbone reads and normal reads
+ * @param allreads vector of all the reads (including backbone)
+ */
+void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads){
+ 
+    ifstream in(fileReads);
+    string line;
+
+    //cout << "Loading reads that align on " << allreads[backbone].name << " " << allreads[backbone].neighbors_.size() << endl;
+
+    for (long int n: allreads[backbone].neighbors_){
+        long int read;
+        if (allOverlaps[n].sequence1 != backbone){
+            read = allOverlaps[n].sequence1;
+        }
+        else{
+            read = allOverlaps[n].sequence2;
+        }
+
+        in.seekg(allreads[read].get_position_in_file());
+        getline(in, line);
+
+        allreads[read].set_sequence(line);
+        // cout << "sequence of read " << allreads[read].name << " is recovered " << line.size() << " " << allreads[read].sequence_.size() << endl;// << line << endl;
+    }
+}
+
+//input : file containing an assembly in gfa or fasta format
 //output : the contigs appended to the end of allreads and marked as backbones
 void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices
     , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks, string &format){
@@ -123,10 +160,10 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     if (format == "fasta"){
 
         string nameOfSequence;
-        string seq;
+        string seq = "";
         while(getline(in, line)){
+
             if (line[0] == '>'){
-                
                 Read r(seq);
                 r.name = nameOfSequence;
                 r.comments = comments;
@@ -270,6 +307,12 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         throw std::invalid_argument( "Input file '"+filePAF +"' could not be read" );
     }
 
+    for (auto i : indices){
+        if (i.first == "m54081_181221_163846/4391584/9445_12374"){
+            cout << "DEBUG qspo: " << i.first << endl;
+        }
+    }
+
 
     vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
 
@@ -280,12 +323,12 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         string field;
         std::istringstream line2(line);
 
-        unsigned long int sequence1 = 10000;
+        unsigned long int sequence1 = -1;
         string name1;
         int pos1_1= -1;
         int pos1_2= -1;
         int length1= -1;
-        unsigned long int sequence2= 100000;
+        unsigned long int sequence2= -2;
         string name2;
         int pos2_1= -1;
         int pos2_2= -1;
@@ -304,7 +347,17 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         {
             if (fieldnumber == 0){
                 try{
+                    // if (indices.find(field)==indices.end()){
+                    //     cout << "DEactually not in indices" << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                    // }
                     sequence1 = indices[field];
+                    
+                    if (sequence1 == 0) {
+                        // cout << "DEBUG HYTR: " << field << " " << indices[field]<< endl;
+                        // if (indices.find(field)==indices.end()){
+                        //     cout << "actually not in indices" << endl;
+                        // }
+                    }
                     std::istringstream line3(field);
                     string unit;
                     while(getline(line3, unit, ' ')){
@@ -405,7 +458,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 }
             }
             
-            // if (name1 == "2_@DRR198813.7882"){
+            // if (name1 == "m54081_181221_163846/4194380/0_3763"){
             //     cout << "reading overlap with @2_@DRR198813.7882 : " << fullOverlap << " " << length1 << " " << pos1_1 << " " << pos1_2 << " " << name2 << endl;
             //     cout << "on practive, we mark them as overlapping... " << allreads[sequence1].name << " " << allreads[sequence2].name << endl;
             //     cout << sequence1 << " " << sequence2 << endl;
@@ -436,6 +489,9 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 if (sequence1 != sequence2){
                     allreads[sequence2].add_overlap(allOverlaps.size());
                 }
+                // if (sequence1 == 0){
+                //     cout << "DEBUG added edge bnbnb " << endl; 
+                // }
                 allOverlaps.push_back(overlap);
 
                 //now take care of backboneReads: two overlapping reads cannot both be backbone
@@ -455,6 +511,16 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         }
         linenumber++;
     }
+
+    // for (auto b : backbones_reads){
+    //     if (allreads[b].name == "contig_102"){
+    //         cout << "backbone: " << allreads[b].name << endl;
+
+    //         for (auto c : allreads[b].neighbors_){
+    //             cout << "on bb: " << allreads[allOverlaps[c].sequence1].name << endl;
+    //         }
+    //     }
+    // }
 
     //determine backbone_ reads if asked
     if (computeBackbones){
@@ -842,9 +908,9 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                             firsthere = true;
                         }
 
-                        if (stop){
-                            cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
-                        }
+                        // if (stop){ //you have one read that was lost just before !
+                        //     cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
+                        // }
                     }
                     else{
                         stop = true;

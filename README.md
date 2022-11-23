@@ -20,7 +20,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gcc=12.1.0 python=3.10.4 scipy numpy 
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx python=3.10.4 scipy numpy 
 conda activate hairsplitter
 ```
 
@@ -44,7 +44,7 @@ cmake .. -DCMAKE_CXX_COMPILER=g++
 make
 ```
 
-Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter only runs on not-too-old CPUs. We hope another solution will be found soon.
+Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter only runs on CPUs supporting AVX2 instructions (recent CPUs). We hope another solution will be found soon.
 
 # Usage
 
