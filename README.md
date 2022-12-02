@@ -40,7 +40,7 @@ git clone --recursive https://github.com/RolandFaure/Hairsplitter.git
 cd Hairsplitter
 mkdir build
 cd build
-cmake .. -DCMAKE_CXX_COMPILER=g++
+cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc
 make
 ```
 

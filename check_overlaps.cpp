@@ -67,7 +67,7 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_113"  ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_113"  ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -120,13 +120,13 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
 
     vector<bool> misalignedReads;
     string consensus;
-    wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+    wfa::WFAlignerGapAffine aligner(4,3,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
     cout << "creating MSA" << endl;
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
 
     //then separate the MSA
-    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(contig, allOverlaps, allreads, snps, meanDistance, 
+    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(allreads[contig].sequence_.str(),/* allOverlaps, allreads,*/ snps, meanDistance,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
     // cout << truePar << endl;
@@ -138,6 +138,10 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     // cout << endl;
 
     partitions[contig] = par;
+
+    //free up memory by deleting snps
+    snps.clear();
+    vector<Column>().swap(snps);
 
     //free up memory by deleting the sequence of the reads used there
     for (auto n : allreads[contig].neighbors_){
@@ -293,16 +297,15 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         
         string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
         string re = polishingReads[n].c_str();
-        aligner.alignEndsFree(cons, 0,0,  re, 0,0);
-
-        // wfa::WFAlignerGapAffine aligner2(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-        // aligner2.alignEndsFree(cons, 0,0,  re, 0,0);
-
+        aligner.alignEndsFree(cons,1000,1000, re, 1000, 1000); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
+        //aligner.alignEnd2End(cons, re);
 
         string alignment = aligner.getAlignmentCigar();
+        // cout << alignment << " ";
+        // cout << std::count(alignment.begin(), alignment.end(), 'I') << " " << std::count(alignment.begin(), alignment.end(), 'D') << "\n";
 
         totalLengthOfAlignment += alignment.size();
-        totalDistance += -aligner.getAlignmentScore();
+        totalDistance += std::count(alignment.begin(), alignment.end(), 'D');
         // mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
 
         // if (n == 10) {break;}
@@ -386,62 +389,62 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     }
     
     //print snps (just for debugging)
-    // int step = 1;
-    // int prop = 1; //1 for every base
-    // int firstRead = 0;
-    // int lastRead = polishingReads.size();
-    // int numberOfReads = lastRead-firstRead;
-    // int start = 01;
-    // int end = 106;
-    // vector<string> reads (numberOfReads);
-    // string cons = "";
-    // for (unsigned short i = start ; i < end; i+=prop){
+    int step = 3; //porportions of reads
+    int prop = 4; //proportion of positions
+    int firstRead = 0;
+    int lastRead = polishingReads.size();
+    int numberOfReads = lastRead-firstRead;
+    int start = 1500;
+    int end = 3000;
+    vector<string> reads (numberOfReads);
+    string cons = "";
+    for (unsigned short i = start ; i < end; i+=prop){
         
-    //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //         char c = '?';
-    //         int ri = 0;
-    //         int soughtRead = firstRead+n;
-    //         for (auto r : snps[i].readIdxs){
-    //             if (r == soughtRead){
-    //                 c = snps[i].content[ri];
-    //             }
-    //             ri ++;
-    //         }
-    //         reads[n/step] += c;
-    //     }
-    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //     //     int snpidx = insertionPos[10000*i+insert];
-    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //     //         char c = '?';
-    //     //         int ri = 0;
-    //     //         for (auto r : snps[snpidx].readIdxs){
-    //     //             if (r == n){
-    //     //                 c = snps[snpidx].content[ri];
-    //     //             }
-    //     //             ri ++;
-    //     //         }
-    //     //         reads[n/step] += c;
-    //     //     }
-    //     // }
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = firstRead;
-    // for (auto neighbor : reads){
-    //     if (neighbor[0] != '?'){
-    //         cout << neighbor << " " << index  << endl;
-    //     }
-    //     index+= step;
-    // }
-    // int n = 0;
-    // for(auto i : consensus.substr(start, end-start)){
-    //     if (n%prop == 0){
-    //         cout << i;
-    //     }
-    //     n+=1;
-    // } cout << endl;
+        for (short n = 0 ; n < numberOfReads*step ; n+= step){
+            char c = '?';
+            int ri = 0;
+            int soughtRead = firstRead+n;
+            for (auto r : snps[i].readIdxs){
+                if (r == soughtRead){
+                    c = snps[i].content[ri];
+                }
+                ri ++;
+            }
+            reads[n/step] += c;
+        }
+        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+        //     int snpidx = insertionPos[10000*i+insert];
+        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+        //         char c = '?';
+        //         int ri = 0;
+        //         for (auto r : snps[snpidx].readIdxs){
+        //             if (r == n){
+        //                 c = snps[snpidx].content[ri];
+        //             }
+        //             ri ++;
+        //         }
+        //         reads[n/step] += c;
+        //     }
+        // }
+    }
+    cout << "Here are the aligned reads : " << endl;
+    int index = firstRead;
+    for (auto neighbor : reads){
+        if (neighbor[0] != '?'){
+            cout << neighbor << " " << index  << endl;
+        }
+        index+= step;
+    }
+    int n = 0;
+    for(auto i : consensus.substr(start, end-start)){
+        if (n%prop == 0){
+            cout << i;
+        }
+        n+=1;
+    } cout << endl;
 
-    // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-    // std::copy(misalignedReads.begin(), misalignedReads.end(), std::ostream_iterator<bool>(std::cout, " "));
+    cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+    std::copy(misalignedReads.begin(), misalignedReads.end(), std::ostream_iterator<bool>(std::cout, " "));
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -555,10 +558,16 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
 //     return contig;
 // }
 
-//input : a set of reads aligned to read in matrix snps
-//output : reads separated by their region of origin
-vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
-        std::vector<Column> &snps, float meanDistance, int numberOfReads){
+/**
+ * @brief separates the reads of the MSA into groups
+ * 
+ * @param ref reference sequence against which the reads are aligned
+ * @param snps MSA
+ * @param meanDistance estimation of the error rate
+ * @param numberOfReads number of reads of the MSA
+ * @return vector<pair<pair<int,int>, vector<int>> >  pairs of coordinates to which are attached a certain partition of reads
+ */
+vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, float meanDistance, int numberOfReads){
 
     /*
     The null model is described as uniform error rate -> binomial error distribution on one position
@@ -583,7 +592,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
     vector<size_t> suspectPostitions;
     vector <int> interestingParts; //DEBUG
 
-    for (int position = 0 ; position < allreads[read].size() ; position++){ 
+    for (int position = 0 ; position < ref.size() ; position++){ 
 
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
@@ -625,7 +634,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                     
                     int pos = -1;
-                    if (position < allreads[read].size()){
+                    if (position < ref.size()){
                         pos = position;
                     }
 
@@ -648,7 +657,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
                 }
             }
 
-            if (!found && position < allreads[read].size()){    // the second condition is here to create partitions only at specific spots of the backbone
+            if (!found && position < ref.size()){    // the second condition is here to create partitions only at specific spots of the backbone
                 distanceBetweenPartitions.push_back(distances);
                 partitions.push_back(Partition(snps[position], position)); 
             }
@@ -848,7 +857,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(long int read, std::vec
         
         if (scores[max_idx] > 9){
             int pos = -1;
-            if (position < allreads[read].size()){
+            if (position < ref.size()){
                 pos = position;
             }
             partitions_recomputed[max_idx].augmentPartition(partitionToAugment[max_idx], pos);

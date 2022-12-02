@@ -143,7 +143,8 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
                             //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
                             string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
                                                     min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
-                            newcontig = consensus_reads(toPolish2, group.second, thread_id);
+                            std::string nameOfFile = thread_id+std::to_string(group.first);
+                            newcontig = consensus_reads(toPolish2, group.second, nameOfFile);
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
@@ -169,7 +170,7 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
      
                     allreads.push_back(r);
                     backbones_reads.push_back(allreads.size()-1);
-                    if (omp_get_thread_num() == 0){
+                    if (omp_get_thread_num() == 0 && DEBUG){
                         cout << "created the contig " << r.name << endl;
                     }
                     local_log_text += "   - " + r.name + "\n";
