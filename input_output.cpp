@@ -297,8 +297,16 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     }
 }
 
-//input : a file containing overlaps
-//output : the set of all overlaps, updated allreads with overlaps, and optionnaly a list of backbone reads
+/**
+ * @brief Parses the PAF files of all the reads aligned on the assembly
+ * 
+ * @param fileSAM Name of SAM file
+ * @param allOverlaps vector containing all the overlaps
+ * @param allreads vector containing all the reads as well as the contigs. This is updated with all the overlaps
+ * @param indices maps the name of the reads to their index in allreads (comes from parse_reads)
+ * @param backbones_reads indicates which of the reads are actually contigs in allreads
+ * @param computeBackbones in case where there is no backbone assembly, set this to true. Backbones are then selected from the reads 
+ */
 void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbones_reads, bool computeBackbones){
 
     ifstream in(filePAF);
@@ -306,13 +314,6 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         cout << "problem reading PAF file " << filePAF << endl;
         throw std::invalid_argument( "Input file '"+filePAF +"' could not be read" );
     }
-
-    for (auto i : indices){
-        if (i.first == "m54081_181221_163846/4391584/9445_12374"){
-            cout << "DEBUG qspo: " << i.first << endl;
-        }
-    }
-
 
     vector<bool> backbonesReads (allreads.size(), true); //for now all reads can be backbones read, they will be filtered afterward
 
@@ -347,9 +348,10 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         {
             if (fieldnumber == 0){
                 try{
-                    // if (indices.find(field)==indices.end()){
-                    //     cout << "DEactually not in indices" << endl; // m54081_181221_163846/4391584/9445_12374 for example
-                    // }
+                    if (indices.find(field)==indices.end()){
+                        cout << "Read in PAF not found in FASTA: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                        allgood = false;
+                    }
                     sequence1 = indices[field];
                     
                     if (sequence1 == 0) {
@@ -531,6 +533,126 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         }
     }
 
+}
+
+/**
+ * @brief Parses the SAM files of all the reads aligned on the assembly
+ * 
+ * @param fileSAM Name of SAM file
+ * @param allOverlaps vector containing all the overlaps
+ * @param allreads vector containing all the reads as well as the contigs
+ * @param indices maps the name of the reads to their index in allreads (comes from parse_reads)
+ * @param backbonesReads indicates which of the reads are actually contigs in allreads
+ */
+void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
+
+    ifstream in(fileSAM);
+    if (!in){
+        cout << "problem reading SAM file " << fileSAM << endl;
+        throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
+    }
+
+    string line;
+    long int linenumber = 0;
+    while(getline(in, line)){
+
+        if (line[0] != '@'){
+            string field;
+            std::istringstream line2(line);
+
+            unsigned long int sequence1 = -1;
+            string name1;
+            int length1 = 0;
+            unsigned long int sequence2= -2;
+            string name2;
+            int pos2_1= -1;
+            bool positiveStrand = true;
+
+            string cigar;
+
+            bool allgood = true;
+            //now go through the fields of the line
+            short fieldnumber = 0;
+            while (getline(line2, field, '\t'))
+            {
+                if (fieldnumber == 0){
+                    try{
+                        if (indices.find(field)==indices.end()){
+                            cout << "WARNING: read in the sam file not found in fasta file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                            allgood = false;
+                        }
+                        
+                        sequence1 = indices[field];     
+
+                    }
+                    catch(...){
+                        cout << "There is a sequence in the PAF I did not find in the fasta: " << field << endl;
+                        allgood = false;
+                    }
+                }
+                else if (fieldnumber == 1){ //this is the flag
+                    int flag = stoi(field);
+                    if (flag%4 >= 2 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is not the main mapping
+                        allgood = false;
+                    }
+                    if (flag%32 >= 16){
+                        positiveStrand = false;
+                    }
+                }
+                else if (fieldnumber == 2){
+                    try{
+                        sequence2 = indices[field];
+                        std::istringstream line3(field);
+                        string unit;
+                        while(getline(line3, unit, ' ')){
+                            name2 = unit;
+                            break;
+                        }
+                    }
+                    catch(...){
+                        cout << "There is a sequence in the SAM I did not find in the fasta/q:" << field << ":" << endl;
+                        allgood = false;
+                    }
+                }
+                else if (fieldnumber == 3){
+                    pos2_1 = stoi(field);
+                }
+                else if (fieldnumber == 5){
+                    cigar = field;
+                }
+                else if (fieldnumber == 9){
+                    length1 = field.size();
+                }
+                //std::cout << "my field is : " << field << std::endl;
+                fieldnumber++;
+            }
+
+            if (allgood && fieldnumber > 10 && sequence2 != sequence1){
+
+                Overlap overlap;
+                overlap.sequence1 = sequence1;
+                overlap.sequence2 = sequence2;
+                overlap.position_1_1 = 0;
+                overlap.position_1_2 = length1;
+                overlap.position_2_1 = pos2_1;
+                overlap.position_2_2 = pos2_1+length1;
+                overlap.strand = positiveStrand;
+                overlap.CIGAR = cigar;
+
+                cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+
+                allreads[sequence1].add_overlap(allOverlaps.size());
+                if (sequence1 != sequence2){
+                    allreads[sequence2].add_overlap(allOverlaps.size());
+                }
+                // if (sequence1 == 0){
+                //     cout << "DEBUG added edge bnbnb " << endl; 
+                // }
+                allOverlaps.push_back(overlap);
+            }
+            linenumber++;
+        }
+    }
 }
 
 /*

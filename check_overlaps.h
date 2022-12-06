@@ -42,8 +42,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads, std::string &id);
 // std::string local_assembly(std::vector <std::string> &reads);
 
-std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(std::string ref, /*std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, */
-        std::vector<Column> &snps, float minDistance, int numberOfReads);
+std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(std::string& ref, std::vector<Column> &snps, float minDistance, int numberOfReads);
 
 distancePartition distance(Partition &par1, Column &par2);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);

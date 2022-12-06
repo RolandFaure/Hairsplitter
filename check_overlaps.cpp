@@ -15,6 +15,7 @@
 
 #include "robin_hood.h"
 #include "input_output.h"
+#include "tools.h"
 
 using std::string;
 using std::cout;
@@ -126,7 +127,8 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
 
     //then separate the MSA
-    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(allreads[contig].sequence_.str(),/* allOverlaps, allreads,*/ snps, meanDistance,
+    string ref = allreads[contig].sequence_.str();
+    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref, snps, meanDistance,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
     // cout << truePar << endl;
@@ -175,7 +177,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     std::vector<Column> &snps, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
     unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish, wfa::WFAlignerGapAffine& aligner){
 
-
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
 
@@ -199,23 +200,23 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     string read_str = allreads[read].sequence_.str();
 
     //small loop to compute truePartition DEBUG
-    if (DEBUG){
-        for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+    // if (DEBUG){
+    //     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
 
-            long int neighbor = allreads[read].neighbors_[n];
-            Overlap overlap = allOverlaps[neighbor];
+    //         long int neighbor = allreads[read].neighbors_[n];
+    //         Overlap overlap = allOverlaps[neighbor];
             
-            if (overlap.sequence1 == read){
+    //         if (overlap.sequence1 == read){
 
-                truePar.push_back(allreads[overlap.sequence2].name[10]);
-                // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-            }
-            else{
-                truePar.push_back(allreads[overlap.sequence1].name[10]);
-                // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-            }    
-        }
-    }
+    //             truePar.push_back(allreads[overlap.sequence2].name[10]);
+    //             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+    //         }
+    //         else{
+    //             truePar.push_back(allreads[overlap.sequence1].name[10]);
+    //             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+    //         }    
+    //     }
+    // }
 
     // string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/answer_"+std::to_string(read)+".tsv";
     // std::ofstream out(fileOut);
@@ -227,6 +228,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     //in the same loop, inventoriate all the polishing reads
     vector <string> polishingReads;
     vector <pair <int,int>> positionOfReads; //position of polishing reads on the consensus
+    vector <string> CIGARs;
     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
         long int neighbor = allreads[read].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
@@ -234,28 +236,56 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         // cout << "overlap : " << allreads[overlap.sequence1].name << " on " <<allreads[overlap.sequence2].name << ", " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " "
         //     << overlap.position_2_2 << endl;
 
-        if (overlap.sequence1 == read){
-            // cout << "Neighbor of " << allreads[overlap.sequence1].name << " : " << allreads[overlap.sequence2].name << endl;
-            allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
-            if (overlap.strand){
-                polishingReads.push_back(allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1, overlap.position_2_2-overlap.position_2_1).str());
-                positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+        if (overlap.CIGAR != "" && !polish){
+            CIGARs.push_back(overlap.CIGAR);
+            if (overlap.sequence1 == read){
+                allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+                if (overlap.strand){
+                    polishingReads.push_back(allreads[overlap.sequence2].sequence_.str());
+                    positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+                }
+                else{
+                    polishingReads.push_back(allreads[overlap.sequence2].sequence_.reverse_complement().str());
+                    positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+                }
             }
-            else{
-                polishingReads.push_back(allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1, overlap.position_2_2-overlap.position_2_1).reverse_complement().str());
-                positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+            else { //generally go through here
+                cout << "Neighbor of " << allreads[overlap.sequence2].name << " : " << allreads[overlap.sequence1].name << endl;
+                allreads[overlap.sequence1].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+                if (overlap.strand){
+                    polishingReads.push_back(allreads[overlap.sequence1].sequence_.str());
+                    positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+                }
+                else{
+                    polishingReads.push_back(allreads[overlap.sequence1].sequence_.reverse_complement().str());
+                    positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+                }
             }
         }
-        else {
-            // cout << "Neighbor of " << allreads[overlap.sequence2].name << " : " << allreads[overlap.sequence1].name << endl;
-            allreads[overlap.sequence1].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
-            if (overlap.strand){
-                polishingReads.push_back(allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).str());
-                positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+        else{
+
+            if (overlap.sequence1 == read){
+                // cout << "Neighbor of " << allreads[overlap.sequence1].name << " : " << allreads[overlap.sequence2].name << endl;
+                allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+                if (overlap.strand){
+                    polishingReads.push_back(allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1, overlap.position_2_2-overlap.position_2_1).str());
+                    positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+                }
+                else{
+                    polishingReads.push_back(allreads[overlap.sequence2].sequence_.subseq(overlap.position_2_1, overlap.position_2_2-overlap.position_2_1).reverse_complement().str());
+                    positionOfReads.push_back(make_pair(overlap.position_1_1, overlap.position_1_2));
+                }
             }
-            else{
-                polishingReads.push_back(allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).reverse_complement().str());
-                positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+            else {
+                allreads[overlap.sequence1].new_backbone(make_pair(backboneReadIndex,n), allreads[read].neighbors_.size()+1);
+                if (overlap.strand){
+                    polishingReads.push_back(allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).str());
+                    positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+                }
+                else{
+                    polishingReads.push_back(allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).reverse_complement().str());
+                    positionOfReads.push_back(make_pair(overlap.position_2_1, overlap.position_2_2));
+                }
             }
         }
     }
@@ -273,7 +303,6 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
         consensus = read_str; //if the input assembly is already polished
     } 
 
-    //snps = vector<vector<char>>(consensus.size(), vector<char>(polishingReads.size(), '?'));
     snps = vector<Column>(consensus.size());
 
     //while all the alignments are computed, build the positions
@@ -287,6 +316,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     // wfa::WFAlignerGapAffine aligner(1,1,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
+    std::vector<float> readsWithInsertionsOrDeletions (polishingReads.size(), 0);
+
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         if (DEBUG){
@@ -295,32 +326,49 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
         auto t1 = high_resolution_clock::now();
         
-        string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
-        string re = polishingReads[n].c_str();
-        aligner.alignEndsFree(cons,1000,1000, re, 1000, 1000); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
-        //aligner.alignEnd2End(cons, re);
+        string alignment;
+        if (CIGARs.size() != polishingReads.size()){ //compute the exact alignment if it is not already computed
 
-        string alignment = aligner.getAlignmentCigar();
+            string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
+            string re = polishingReads[n].c_str();
+            int marginLeftEnd = std::min(int(cons.size()/4), 1000);
+            int marginRightEnd = std::min(int(re.size()/4), 1000);
+            aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
+            //aligner.alignEnd2End(cons, re);
+
+            alignment = aligner.getAlignmentCigar();
+        }
+        else{
+            alignment = convert_cigar(CIGARs[n]);
+        }
         // cout << alignment << " ";
         // cout << std::count(alignment.begin(), alignment.end(), 'I') << " " << std::count(alignment.begin(), alignment.end(), 'D') << "\n";
 
         totalLengthOfAlignment += alignment.size();
         totalDistance += std::count(alignment.begin(), alignment.end(), 'D');
+        totalDistance += std::count(alignment.begin(), alignment.end(), 'I');
+        totalDistance += std::count(alignment.begin(), alignment.end(), 'X');
         // mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
 
         // if (n == 10) {break;}
 
         //a loop going through the CIGAR and modifyning snps
-        int indexQuery = 0+positionOfReads[n].first; //query corresponds to consensus
 
         auto t2 = high_resolution_clock::now();
 
         // //a loop going through the CIGAR and modifyning snps
-        // int indexQuery = result.startLocations[0]+positionOfReads[n].first; //query corresponds to consensus
+        int indexQuery = positionOfReads[n].first; //query corresponds to consensus
         int indexTarget = 0; //target corresponds to the read
         int numberOfInsertionsThere = 0;
 
-        //cout << "beginning of query : " << indexQuery << " " << consensus.size() << " " << snps.size() << " " << result.alignmentLength << endl;
+        int numberOfConsecutiveMatches = 0;
+        int insertionDeletionDesequilibrium = 0;
+        int lengthofstretch = 0;
+        bool inAlignedPart = false;
+
+        // if (n < 2){
+        //     cout << "beginning of query : " << indexQuery << " " << alignment << " " << polishingReads[n].substr(indexQuery,100) << endl;
+        // }
 
         for (int l = 0; l < alignment.size(); l++) {
 
@@ -328,6 +376,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
                 if (alignment[l] == '=' || alignment[l] == 'X' || alignment[l] == 'M'){
                     //fill inserted columns with '-' just before that position
+                    // numberOfConsecutiveMatches += 1;
                     for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of '?'
                         snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
                         snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
@@ -339,6 +388,12 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     indexQuery++;
                     indexTarget++;
                     numberOfInsertionsThere = 0;
+                    // if (n<2 && indexQuery < 900){
+                    //     cout << indexTarget << ",";
+                    // }
+                }
+                else if (alignment[l] == 'S'){ //soft-clipped bases
+                    indexTarget++;
                 }
                 else if (alignment[l] == 'D'){
                     //fill inserted columns with '-' just before that position
@@ -351,6 +406,8 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                     snps[indexQuery].content.push_back('-');                    
                     indexQuery++;
                     numberOfInsertionsThere = 0;
+                    // numberOfConsecutiveMatches = 0;
+                    // insertionDeletionDesequilibrium -= 1;
                 }
                 else if (alignment[l] == 'I'){ //hardest one
                     if (numberOfInsertionsHere[indexQuery] <= 9999 && indexQuery > positionOfReads[n].first) {
@@ -372,8 +429,24 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
                         numberOfInsertionsThere ++;
                     }
                     indexTarget++;
+                    // numberOfConsecutiveMatches = 0;
+                    // insertionDeletionDesequilibrium += 1;
                 }
+
+                // if (numberOfConsecutiveMatches > 10 && inAlignedPart ){ //looks like a big insertion/deletion!
+                //     if (insertionDeletionDesequilibrium < -10 || insertionDeletionDesequilibrium > 10){
+                //         readsWithInsertionsOrDeletions[n]++;
+                //     }
+                //     insertionDeletionDesequilibrium = 0;
+                //     lengthofstretch = 0;
+                // }
+                // if (!inAlignedPart && numberOfConsecutiveMatches > 10){
+                //     inAlignedPart = true;
+                //     insertionDeletionDesequilibrium = 0;
+                //     lengthofstretch = 0;
+                // }
             }
+            // lengthofstretch++;
             //cout << l << " " << result.alignmentLength <<  "\n";
         }
 
@@ -386,16 +459,19 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
 
     if (DEBUG){
         cout << "Building MSA took time... " << alignmentTime << " for WFA and " << MSAtime << " for filling the vector" << endl;
+        cout << "The reads with a lot of insertions/deletions are: ";
+        std::copy(readsWithInsertionsOrDeletions.begin(), readsWithInsertionsOrDeletions.end(), std::ostream_iterator<float>(std::cout, " "));
+        cout << endl;
     }
     
     //print snps (just for debugging)
-    int step = 3; //porportions of reads
-    int prop = 4; //proportion of positions
+    int step = 1; //porportions of reads
+    int prop = 1; //proportion of positions
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 1500;
-    int end = 3000;
+    int start = 800;
+    int end = 1000;
     vector<string> reads (numberOfReads);
     string cons = "";
     for (unsigned short i = start ; i < end; i+=prop){
@@ -430,7 +506,7 @@ float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vecto
     cout << "Here are the aligned reads : " << endl;
     int index = firstRead;
     for (auto neighbor : reads){
-        if (neighbor[0] != '?'){
+        if (neighbor[0] != '?' || true){
             cout << neighbor << " " << index  << endl;
         }
         index+= step;

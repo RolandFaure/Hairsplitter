@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--outputGFA").doc("Output assembly file, same format as input") & value("output assembly", outputFile),
-            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (PAF format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (PAF or SAM format)") & value("aligned reads", alnOnRefFile),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
@@ -199,7 +199,16 @@ int main(int argc, char *argv[])
         parse_assembly(refFile, allreads, indices, backbone_reads, allLinks, format);
 
         cout << " - Loading alignments of the reads on the contigs from " << alnOnRefFile << "\n";
-        parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
+        if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".paf"){
+            parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
+        }
+        else if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".sam"){
+            parse_SAM(alnOnRefFile, allOverlaps, allreads, indices);
+        }
+        else{
+            cout << "ERROR: the file containing the alignments on the assembly should be either .paf or .sam" << endl;
+            exit(EXIT_FAILURE);
+        }
 
         cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
         cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
