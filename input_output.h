@@ -22,11 +22,15 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
 // void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants);
         
 void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks, 
-    std::vector <Overlap> &allOverlaps, std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, std::string outputGAF);
+    std::vector <Overlap> &allOverlaps, std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+    std::string outputGAF);
 
 void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut);
 void output_GFA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut, std::vector<Link> &allLinks);
 void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <Read> &allreads, std::vector<std::vector<int>> &partitions, robin_hood::unordered_map<std::string, unsigned long int> &indices);
+void output_readGroups(std::string readGroupsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, 
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, std::vector <Overlap> &allOverlaps);
+
 
 //debug functions
 void outputGraph(std::vector<std::vector<float>> &adj , std::vector<int> &clusters, std::string fileOut);

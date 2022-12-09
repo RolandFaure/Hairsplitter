@@ -49,7 +49,7 @@ public :
     void flipPartition(); //transforms all 1s in 0s and vice-versa
 
     void new_corrected_partition(std::vector<short> newPartition); //Changes partition without changing anything else !!
-    void new_number(int n); //changes the numberOfOccurences without changing anything else
+    void extend_with_partition(Partition &p); //extends the partition with the partition p obtained by correlating the partition at all positions
 
 private :
     std::vector <int> readIdx; //the list of reads is sparse : here are the filled indices (ordered)

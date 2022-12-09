@@ -90,6 +90,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
     //now append the last read
     Read r(buffer[1]);
+    r.name = buffer[0];
     allreads.push_back(r);
 
     ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
@@ -592,7 +593,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 1){ //this is the flag
                     int flag = stoi(field);
-                    if (flag%4 >= 2 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is not the main mapping
+                    if (flag%4 >= 2 || flag%512 >= 256 || flag >= 2048){ //this means that 1) the reads does not map well or 2)3) this is not the main mapping
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -639,7 +640,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 overlap.strand = positiveStrand;
                 overlap.CIGAR = cigar;
 
-                cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+                // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
 
                 allreads[sequence1].add_overlap(allOverlaps.size());
                 if (sequence1 != sequence2){
@@ -987,8 +988,9 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
  * @param outputGAF name of the output file
  */
 typedef std::tuple<int, vector<pair<string, bool>>, long int> Path; //a path is a starting position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
-void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks,
-    std::vector <Overlap> &allOverlaps, std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, std::string outputGAF){
+void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks, std::vector <Overlap> &allOverlaps,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+    std::string outputGAF){
 
     vector<vector<Path>> readPaths (allreads.size()); //to each read we associate a path on the graph
 
@@ -1023,8 +1025,8 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 bool lasthere = false;
                 int inter = 0;
                 for (auto interval : partitions[backbone]){
-                    if (interval.second[n] != -1 && !stop){
-                        sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second[n])
+                    if (interval.second.first[n] != -1 && !stop){
+                        sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));
                         if (inter == 0){
                             firsthere = true;
@@ -1218,6 +1220,36 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
                 << "\t" << end2 << "\t" << l.CIGAR << "\n";
         }
     }
+}
+
+/**
+ * @brief Outputs the readGroups file
+ * 
+ * @param readGroupsFile file to write the readGroups in (.txt)
+ * @param allreads 
+ * @param backbone_reads 
+ * @param partitions 
+ */
+void output_readGroups(std::string readGroupsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, 
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, std::vector <Overlap> &allOverlaps){
+
+    ofstream out(readGroupsFile);
+    for (auto r : backbone_reads){
+        Read contig = allreads[r];
+        out << "@CONTIG " << contig.name << "\t" << contig.comments << "\n";
+        for (auto p : partitions[r]){
+            out << "@POS_ON_CONTIG " << p.first.first << " <-> " << p.first.second << "\n";
+            for (auto neighbor = 0 ; neighbor < p.second.first.size() ; neighbor++){
+                Overlap ov = allOverlaps[contig.neighbors_[neighbor]];
+                Read read = allreads[ov.sequence1];
+                out << read.name << "\t" << p.second.first[neighbor] << "\t" << ov.sequence1 << "\n";
+            }
+            out << "\n";
+        }
+        out << "\n\n";
+        
+    }
+
 }
 
 void outputTruePar(Partition truePar, std::string id){

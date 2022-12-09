@@ -22,6 +22,8 @@ using std::to_string;
 
 extern bool DEBUG;
 
+
+
 /**
  * @brief Computes all the new contigs resulting from the splitting of old ones
  * 
@@ -36,7 +38,7 @@ extern bool DEBUG;
  * @param thread 
  */
 void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read> &allreads, std::vector<unsigned long int> &backbones_reads,  std::vector <Overlap> &allOverlaps, 
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -102,9 +104,9 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
 
-                for (int r = 0 ; r < interval.second.size(); r++){
-                    if (interval.second[r] != -1){
-                        int clust = interval.second[r];
+                for (int r = 0 ; r < interval.second.first.size(); r++){
+                    if (interval.second.first[r] != -1){
+                        int clust = interval.second.first[r];
                         int limitLeft = allOverlaps[allreads[backbone].neighbors_[r]].position_1_1; //the limit of the read that we should use
                         int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
@@ -129,23 +131,24 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
                 }
                 // cout << endl;
 
-                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first+1, interval.first.second-interval.first.first-1); 
 
-                unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
+                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
-                    
+
+                    string toPolish = interval.second.second[group.first];
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
                         // newcontig = local_assembly(group.second);
+                        //newcontig = interval.second.second[group.first]; //the sequence that had been computed while separating the reads
+                        
+                        //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
+                        //toPolish2 is toPolish, with 100bp of singlepolish on both sides
+                        string toPolish2 = singlepolish.substr(max(0, interval.first.first - 100), min(interval.first.first, 100)) + toPolish + singlepolish.substr(interval.first.second+1, min(100, int(singlepolish.size())-interval.first.second-1));
 
-                        if (newcontig == ""){//if the assembly was not successful for one reason or another
-                            //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
-                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
-                                                    min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
-                            std::string nameOfFile = thread_id+std::to_string(group.first);
-                            newcontig = consensus_reads(toPolish2, group.second, nameOfFile);
-                        }
+                        std::string nameOfFile = thread_id+std::to_string(group.first);
+                        newcontig = consensus_reads(toPolish2, group.second, nameOfFile);
+            
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
@@ -153,7 +156,6 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
                         newcontig = newcontig.substr(max(0,result.startLocations[0]-1), min(result.endLocations[0]-result.startLocations[0]+3, int(newcontig.size())-result.startLocations[0]));
 
                         edlibFreeAlignResult(result);
-                        
                     }
                     else {
                         string extract = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
@@ -232,8 +234,8 @@ void modify_FASTA(std::string refFile,std:: string readsFile, std::vector <Read>
 //input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
 //output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
 void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
-            unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> &partitions, vector<Link> &allLinks,
-            unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
+            std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+            vector<Link> &allLinks, unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     string log_text = ""; //text that will be printed out in the output.txt
@@ -279,8 +281,8 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
-                    auto stitchLeft = stitch(partitions[backbone][n].second, partitions[backbone][n-1].second);
-                    auto stitchRight = stitch(partitions[backbone][n-1].second, partitions[backbone][n].second);
+                    auto stitchLeft = stitch(partitions[backbone][n].second.first, partitions[backbone][n-1].second.first);
+                    auto stitchRight = stitch(partitions[backbone][n-1].second.first, partitions[backbone][n].second.first);
 
                     for (auto s : stitchLeft){
                         stitches[n][s.first] = s.second;
@@ -358,9 +360,9 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 //taking exactly the right portion of read we need
-                for (int r = 0 ; r < interval.second.size(); r++){
-                    if (interval.second[r] != -1){
-                        int clust = interval.second[r];
+                for (int r = 0 ; r < interval.second.first.size(); r++){
+                    if (interval.second.first[r] != -1){
+                        int clust = interval.second.first[r];
                         int limitLeft = allOverlaps[allreads[backbone].neighbors_[r]].position_1_1; //the limit of the read that we should use
                         int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
@@ -385,21 +387,22 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
                 }
                 // cout << endl;
 
-                string toPolish = allreads[backbone].sequence_.str().substr(interval.first.first+1, interval.first.second-interval.first.first-1); 
+                string toPolish = interval.second.second[group.first];
                 vector<int> futureHangingLinks;
 
-                unordered_map <int, double> newdepths = recompute_depths(interval, readLimits[backbone], allreads[backbone].depth);
+                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
                     
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
+
                         // newcontig = local_assembly(group.second);
 
                         if (newcontig == ""){//if the assembly was not successful for one reason or another
                             //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
-                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0,interval.first.first-100), 
-                                                    min(interval.first.second-interval.first.first+200, int(allreads[backbone].sequence_.size())-max(0,interval.first.first-10)));
+                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - 100), min(interval.first.first, 100)) + toPolish + allreads[backbone].sequence_.str().substr(interval.first.second+1, min(100, int(allreads[backbone].sequence_.str().size())-interval.first.second-1));
+
                             newcontig = consensus_reads(toPolish2, group.second, thread_id);
                         }
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
@@ -409,6 +412,7 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
                         newcontig = newcontig.substr(max(0,result.startLocations[0]-1), min(result.endLocations[0]-result.startLocations[0]+3, int(newcontig.size())-result.startLocations[0]));
 
                         edlibFreeAlignResult(result);
+                        
                         
                     }
                     else {
@@ -614,18 +618,18 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
 
 //input : an interval, the list of the limits of the reads on the backbone, the depth of the contig of origin
 //output : the recomputed read coverage for each of the new contigs, (scaled so that the total is the original depth)
-std::unordered_map<int, double> recompute_depths(std::pair<std::pair<int,int>, std::vector<int>> &interval, std::vector<std::pair<int,int>>& readBorders, double originalDepth){
+std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<std::pair<int,int>>& readBorders, double originalDepth){
 
     unordered_map <int, double> newCoverage;
-    int lengthOfInterval = interval.first.second-interval.first.first;
+    int lengthOfInterval = limits.second-limits.first;
 
-    for (auto c = 0 ; c < interval.second.size() ; c++){
+    for (auto c = 0 ; c < partition.size() ; c++){
 
-        if (newCoverage.find(interval.second[c]) == newCoverage.end()){
-            newCoverage[interval.second[c]] = 0;
+        if (newCoverage.find(partition[c]) == newCoverage.end()){
+            newCoverage[partition[c]] = 0;
         }
 
-        newCoverage[interval.second[c]] += max(0.0, double(min(interval.first.second, readBorders[c].second)-max(interval.first.first, readBorders[c].first))/lengthOfInterval );
+        newCoverage[partition[c]] += max(0.0, double(min(limits.second, readBorders[c].second)-max(limits.first, readBorders[c].first))/lengthOfInterval );
 
     }
 

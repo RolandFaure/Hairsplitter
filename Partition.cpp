@@ -359,6 +359,87 @@ void Partition::mergePartition(Partition &p){
     this->mergePartition(p, phased);
 }
 
+/**
+ * @brief Extend the partition with the partition composed of all positions correlated with this partition aggregated
+ * 
+ * @param p 
+ */
+void Partition::extend_with_partition(Partition &p){
+    numberOfOccurences = p.number();
+
+    //iterate over the reads of the partition
+    pos_left = std::min(pos_left, p.get_left());
+    pos_right = std::max(pos_right, p.get_right());
+
+    //then merge the content of the two partitions priorizing the current partition
+    auto moreOther = p.getMore();
+    auto lessOther = p.getLess();
+
+    auto other = p.getPartition();
+    auto idx2 = p.getReads();
+
+    vector<int> newIdx;
+    vector<short> newMostFrequent;
+    vector<int> newMoreFrequence;
+    vector<int> newLessFrequence;
+
+    int n1 = 0;
+    int n2 = 0;
+    while (n1 < readIdx.size() && n2 < idx2.size() ){
+        while (readIdx[n1] < idx2[n2] && n1 < readIdx.size()){
+            newIdx.push_back(readIdx[n1]);
+            newMostFrequent.push_back(mostFrequentBases[n1]);
+            newMoreFrequence.push_back(moreFrequence[n1]);
+            newLessFrequence.push_back(lessFrequence[n1]);
+            n1++;
+        }
+
+        while (readIdx[n1] > idx2[n2] && n2 < idx2.size()){ //if read is present on the other partition but not on this one
+            newIdx.push_back(idx2[n2]);
+            newMostFrequent.push_back(other[n2]);
+            newMoreFrequence.push_back(moreOther[n2]);
+            newLessFrequence.push_back(lessOther[n2]);
+            n2++;
+        }
+
+        if (n1 < readIdx.size() && n2 < idx2.size() && readIdx[n1] == idx2[n2]){ //the read is present on both partitions, priorize the current partition
+            newIdx.push_back(readIdx[n1]);
+            if (mostFrequentBases[n1] == 0){
+                newMostFrequent.push_back(other[n2]);
+                newMoreFrequence.push_back(moreOther[n2]);
+                newLessFrequence.push_back(lessOther[n2]);
+            }
+            else{
+                newMostFrequent.push_back(mostFrequentBases[n1]);
+                newMoreFrequence.push_back(moreFrequence[n1]);
+                newLessFrequence.push_back(lessFrequence[n1]);
+            }
+            n1++;
+            n2++;
+        }
+    }
+    while (n2 < idx2.size()){
+        newIdx.push_back(idx2[n2]);
+        newMostFrequent.push_back(other[n2]);
+        newMoreFrequence.push_back(moreOther[n2]);
+        newLessFrequence.push_back(lessOther[n2]);
+        n2++;
+    }
+    while (n1 < readIdx.size()){
+        newIdx.push_back(readIdx[n1]);
+        newMostFrequent.push_back(mostFrequentBases[n1]);
+        newMoreFrequence.push_back(moreFrequence[n1]);
+        newLessFrequence.push_back(lessFrequence[n1]);
+        n1++;
+    }
+
+    readIdx = newIdx;
+    mostFrequentBases = newMostFrequent;
+    lessFrequence = newLessFrequence;
+    moreFrequence = newMoreFrequence;
+
+}
+
 //input : nothing except the partition itself
 //output : a confidence score of the partition stored
 float Partition::compute_conf(){
@@ -504,12 +585,3 @@ void Partition::flipPartition(){
 void Partition::new_corrected_partition(vector<short> newPartition){
     mostFrequentBases = newPartition;
 }
-
-/**
- * @brief Sets a new numberOfOccurences, when other positions should be considered
- * 
- * @param n 
- */
-void Partition::new_number(int n){
-    numberOfOccurences = n;
-} 

@@ -4,6 +4,8 @@
 #include "read.h"
 #include "Partition.h"
 #include "edlib.h"
+#include "robin_hood.h"
+
 #include <bindings/cpp/WFAligner.hpp>
 
 
@@ -26,20 +28,24 @@ struct distancePartition{
 
 
 void checkOverlaps(std::string fileReads, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
-            std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
+            std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish, int num_threads);
 
 void compute_partition_on_this_contig(std::string fileReads, long int contig,std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
-            std::unordered_map <unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>> >> &partitions, bool assemble_on_assembly,
+            std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, bool assemble_on_assembly,
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish);
 
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, 
+float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos,
     int backboneReadIndex, std::string &truePar, bool assemble_on_assembly, 
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish,
     wfa::WFAlignerGapAffine &aligner);
+
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads, std::string &id);
+void compute_consensus_in_partitions(long int contig, std::vector<std::pair<std::pair<int,int>, std::vector<int>> > &partition, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
+    std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPositions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions);
 // std::string local_assembly(std::vector <std::string> &reads);
 
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(std::string& ref, std::vector<Column> &snps, float minDistance, int numberOfReads);

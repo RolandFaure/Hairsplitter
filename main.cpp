@@ -91,7 +91,7 @@ void check_dependancies(){
 
 int main(int argc, char *argv[])
 {   
-    string fastqfile, refFile, outputFile, samFile, vcfFile;
+    string fastqfile, refFile, outputFile, samFile, vcfFile, readGroupsFile;
     string alnOnRefFile = "no_file";
     string outputGAF = "tmp/outout.gaf";
     string path_minimap = "minimap2";
@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--outputGFA").doc("Output assembly file, same format as input") & value("output assembly", outputFile),
             clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (PAF or SAM format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-q", "--output-read-groups").doc("Output read groups (txt format)") & value("output read groups", readGroupsFile),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
             clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
@@ -215,7 +216,7 @@ int main(int argc, char *argv[])
         cout << "  - See if the reads disagreeing seem always to be the same ones\n  - If they are always the same ones, they probably come from another haplotype, so separate!\n\n";
         cout << " *To see in more details what contigs have been separated, check the output.txt*\n";
 
-        std::unordered_map<unsigned long int, vector< pair<pair<int,int>, vector<int>> >> partitions;
+        std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, string>>  > >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
         checkOverlaps(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
 
@@ -226,6 +227,10 @@ int main(int argc, char *argv[])
         }
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
+        if (readGroupsFile != ""){
+            cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
+            output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
+        }
         if (format == "gfa"){
             modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
             string zipped_GFA = "zipped_gfa.gfa";
