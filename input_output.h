@@ -11,7 +11,7 @@
 void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices);
 void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads);
 void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices,
-     std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks, std::string &format);
+     std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks);
 
 void parse_PAF(std::string filePAF, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, 
     std::vector<unsigned long int> &backbones_reads, bool computeBackbones);

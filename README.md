@@ -44,7 +44,7 @@ cmake .. -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_C_COMPILER=/usr/bin/gcc
 make
 ```
 
-Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter only runs on CPUs supporting AVX2 instructions (recent CPUs). We hope another solution will be found soon.
+Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter by default only runs on CPUs supporting AVX2 instructions (recent CPUs). To run HairSplitter on older CPUs, you must align the reads base-per-base to the assembly (e.g. using the -a option of minimap2) and then give the SAM file to HairSplitter through the -a option.
 
 # Usage
 
@@ -74,7 +74,7 @@ OPTIONS
                     Output assembly file, same format as input
 
         -a, --aln-on-asm
-                    Reads aligned on assembly (PAF format)
+                    Reads aligned on assembly (PAF or SAM format)
 
         -p, --polish
                     Use this option if the assembly is not polished

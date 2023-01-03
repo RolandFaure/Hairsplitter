@@ -22,6 +22,7 @@ using namespace clipp;
 string MINIMAP;
 string RACON;
 string GRAPHUNZIP;
+string HAIRSPLITTER;
 bool DEBUG;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
@@ -75,7 +76,8 @@ void check_dependancies(){
             GRAPHUNZIP = "GraphUnzip";
         }
         else{
-            cout << "MISSING DEPENDANCY: could not run graphunzip. Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed" << endl;
+            cout << "MISSING DEPENDANCY: could not run graphunzip. Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed. " 
+            << "I was looking for GraphUnzip as: " << GRAPHUNZIP << endl;
         }
     }
 
@@ -99,8 +101,8 @@ int main(int argc, char *argv[])
     string path_racon = "racon";
 
     //try linking to the local copy of GraphUnzip that comes with HairSplitter
-    string path_graphunzip_path = argv[0];
-    string path_graphunzip = path_graphunzip_path.substr(0, path_graphunzip_path.size()-18) + "GraphUnzip/graphunzip.py";
+    string path_path = argv[0];
+    string path_graphunzip = path_path.substr(0, path_path.size()-18) + "GraphUnzip/graphunzip.py";
 
     int num_threads = 1;
     bool polish = false;
@@ -134,6 +136,7 @@ int main(int argc, char *argv[])
         MINIMAP = path_minimap;
         RACON = path_racon;
         GRAPHUNZIP = path_graphunzip;
+        HAIRSPLITTER = path_path.substr(0, path_path.size()-18);
 
         system("mkdir tmp/ 2> trash.txt");
         check_dependancies();
@@ -151,6 +154,11 @@ int main(int argc, char *argv[])
             format = "gfa";
         }
         else if (refFile.substr(refFile.size()-3, 3) == ".fa" || refFile.substr(refFile.size()-6, 6) == ".fasta"){
+            //convert the fasta file to gfa
+            cout << "Converting the fasta file to gfa" << endl;
+            string command = "awk '{if(substr($1,1,1)==\">\") {printf( \"S\t\"substr($1,2)\"\t\")} else {print}}' " + refFile + " > tmp/assembly.gfa";
+            system(command.c_str());
+            refFile = "tmp/assembly.gfa";
             format = "fasta";
         }
         else{
@@ -168,23 +176,17 @@ int main(int argc, char *argv[])
 
             alnOnRefFile = "reads_aligned_on_assembly.paf";
 
-            if (format == "gfa"){
-                string fastaFile = "tmp/"+refFile.substr(0, refFile.size()-4)  +".fa";
-                string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
-                auto awk = system(command.c_str());
-                if (awk != 0){
-                    cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
-                    exit(EXIT_FAILURE);
-                }
-                command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt";
-                cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
-                system(command.c_str());
+            string fastaFile = "tmp/"+refFile.substr(0, refFile.size()-4)  +".fa";
+            string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
+            auto awk = system(command.c_str());
+            if (awk != 0){
+                cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
+                exit(EXIT_FAILURE);
             }
-            else{
-                string command = MINIMAP + " " + refFile + " " + fastqfile + " -t " + std::to_string(num_threads) + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt"; 
-                cout << " - Running minimap with command line:\n     " << command << "\n   The log of minimap2 is being dumped on tmp/logminimap.txt\n";
-                system(command.c_str());
-            }
+            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt";
+            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
+            system(command.c_str());
+
         }
         else{
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
@@ -197,7 +199,7 @@ int main(int argc, char *argv[])
         parse_reads(fastqfile, allreads, indices);
 
         cout << " - Loading all contigs from " << refFile << " in memory\n";
-        parse_assembly(refFile, allreads, indices, backbone_reads, allLinks, format);
+        parse_assembly(refFile, allreads, indices, backbone_reads, allLinks);
 
         cout << " - Loading alignments of the reads on the contigs from " << alnOnRefFile << "\n";
         if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".paf"){
@@ -221,45 +223,51 @@ int main(int argc, char *argv[])
         checkOverlaps(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
 
         //output GAF, the path of all reads on the new contigs
-        if (format == "gfa"){
-            // cout << "Outputting GAF" << endl;
-            output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
-        }
+        // cout << "Outputting GAF" << endl;
+        output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
         if (readGroupsFile != ""){
             cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
             output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         }
-        if (format == "gfa"){
-            modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
-            string zipped_GFA = "zipped_gfa.gfa";
-            output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
+        
+        modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
+        string zipped_GFA = "zipped_gfa.gfa";
+        output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
-            //now "unzip" the assembly, improving the contiguity where it can be improved
-            cout << "\n===== STAGE 5: Linking all the new contigs that have been produced (maybe bridging repeated regions)\n\n";
-            string simply = "";
-            if (dont_simplify){
-                simply = " --dont_merge -r";
-            }
-            string com = " unzip -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
-            string command = GRAPHUNZIP + com;
-            cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
-            system(command.c_str());
-
-            cout << "\n *To see in more details what supercontigs were created with GraphUnziop, check the output.txt*\n";
-            string output = "output.txt";
-            std::ofstream o(output, std::ios_base::app);//appending to the file
-            o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
-            o.close();
-            command = "cat output.txt supercontigs.txt > output2.txt 2> tmp/trash.txt";
-            system(command.c_str());
-            command =  "mv output2.txt output.txt & rm supercontigs.txt 2> tmp/trash.txt";
-            system(command.c_str());
+        //now "unzip" the assembly, improving the contiguity where it can be improved
+        cout << "\n===== STAGE 5: Linking all the new contigs that have been produced (maybe bridging repeated regions)\n\n";
+        string simply = "";
+        if (dont_simplify){
+            simply = " --dont_merge -r";
         }
-        else if (format == "fasta"){
-            modify_FASTA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, readLimits, num_threads);
-            output_FASTA(allreads, backbone_reads, outputFile);
+        string com = " unzip -D -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
+        string command = GRAPHUNZIP + com;
+        cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
+        int resultGU = system(command.c_str());
+        if (resultGU != 0){
+            cout << "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in tmp/logGraphUnzip.txt" << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        cout << "\n *To see in more details what supercontigs were created with GraphUnziop, check the output.txt*\n";
+        string output = "output.txt";
+        std::ofstream o(output, std::ios_base::app);//appending to the file
+        o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
+        o.close();
+        command = "cat output.txt supercontigs.txt > output2.txt 2> tmp/trash.txt";
+        system(command.c_str());
+        command =  "mv output2.txt output.txt & rm supercontigs.txt 2> tmp/trash.txt";
+        system(command.c_str());
+        
+        if (format == "fasta"){
+            //convert the output to fasta
+
+            command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + outputFile + " > " + outputFile + ".fasta";
+            system(command.c_str());
+            command = "mv " + outputFile + ".fasta " + outputFile;
+            system(command.c_str());
         }
         
         auto t2 = high_resolution_clock::now();
