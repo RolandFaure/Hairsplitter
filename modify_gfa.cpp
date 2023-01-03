@@ -127,19 +127,28 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
             }
 
             //construct singlepolish, the sequence polished by all the reads.
-            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere
-            vector<string> allneighbors;
-            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
-                auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
-                if (allOverlaps[allreads[backbone].neighbors_[n]].strand){
-                    allneighbors.push_back(allreads[idxRead].sequence_.str());
+            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere: compare the expected depth with number of reads aligning
+            //compute the depth from the number of aligning reads
+            std::pair<int,int> limitsAll= std::make_pair(0, allreads[backbone].sequence_.size()-1);
+            vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
+            unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, readLimits[backbone], allreads[backbone].depth);
+
+            string singlepolish = allreads[backbone].sequence_.str();
+            if (newdepths[1]<0.8*allreads[backbone].depth || newdepths[1]>1.3*allreads[backbone].depth){ //if the depths do not match
+                vector<string> allneighbors;
+                for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                    auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
+                    if (allOverlaps[allreads[backbone].neighbors_[n]].strand){
+                        allneighbors.push_back(allreads[idxRead].sequence_.str());
+                    }
+                    else{
+                        allneighbors.push_back(allreads[idxRead].sequence_.reverse_complement().str());
+                    }
                 }
-                else{
-                    allneighbors.push_back(allreads[idxRead].sequence_.reverse_complement().str());
-                }
+                string seqbackbone = allreads[backbone].sequence_.str();
+                singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
             }
-            string seqbackbone = allreads[backbone].sequence_.str();
-            string singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
+
 
             int n = 0;
             for (auto interval : partitions[backbone]){
@@ -285,15 +294,15 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
             int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
             std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
-            vector<int> partition (allreads[backbone].neighbors_.size(), 1);
-            unordered_map <int, double> newdepths = recompute_depths(limits , partition, readLimits[backbone], allreads[backbone].depth);
+            newdepths = recompute_depths(limits , partition1, readLimits[backbone], allreads[backbone].depth);
 
             string contig;
             if (right.size() > 0){
                 EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
                     singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-                contig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
-            }
+                contig = singlepolish.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+2);
+                edlibFreeAlignResult(result);
+                }
             else{
                 contig = "";
             }

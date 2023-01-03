@@ -647,9 +647,15 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 
-    com = " --no-trimming -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+    com = " -w 500 -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
     string commandPolish = RACON + com;
     system(commandPolish.c_str());
+
+    //polish using CONSENT
+    // string CONSENT = "/home/rfaure/Documents/software/CONSENT/CONSENT-polish";
+    // string com = " -S 30 --contigs tmp/unpolished_"+id+".fasta --reads tmp/reads_"+id+".fasta --out tmp/polished_"+id+".paf >tmp/log_CONSENT.txt 2>tmp/trash.txt";
+    // string commandPolish = CONSENT + com;
+    // system(commandPolish.c_str());
 
     std::ifstream polishedRead("tmp/polished_"+id+".fasta");
     string line;
@@ -1003,7 +1009,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
     }
-    cout << "reqfdojo" << endl;
 
     //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
 
@@ -1073,7 +1078,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     // //rescue reads that have not been assigned to a cluster
     // vector<int> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
-    cout << "vvoiosuo" << endl;
     return threadedClusters;
 }
 
@@ -1802,7 +1806,6 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
             localPartitions.push_back(compatiblePartitions[lp]);
         }
         vector<int> localPartition = threadHaplotypes_in_interval(localPartitions, numberOfReads);
-
         res.push_back(make_pair(make_pair(interval.first.first, interval.first.second), localPartition));
     }
 
@@ -1954,8 +1957,6 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
 
     }
-    for (auto i : clustersAll) {cout << i << " ";}
-    cout << endl;
 
     set<int> count; //a set of all existing groups
     vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size())); 
