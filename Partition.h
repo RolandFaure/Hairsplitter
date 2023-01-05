@@ -6,7 +6,7 @@
 
 //structure of a column of an MSA
 struct Column{
-    std::vector<int> readIdxs;
+    std::vector<unsigned int> readIdxs;
     std::vector<char> content;
 };
 

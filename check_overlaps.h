@@ -37,7 +37,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig,std
             std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
             bool polish);
 
-float generate_msa(long int read, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos,
+float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos,
     int backboneReadIndex, std::string &truePar, bool assemble_on_assembly, 
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish,
     wfa::WFAlignerGapAffine &aligner);

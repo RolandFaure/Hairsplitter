@@ -93,7 +93,11 @@ OPTIONS
 
         --path-to-graphunzip
                     Path to graphunzip.py (if not in PATH or in default folder)
+                  
 ```
+
+# Installation issues
+ Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to support c++17. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
 
 
 

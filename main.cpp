@@ -24,6 +24,7 @@ string RACON;
 string GRAPHUNZIP;
 string HAIRSPLITTER;
 bool DEBUG;
+unsigned long int MAX_SIZE_OF_CONTIGS;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
@@ -156,7 +157,8 @@ int main(int argc, char *argv[])
         else if (refFile.substr(refFile.size()-3, 3) == ".fa" || refFile.substr(refFile.size()-6, 6) == ".fasta"){
             //convert the fasta file to gfa
             cout << "Converting the fasta file to gfa" << endl;
-            string command = "awk '{if(substr($1,1,1)==\">\") {printf( \"S\t\"substr($1,2)\"\t\")} else {print}}' " + refFile + " > tmp/assembly.gfa";
+
+            string command = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' " + refFile + " | awk '{if(substr($1,1,1)==\">\") {printf( \"S\\t\"substr($1,2)\"\\t\")} else {print}}' > tmp/assembly.gfa";
             system(command.c_str());
             refFile = "tmp/assembly.gfa";
             format = "fasta";
@@ -186,11 +188,17 @@ int main(int argc, char *argv[])
             command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt";
             cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
             system(command.c_str());
-
+            MAX_SIZE_OF_CONTIGS = 100000;
         }
         else{
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
             cout << "  Skipped because alignments already inputted with option -a.\n";
+            if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".paf"){
+                MAX_SIZE_OF_CONTIGS = 100000;
+            }
+            else{
+                MAX_SIZE_OF_CONTIGS = 10000000000; //no limit
+            }
         }
 
         cout << "\n===== STAGE 2: Loading data\n\n";
