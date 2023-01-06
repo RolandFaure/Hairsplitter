@@ -178,10 +178,11 @@ int main(int argc, char *argv[])
 
             alnOnRefFile = "reads_aligned_on_assembly.paf";
 
-            string fastaFile = "tmp/"+refFile.substr(0, refFile.size()-4)  +".fa";
+            string fastaFile = "tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
             auto awk = system(command.c_str());
             if (awk != 0){
+                cout << "Error while running " << command << endl;
                 cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                 exit(EXIT_FAILURE);
             }
