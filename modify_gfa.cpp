@@ -134,7 +134,7 @@ void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allre
             unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, readLimits[backbone], allreads[backbone].depth);
 
             string singlepolish = allreads[backbone].sequence_.str();
-            if (newdepths[1]<0.8*allreads[backbone].depth || newdepths[1]>1.3*allreads[backbone].depth){ //if the depths do not match
+            if (newdepths[1]<0.8*allreads[backbone].depth || newdepths[1]>1.3*allreads[backbone].depth || allreads[backbone].depth == 0){ //if the depths do not match
                 vector<string> allneighbors;
                 for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
                     auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
@@ -425,7 +425,7 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
 std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<std::pair<int,int>>& readBorders, double originalDepth){
 
     unordered_map <int, double> newCoverage;
-    int lengthOfInterval = limits.second-limits.first;
+    int lengthOfInterval = limits.second-limits.first+1; //+1 to make sure we do not divide by 0
 
     for (auto c = 0 ; c < partition.size() ; c++){
 
