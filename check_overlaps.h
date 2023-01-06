@@ -39,8 +39,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig,std
 
 float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos,
     int backboneReadIndex, std::string &truePar, bool assemble_on_assembly, 
-    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish,
-    wfa::WFAlignerGapAffine &aligner);
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, std::vector<bool>& misalignedReads, bool polish);
 
 std::string consensus_reads(std::string &backbone, std::vector <std::string> &polishingReads, std::string &id);
 void compute_consensus_in_partitions(long int contig, std::vector<std::pair<std::pair<int,int>, std::vector<int>> > &partition, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 

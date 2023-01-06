@@ -164,6 +164,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     //map how many chunks compose each contig
     robin_hood::unordered_map<std::string, unsigned int> nbofchunks;
 
+
     while(getline(in, line)){
 
         if (line[0] == 'S'){
@@ -229,15 +230,15 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
             Link link;
             
             try{
+                string name1 = "";
+                string name2 = "";
                 while(getline(line2, field, '\t')){
-                    string name1 = "";
-                    string name2 = "";
                     if (fieldNb == 1){ // name of the sequence1
-                        name1 = indices[field];
+                        name1 = field;
                     }
                     else if (fieldNb == 2){ //here is the sequence
                         if (field == "+"){
-                            link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1]-1)];
+                            link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1])];
                             link.end1 = 1;
                         }
                         else if (field == "-"){
@@ -250,7 +251,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                         }
                     }
                     else if (fieldNb == 3){ // name of the sequence1
-                        name2 = indices[field];
+                        name2 = field;
                     }
                     else if (fieldNb == 4){ //here is the sequence
                         if (field == "+"){
@@ -258,7 +259,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                             link.end2 = 0;
                         }
                         else if (field == "-"){
-                            link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2]-1)];
+                            link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2])];
                             link.end2 = 1;
                         }
                         else{
@@ -272,6 +273,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
 
                     fieldNb += 1;
                 }
+                //describe the link between the two contigs
                 allLinks.push_back(link);
                 allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
                 allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);

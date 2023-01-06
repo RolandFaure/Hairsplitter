@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", and it has " << allreads[read].neighbors_.size() << " neighbors." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "contig_25400"  ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_3@00"  ){
 
                 //choose on which thread this contig will run
                 // char find_thread = 0;
@@ -124,13 +124,12 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
 
     vector<bool> misalignedReads(allreads[contig].neighbors_.size(), false);
     string consensus;
-    wfa::WFAlignerGapAffine aligner(8,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
     // while building the MSA, check if some reads are too far away from the consensus and build another MSA for them
     // cout << "...creating MSA\n";
     vector<string> consensuses; //vector containing all the consensus sequences (we hope jeust one, but we might have to do several MSA if the reads are too far away from each other)
     robin_hood::unordered_map<int, int> insertionPositions;
-    float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, aligner);
+    float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish);
     //count the number of true in misalignedReads
     int nbMisaligned = std::count(misalignedReads.begin(), misalignedReads.end(), true);
     // if (nbMisaligned > 10){
@@ -270,7 +269,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
  */
 float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
-    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish, wfa::WFAlignerGapAffine& aligner){
+    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish){
 
     // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
@@ -392,6 +391,9 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     } 
 
     snps = vector<Column>(consensus.size());
+    for (auto c = 0 ; c < consensus.size() ; c++){
+        snps[c].pos = c;
+    }
 
     //while all the alignments are computed, build the positions
     vector<int> numberOfInsertionsHere (consensus.size()+1, 0);
@@ -399,12 +401,14 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     float alignmentTime = 0;
     float MSAtime = 0;
 
+
     //create a vector of alternative reference sequences (chosen from the polishing reads)
     vector<string> allTheReferences = {allreads[bbcontig].sequence_.str()};
+
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         if (DEBUG && n%10 == 0){
-            cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r";
+            cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r" << std::flush;
         }
 
         auto t1 = high_resolution_clock::now();
@@ -418,6 +422,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
             // int marginLeftEnd = std::min(int(cons.size()/4), 1000);
             // int marginRightEnd = std::min(int(re.size()/4), 1000);
             // aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
+            wfa::WFAlignerGapAffine aligner(8,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
             aligner.alignEnd2End(cons, re);
 
             alignment = aligner.getAlignmentCigar();
@@ -441,6 +446,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         int indexQuery = positionOfReads[n].first; //query corresponds to consensus
         int indexTarget = 0; //target corresponds to the read
         int numberOfInsertionsThere = 0;
+        int maxNumberOfInsertions = 2; //maximum number of insertions allowed in a row, then they are discarded
 
         int localDivergence = 0; //number of mismatches/insertions/deletions in the last 100 bases
         vector<bool> divergences (100, false); //true if there is a mismatch/insertion/deletion in that position
@@ -451,6 +457,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         //cout the alignment
         // cout << "alignment : " << alignment << endl;
 
+        
         for (int l = 0; l < alignment.size(); l++) {
 
             if (indexQuery < consensus.size()){
@@ -509,7 +516,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     localDivergence += 1;
                 }
                 else if (alignment[l] == 'I'){ //hardest one
-                    if (numberOfInsertionsHere[indexQuery] <= 9999 && indexQuery > positionOfReads[n].first) {
+                    if (numberOfInsertionsHere[indexQuery] <= maxNumberOfInsertions && indexQuery > positionOfReads[n].first) {
 
                         if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
                             insertionPos[10000*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
@@ -519,6 +526,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                             newInsertedPos.readIdxs = snps[indexQuery-1].readIdxs;    
                             newInsertedPos.content = vector<char>(snps[indexQuery-1].content.size() , '-');
                             newInsertedPos.content[newInsertedPos.content.size()-1] = polishingReads[n][indexTarget];
+                            newInsertedPos.pos = l;
                             snps.push_back(newInsertedPos);
                         }
                         else{
@@ -543,7 +551,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
             }
             //cout << l << " " << result.alignmentLength <<  "\n";
-        }
+        } 
 
         auto t3 = high_resolution_clock::now();
 
@@ -624,6 +632,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     } cout << endl;
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     */
+    
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -795,7 +804,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         if (//content[4] < 0.25*float(numberOfReadsHere) && //not too many '-', because '-' are less specific than snps
              *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
            
-            // cout << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
+            // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
 
             suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
@@ -803,13 +812,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
                 //if the partition is too far away, do not bother comparing
-                if (position-partitions[p].get_right()>10000){
+                if (std::abs(snps[position].pos-partitions[p].get_right())>10000){
                     continue;
                 }
                 distancePartition dis = distance(partitions[p], snps[position]);
                 auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
                 // if (comparable > 10){
-                //     cout << "comparable : " << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " " << dis.augmented<< " mean distance : " << meanDistance << endl;
+                //     cout << "coco comparable : " << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " " << dis.augmented<< " mean distance : " << meanDistance << endl;
                 //     partitions[p].print();
                 //     Partition(snps[position]).print();
                     
@@ -822,7 +831,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                         pos = position;
                     }
 
-                    //cout << "yuioer augmenting " << p << " now : " << float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) << " "  << meanDistance <<  endl;
+                    // cout << "yuioer augmenting " << p << " now : " << float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) << " "  << meanDistance <<  endl;
                     // if (p == 14){
                     //     Partition(snps[position], 0).print();
                     //     // interestingParts.push_back(position);
@@ -858,7 +867,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     // int idx = 0;
     // for (auto p : partitions){
-    //     if (p.number() > 10){
+    //     if (p.number() > 1){
     //         cout << "partition: " << idx << endl;
     //         p.print();
     //     }

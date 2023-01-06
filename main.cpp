@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
 
-            alnOnRefFile = "reads_aligned_on_assembly.paf";
+            alnOnRefFile = "tmp/reads_aligned_on_assembly.paf";
 
             string fastaFile = "tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
                 cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                 exit(EXIT_FAILURE);
             }
-            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no > " + alnOnRefFile + " 2> tmp/logminimap.txt";
+            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
             cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
             system(command.c_str());
             MAX_SIZE_OF_CONTIGS = 100000;
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
         else{
             cout << "ERROR: the file containing the alignments on the assembly should be either .paf or .sam" << endl;
             exit(EXIT_FAILURE);
-        }
+        }       
 
         cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
         cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
         }
         
         modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
-        string zipped_GFA = "zipped_gfa.gfa";
+        string zipped_GFA = "tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
         //now "unzip" the assembly, improving the contiguity where it can be improved
