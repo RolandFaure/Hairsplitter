@@ -813,7 +813,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
                 //if the partition is too far away, do not bother comparing
-                if (std::abs(snps[position].pos-partitions[p].get_right())>30000){
+                if (std::abs(snps[position].pos-partitions[p].get_right())>30000 || (std::abs(snps[position].pos-partitions[p].get_right())>10000 && partitions[p].number() < 2)){
                     continue;
                 }
                 distancePartition dis = distance(partitions[p], snps[position]);
@@ -1045,6 +1045,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanDistance/2);
     
     //re-scanning all the positions now that we have a list of potential partitions
+    /*
     vector<Partition> partitions_recomputed;
     for(auto c = 0 ; c < listOfCompatiblePartitions.size() ; c++){
         Partition p = Partition();
@@ -1076,6 +1077,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             p.print();
         }
     }
+    */
+    auto partitions_recomputed = listOfCompatiblePartitions;
 
     //mark as valid partitions which have collected much more positions in the second round
     //choose which of the recomputed partition or original partition you want to keep
