@@ -182,7 +182,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     //create contigs no longer than 100000bp to keep memory usage low
                     nbofchunks[nameOfSequence] = ceil(field.size()/MAX_SIZE_OF_CONTIGS);
                     for (chunk = 0 ; chunk < field.size() ; chunk += MAX_SIZE_OF_CONTIGS){
-                        Read r(field.substr(chunk, 100000));
+                        Read r(field.substr(chunk, MAX_SIZE_OF_CONTIGS));
                         r.name = nameOfSequence+"@"+std::to_string(chunk/MAX_SIZE_OF_CONTIGS);
                         backbone_reads.push_back(sequenceID);
                         allreads.push_back(r);
@@ -458,6 +458,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 //now add the overlap to all the concerned chunks of the contigs
                 int chunk1_1 = floor(pos2_1 / MAX_SIZE_OF_CONTIGS);
                 int chunk1_2 = floor(pos2_2 / MAX_SIZE_OF_CONTIGS);
+                int positionPartialMapping = pos1_1;
                 for (int chunk = chunk1_1; chunk <= chunk1_2; chunk++){
                     Overlap overlap;
                     overlap.sequence1 = indices[name1];
@@ -474,8 +475,34 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                     else{
                         overlap.position_2_2 = MAX_SIZE_OF_CONTIGS-1;
                     }
-                    overlap.position_1_1 = pos1_1;
-                    overlap.position_1_2 = pos1_2;
+                    
+                    if (positiveStrand == true){
+                        if (chunk == chunk1_1){
+                            overlap.position_1_1 = pos1_1;
+                            overlap.position_1_2 = std::min(long(pos1_2), pos1_1 + MAX_SIZE_OF_CONTIGS - pos2_1%MAX_SIZE_OF_CONTIGS);
+                        }
+                        else{
+                            overlap.position_1_1 = positionPartialMapping;
+                            overlap.position_1_2 = std::min(long(pos1_2), positionPartialMapping + MAX_SIZE_OF_CONTIGS);
+                        }
+                        positionPartialMapping = overlap.position_1_2;
+                    }
+                    else{
+                        if (chunk == chunk1_1){
+                            overlap.position_1_1 = std::max(long(pos1_1), pos1_2 - MAX_SIZE_OF_CONTIGS + pos2_1%MAX_SIZE_OF_CONTIGS);
+                            overlap.position_1_2 = pos1_2;
+                        }
+                        else{
+                            overlap.position_1_2 = positionPartialMapping;
+                            overlap.position_1_1 = std::max(long(pos1_1), positionPartialMapping - MAX_SIZE_OF_CONTIGS);
+                        }
+                        positionPartialMapping = overlap.position_1_1;
+                    }
+
+                    if (name1.substr(0,6) == "3_ade3"){
+                        cout << "peoaru loaded overlap : " << overlap.position_1_1 << " " << overlap.position_1_2 << endl;
+                    }
+
                     overlap.strand = positiveStrand;
                     overlap.CIGAR = cigar;
                     overlap.diff = diff;

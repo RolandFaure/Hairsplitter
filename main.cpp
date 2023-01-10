@@ -24,7 +24,7 @@ string RACON;
 string GRAPHUNZIP;
 string HAIRSPLITTER;
 bool DEBUG;
-unsigned long int MAX_SIZE_OF_CONTIGS;
+unsigned long int MAX_SIZE_OF_CONTIGS = 100000000;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
@@ -189,17 +189,10 @@ int main(int argc, char *argv[])
             command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
             cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
             system(command.c_str());
-            MAX_SIZE_OF_CONTIGS = 100000;
         }
         else{
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
             cout << "  Skipped because alignments already inputted with option -a.\n";
-            if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".paf"){
-                MAX_SIZE_OF_CONTIGS = 100000;
-            }
-            else{
-                MAX_SIZE_OF_CONTIGS = 10000000000; //no limit
-            }
         }
 
         cout << "\n===== STAGE 2: Loading data\n\n";

@@ -72,13 +72,8 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", and it has " << allreads[read].neighbors_.size() << " neighbors." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_3@00"  ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_38@1@00"  ){
 
-                //choose on which thread this contig will run
-                // char find_thread = 0;
-                // while(active_threads[find_thread%num_threads]>0){
-                //     ++find_thread;
-                // }
                 if (DEBUG){
                     #pragma omp critical
                     {
@@ -223,9 +218,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref, snps, meanDistance,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
-    
-    // cout << truePar << endl;
-    
+        
     // auto par = truePar.getPartition();//DEBUG
     // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
     // cout << "Proposed partition : " << endl;
@@ -236,6 +229,9 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
 
     //partitions[contig] = par;
+
+    // cout << "dfopuq True partition:" << truePar << endl << endl;
+
 
     //free up memory by deleting snps
     snps.clear();
@@ -271,7 +267,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
     unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish){
 
-    // cout << "neighbors of read " << allreads[read].name << " : " << allreads[read].sequence_.str() << endl;
     //go through the neighbors of the backbone read and align it
 
     //keep count of the distance between two reads to know the mean distance
@@ -283,36 +278,35 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     string read_str = allreads[bbcontig].sequence_.str();
 
     //small loop to compute truePartition DEBUG
-    // if (DEBUG){
-    //     for (auto n = 0 ; n<allreads[read].neighbors_.size() ; n++){
+    if (DEBUG){
+        for (auto n = 0 ; n<allreads[bbcontig].neighbors_.size() ; n++){
 
-    //         long int neighbor = allreads[read].neighbors_[n];
-    //         Overlap overlap = allOverlaps[neighbor];
+            long int neighbor = allreads[bbcontig].neighbors_[n];
+            Overlap overlap = allOverlaps[neighbor];
             
-    //         if (overlap.sequence1 == read){
+            if (overlap.sequence1 == bbcontig){
 
-    //             truePar.push_back(allreads[overlap.sequence2].name[10]);
-    //             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-    //         }
-    //         else{
-    //             truePar.push_back(allreads[overlap.sequence1].name[10]);
-    //             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-    //         }    
-    //     }
-    // }
+                truePar.push_back(allreads[overlap.sequence2].name[1]);
+                // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+            }
+            else{
+                truePar.push_back(allreads[overlap.sequence1].name[1]);
+                // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
+            }    
+        }
+    }
 
     // string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/answer_"+std::to_string(read)+".tsv";
     // std::ofstream out(fileOut);
     // for (auto c : truePart){out<<c;}out.close();
     // cout << "name : " << allreads[read].name << " " << allreads[read].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-
     // /* compute only true partition
     //now mark down on which backbone read those reads are leaning
     //in the same loop, inventoriate all the polishing reads
     vector <string> polishingReads;
     vector <pair <int,int>> positionOfReads; //position of polishing reads on the consensus
     vector <string> CIGARs;
-    for (auto n = 0 ; n<allreads[bbcontig].neighbors_.size() ; n++){
+    for (auto n = 0 ; n< allreads[bbcontig].neighbors_.size() ; n++){
         long int neighbor = allreads[bbcontig].neighbors_[n];
         Overlap overlap = allOverlaps[neighbor];
         
@@ -360,7 +354,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                 }
             }
             else { //generally go through here if PAF file is used
-                // if (polishingReads.size() == 2999){
+                // if (polishingReads.size() == 2999 || true){
                 //     cout << "iiop2 Neighbor of " << allreads[overlap.sequence1].name << " : " << allreads[overlap.sequence2].name << endl;
                 //     cout << "positions of overlap: " << overlap.strand << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << endl;
                 // }
@@ -415,17 +409,23 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
         string alignment;
         if (CIGARs.size() != polishingReads.size()){ //compute the exact alignment if it is not already computed
-
             //print the name of the neighbor
             string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
             string re = polishingReads[n].c_str();
+
+            // wfa::WFAlignerGapAffine aligner(8,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+            wfa::WFAlignerGapAffine aligner(4,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
             // int marginLeftEnd = std::min(int(cons.size()/4), 1000);
             // int marginRightEnd = std::min(int(re.size()/4), 1000);
             // aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
-            wfa::WFAlignerGapAffine aligner(8,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
             aligner.alignEnd2End(cons, re);
 
             alignment = aligner.getAlignmentCigar();
+
+            // if (allreads[allOverlaps[allreads[bbcontig].neighbors_[n]].sequence1].name.substr(0,10) == "@3_ade377e"){
+            //     cout << "yuiiee Aligned using substr: " << positionOfReads[n].first << " " << positionOfReads[n].second << endl; 
+            //     cout << "fljmqqzzzo Alignment: " << alignment << endl;
+            // }
         }
         else{
             alignment = convert_cigar(CIGARs[n]);
@@ -457,7 +457,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         //cout the alignment
         // cout << "alignment : " << alignment << endl;
 
-        
         for (int l = 0; l < alignment.size(); l++) {
 
             if (indexQuery < consensus.size()){
@@ -582,9 +581,9 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 10000;
-    int end = 10200;
-    vector<string> reads (int(numberOfReads/step)+1);
+    int start = 0;
+    int end = 200;
+    vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned short i = start ; i < end; i+=prop){
         
@@ -619,7 +618,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     int index = firstRead;
     for (auto neighbor : reads){
         if (neighbor[0] != '?'){
-            cout << neighbor << " " << index  << endl;
+            cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name.substr(0,10) << endl;
         }
         index+= step;
     }
@@ -630,9 +629,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         }
         n+=1;
     } cout << endl;
-    // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+    cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     */
-    
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -788,6 +786,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     for (int position = 0 ; position < ref.size() ; position++){ 
 
+        if (DEBUG && position%100 == 0){
+            cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
+        }
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
         int numberOfReadsHere = 0;
@@ -812,7 +813,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
                 //if the partition is too far away, do not bother comparing
-                if (std::abs(snps[position].pos-partitions[p].get_right())>10000){
+                if (std::abs(snps[position].pos-partitions[p].get_right())>30000){
                     continue;
                 }
                 distancePartition dis = distance(partitions[p], snps[position]);
@@ -831,7 +832,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                         pos = position;
                     }
 
-                    // cout << "yuioer augmenting " << p << " now : " << float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) << " "  << meanDistance <<  endl;
+                    //cout << "yuioer augmenting " << p << " now : " << float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) << " "  << meanDistance <<  endl;
                     // if (p == 14){
                     //     Partition(snps[position], 0).print();
                     //     // interestingParts.push_back(position);
@@ -868,7 +869,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     // int idx = 0;
     // for (auto p : partitions){
     //     if (p.number() > 1){
-    //         cout << "partition: " << idx << endl;
+    //         cout << "fmdjqs partition: " << idx << endl;
     //         p.print();
     //     }
     //     idx++;
