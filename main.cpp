@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
     //try linking to the local copy of GraphUnzip that comes with HairSplitter
     string path_path = argv[0];
     string path_graphunzip = path_path.substr(0, path_path.size()-18) + "GraphUnzip/graphunzip.py";
+    string path_cut_gfa = path_path.substr(0, path_path.size()-18) + "GraphUnzip/cut_gfa.py";
 
     int num_threads = 1;
     bool polish = false;
@@ -178,6 +179,17 @@ int main(int argc, char *argv[])
 
             alnOnRefFile = "tmp/reads_aligned_on_assembly.paf";
 
+            //cut the gfa in small contigs to speed up the computation
+            string command_cut = "python " + path_cut_gfa + " -a " + refFile + " -l 100000 -o tmp/assembly_cut.gfa > tmp/logcut.txt";
+            auto res_cut = system(command_cut.c_str());
+            refFile = "tmp/assembly_cut.gfa";
+            if (res_cut != 0){
+                cout << "ERROR while running " << command_cut << endl;
+                cout << "ERROR: Hairsplitter needs python3 to run. Make sure to have python3 installed. If this is not \
+                    the problem, you may circumvent the error by using option -a." << endl;
+                exit(EXIT_FAILURE);
+            }
+
             string fastaFile = "tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
             auto awk = system(command.c_str());
@@ -234,7 +246,7 @@ int main(int argc, char *argv[])
             output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         }
         
-        modify_GFA(refFile, fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
+        modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
         string zipped_GFA = "tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 

@@ -226,7 +226,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     // cout << endl;
 
     //now compute the consensus for each new contig
-    compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
+    //compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
 
     //partitions[contig] = par;
 
@@ -398,11 +398,12 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
     //create a vector of alternative reference sequences (chosen from the polishing reads)
     vector<string> allTheReferences = {allreads[bbcontig].sequence_.str()};
+    wfa::WFAlignerGapAffine aligner(4,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
 
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         if (DEBUG && n%10 == 0){
-            cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r" << std::flush;
+            // cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r" << std::flush;
         }
 
         auto t1 = high_resolution_clock::now();
@@ -413,8 +414,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
             string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
             string re = polishingReads[n].c_str();
 
-            // wfa::WFAlignerGapAffine aligner(8,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-            wfa::WFAlignerGapAffine aligner(4,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+            // wfa::WFAlignerGapAffine aligner(4,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
             // int marginLeftEnd = std::min(int(cons.size()/4), 1000);
             // int marginRightEnd = std::min(int(re.size()/4), 1000);
             // aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
@@ -787,7 +787,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     for (int position = 0 ; position < ref.size() ; position++){ 
 
         if (DEBUG && position%100 == 0){
-            cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
+            // cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
         }
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
@@ -1098,7 +1098,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     // cout << "threading clusters" << endl;
     //now aggregate all those binary partitions in one final partition. There could be up to 2^numberBinaryPartitions final groups
     unordered_map <int, std::pair<int,int>> clusterLimits;
-    vector<pair<pair<int,int>, vector<int>>> threadedClusters = threadHaplotypes(listOfFinalPartitionsTrimmed, numberOfReads, clusterLimits);
+    vector<pair<pair<int,int>, vector<int>>> threadedClusters = threadHaplotypes(listOfFinalPartitionsTrimmed, numberOfReads);
 
     // //rescue reads that have not been assigned to a cluster
     // vector<int> finalClusters = rescue_reads(threadedClusters, snps, suspectPostitions);
@@ -1663,10 +1663,8 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
     return compatiblePartitions;
 }
 
-//input : a list of partitions
-//output : only the partitions that look very sure of themselves
 /**
- * @brief Point out the partitions that are very sure of themselves and that should be kekt
+ * @brief Point out the partitions that are very sure of themselves and that should be kept
  * 
  * @param partitions list of candidate partitions
  * @param trimmedListOfFinalPartitionBool true if a partition is kept, false otherwise. May be initialized with some pre-selected partitions
@@ -1777,12 +1775,20 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
     return trimmedListOfFinalPartition;
 }
 
-//input : a list of all binary partitions found in the reads
-//output : a vector defining intervals with their two bounds and their attached local partition
-vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &compatiblePartitions, int numberOfReads, unordered_map <int, std::pair<int,int>> &clusterLimits){
+/**
+ * @brief Given all the separated partitions, compute the separation of reads on the length of the contig
+ * 
+ * @param compatiblePartitions All the partitions found in the reads
+ * @param numberOfReads 
+ * 
+ * @return  a vector defining intervals with their two bounds and their attached local partition
+ */
+vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
+    vector<Partition> &compatiblePartitions, 
+    int numberOfReads
+    ){
 
-
-    //now go through the reference and give the repartition of reads at each position
+    //go through the reference and give the repartition of reads at each position
 
     //sort the partitions by position left
     std::sort(compatiblePartitions.begin(), compatiblePartitions.end(), [](Partition& lhs, Partition& rhs) {
@@ -1795,7 +1801,12 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(vector<Partition> &com
         borders.push_back(make_pair(p.get_left(),1));
         borders.push_back(make_pair(p.get_right(), 0));
     }
+    //make sure no elements are present twice in borders
+    std::set<pair<int,int>> set_borders (borders.begin(), borders.end());
+    borders = std::vector<pair<int,int>>(set_borders.begin(), set_borders.end());
+
     std::sort(borders.begin(), borders.end(), [](const auto& x, const auto& y){return x.first < y.first;} ); //sort by first element
+
 
     //list the limits of the intervals
     int lastRight = 0;

@@ -22,11 +22,28 @@ using std::to_string;
 
 extern bool DEBUG;
 
-//input: a list of all backbone reads, and for each of those reads a set of interval, with a partition of the reads on each interval
-//output: the updated GFA (contained implicitely in allreads), with new contigs with recomputed read coverage
-void modify_GFA(std::string refFile, std::string readsFile, vector <Read> &allreads, vector<unsigned long int> &backbones_reads, vector <Overlap> &allOverlaps,
-            std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
-            vector<Link> &allLinks, unordered_map <int, vector<pair<int,int>>> &readLimits, int num_threads){
+/**
+ * @brief Modify the input GFA according to the way the reads have been split.
+ * 
+ * @param readsFile File containing all the reads
+ * @param allreads vector containing all the reads (without their actual sequence)
+ * @param backbones_reads vector listing all the backbone reads
+ * @param allOverlaps vector containing all the overlaps
+ * @param partitions for each backbone, contains a vector of the intervals, and for each interval, the partition of the reads
+ * @param allLinks vector containing all the links of the GFA file (new one will be added)
+ * @param readLimits for each backbone, contains the limits (in term of coordinates) of all its neighbors on the backbone
+ * @param num_threads number of threads to use
+ */
+void modify_GFA(
+    std::string readsFile, 
+    vector <Read> &allreads, 
+    vector<unsigned long int> &backbones_reads, 
+    vector <Overlap> &allOverlaps,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+    vector<Link> &allLinks,
+    unordered_map <int, vector<pair<int,int>>> &readLimits, 
+    int num_threads)
+    {
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     string log_text = ""; //text that will be printed out in the output.txt
