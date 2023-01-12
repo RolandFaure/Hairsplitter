@@ -61,9 +61,14 @@ void modify_GFA(
         if (DEBUG){
             #pragma omp critical
             {
-                cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << endl;
+                cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name << ", can it be found ? " <<
+                     (partitions.find(backbones_reads[b]) != partitions.end()) << endl;
+                if (partitions.find(backbones_reads[b]) != partitions.end()){
+                    cout << "If ueie so, how many intervals ? " << partitions[backbones_reads[b]].size() << endl;
+                }
             }
         }
+
         local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
         string thread_id = std::to_string(omp_get_thread_num());
@@ -166,7 +171,6 @@ void modify_GFA(
                 singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
             }
 
-
             int n = 0;
             for (auto interval : partitions[backbone]){
 
@@ -206,7 +210,9 @@ void modify_GFA(
 
                 vector<int> futureHangingLinks;
 
+                cout << "oueopua recomputing depths" << endl;
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
+                cout << "recomputed poaiepae" << endl;
 
                 for (auto group : readsPerPart){
                     

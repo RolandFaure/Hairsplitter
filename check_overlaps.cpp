@@ -70,9 +70,9 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
 
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", and it has " << allreads[read].neighbors_.size() << " neighbors." << endl;
+            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_38@1@00"  ){
+            if (allreads[read].neighbors_.size() > 10 && (allreads[read].name == "edge_6@3@0" || allreads[read].name == "edge_6@2@0") ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -106,10 +106,17 @@ omp_set_num_threads(num_threads);
  * @param polish set to true if assembly needs to be polished
  * @param thread identifier of the thread running this function
  */
-void compute_partition_on_this_contig(std::string fileReads, long int contig, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, std::vector<unsigned long int> &backbones_reads, 
-            std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, bool assemble_on_assembly,
-            std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-            bool polish){
+void compute_partition_on_this_contig(
+    std::string fileReads, 
+    long int contig, 
+    std::vector <Read> &allreads,
+    std::vector <Overlap> &allOverlaps, 
+    std::vector<unsigned long int> &backbones_reads, 
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+    bool assemble_on_assembly,
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
+    bool polish
+    ){
 
     parse_reads_on_contig(fileReads, contig, allOverlaps, allreads);
     
@@ -226,7 +233,7 @@ void compute_partition_on_this_contig(std::string fileReads, long int contig, st
     // cout << endl;
 
     //now compute the consensus for each new contig
-    //compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
+    compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
 
     //partitions[contig] = par;
 
@@ -403,7 +410,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         if (DEBUG && n%10 == 0){
-            // cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r" << std::flush;
+            cout << "Aligned " << n << " reads out of " << allreads[bbcontig].neighbors_.size() << " on the backbone\r" << std::flush;
         }
 
         auto t1 = high_resolution_clock::now();
@@ -787,7 +794,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     for (int position = 0 ; position < ref.size() ; position++){ 
 
         if (DEBUG && position%100 == 0){
-            // cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
+            cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
         }
         //first look at the position to see if it is suspect
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
@@ -1723,8 +1730,8 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         }
 
         //compute the confidence level we must have to be sure (different for both haplotypes because of the bias)
-        double errors [2] = {(1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * errorRate*4 + errorRate 
-                            , (1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * errorRate*4 + errorRate }; //tolerate on average errorRate*3
+        double errors [2] = {min((1-means[0]/n0)/(2-means[0]/n0-means[1]/n1) * errorRate*4 + errorRate, float(0.3))
+                            , min((1-means[1]/n1)/(2-means[0]/n0-means[1]/n1) * errorRate*4 + errorRate, float(0.3)) }; //tolerate on average errorRate*3
         // cout << "the centers are : " << means[0]/n0 << " and " << means[1]/n1 << endl;
 
         int numberOfUnsureReads0 = 0;
@@ -1796,7 +1803,7 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
 
     vector<pair<pair<int,int>, set<int>>> intervals; //list of intervals, with all partitions on each
 
-    vector<pair<int,int>> borders;
+    vector<pair<int,int>> borders; //associate the coordinate to either 0 or1 depending if it is the end or the beginning of the interval
     for (auto p : compatiblePartitions){
         borders.push_back(make_pair(p.get_left(),1));
         borders.push_back(make_pair(p.get_right(), 0));
@@ -1807,15 +1814,18 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
 
     std::sort(borders.begin(), borders.end(), [](const auto& x, const auto& y){return x.first < y.first;} ); //sort by first element
 
-
+    cout << "xxxxftr borders: " << endl;
+    for (auto b : borders){
+        cout << b.first << ", ";
+    }
+    cout << endl;
+    
     //list the limits of the intervals
     int lastRight = 0;
     for (auto b : borders){
         set <int> s;
-        if (b.first > 0){
-            intervals.push_back(make_pair(make_pair (lastRight, b.first-b.second), s ));
-            lastRight = b.first-b.second+1;
-        }
+        intervals.push_back(make_pair(make_pair (lastRight, b.first-b.second), s ));
+        lastRight = b.first-b.second+1;
     }
 
 
@@ -1824,7 +1834,7 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
     for (auto p : compatiblePartitions){
         int n2 = 0;
         for (auto interval : intervals){
-            if (p.get_left() <= interval.first.first+1 && p.get_right() >= interval.first.second-1){
+            if (p.get_left() <= interval.first.first && p.get_right() >= interval.first.second-1){
                 intervals[n2].second.emplace(n);
             }
             n2++;

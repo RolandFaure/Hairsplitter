@@ -20,7 +20,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx python=3.10.4 scipy numpy 
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx=12.0.0 gcc=12.0.0 python=3.10.4 scipy numpy 
 conda activate hairsplitter
 ```
 
@@ -43,8 +43,6 @@ cd build
 cmake .. -DCMAKE_CXX_COMPILER=/path/to/g++ -DCMAKE_C_COMPILER=/path/to/gcc
 make
 ```
-
-Because of some optimization implemented directly in WFA2 (which we do not develop), Hairsplitter by default only runs on CPUs supporting AVX2 instructions (recent CPUs). To run HairSplitter on older CPUs, you must align the reads base-per-base to the assembly (e.g. using the -a option of minimap2) and then give the SAM file to HairSplitter through the -a option.
 
 # Usage
 
@@ -96,8 +94,10 @@ OPTIONS
                   
 ```
 
-# Installation issues
+# Issues
  Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to support c++17. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+ 
+ If HairSplitter crashes with the message `Illegal instruction`, it probably means that the program is run on a different CPU than the one on which it was compiled. This can typically happen if you're running HairSplitter on a computing cluster. To solve the issue, make sure to compile and run HairSplitter on the same CPU (more precisely, you need to compile and run WFA2-lib on the same CPU).
 
 
 

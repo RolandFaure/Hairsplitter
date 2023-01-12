@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
         }
 
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
-        cout << "-- Please note that details on what Hairsplitter does will be jotted down in file output.txt --\n";
+        cout << "-- Please note that details on what Hairsplitter does will be jotted down in file hairsplitter_summary.txt --\n";
 
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
@@ -182,13 +182,15 @@ int main(int argc, char *argv[])
             //cut the gfa in small contigs to speed up the computation
             string command_cut = "python " + path_cut_gfa + " -a " + refFile + " -l 100000 -o tmp/assembly_cut.gfa > tmp/logcut.txt";
             auto res_cut = system(command_cut.c_str());
-            refFile = "tmp/assembly_cut.gfa";
             if (res_cut != 0){
                 cout << "ERROR while running " << command_cut << endl;
                 cout << "ERROR: Hairsplitter needs python3 to run. Make sure to have python3 installed. If this is not \
                     the problem, you may circumvent the error by using option -a." << endl;
                 exit(EXIT_FAILURE);
             }
+
+            refFile = "tmp/assembly_cut.gfa";
+
 
             string fastaFile = "tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
@@ -199,8 +201,13 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
-            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt\n";
-            system(command.c_str());
+            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt" << endl;
+            auto res_minimap = system(command.c_str());
+            if (res_minimap != 0){
+                cout << "ERROR while running " << command << endl;
+                cout << "DEPENDANCY ERROR: minimap2 could not run properly, check tmp/logminimap.txt" << endl;
+                exit(EXIT_FAILURE);
+            }
         }
         else{
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
@@ -256,7 +263,7 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -D -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
+        string com = " unzip -D -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
         string command = GRAPHUNZIP + com;
         cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());
