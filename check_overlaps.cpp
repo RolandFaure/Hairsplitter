@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && (allreads[read].name == "edge_6@3@0" || allreads[read].name == "edge_6@2@0") ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_6@3@00" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -1813,12 +1813,6 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
     borders = std::vector<pair<int,int>>(set_borders.begin(), set_borders.end());
 
     std::sort(borders.begin(), borders.end(), [](const auto& x, const auto& y){return x.first < y.first;} ); //sort by first element
-
-    cout << "xxxxftr borders: " << endl;
-    for (auto b : borders){
-        cout << b.first << ", ";
-    }
-    cout << endl;
     
     //list the limits of the intervals
     int lastRight = 0;
