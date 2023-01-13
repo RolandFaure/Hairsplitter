@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -D -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
+        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
         string command = GRAPHUNZIP + com;
         cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());

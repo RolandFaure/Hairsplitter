@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_6@3@00" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,10) != "edge_9@0@00" ){
 
                 if (DEBUG){
                     #pragma omp critical
