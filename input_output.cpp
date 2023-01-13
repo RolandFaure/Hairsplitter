@@ -1309,7 +1309,7 @@ void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitio
     int n = 0;
 
     for (auto sus : suspectPostitions){
-        auto c =  Partition(snps[sus], 0);
+        auto c =  Partition(snps[sus], 0, snps[sus].content[0]);
         int n2 = 0;
         for (auto p : c.getReads()){
             if (c.getPartition()[n2] == 1){

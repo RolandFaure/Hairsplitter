@@ -34,7 +34,7 @@ if __name__ == "__main__":
                     
                     ls = line.split("\t")
                     length_of_contigs[ls[1]] = len(ls[2])
-                    for chunk in range (int(np.floor(len(ls[2])/length)+1)):
+                    for chunk in range (int((np.floor(len(ls[2])-2)/length)+1)): #-2 to avoid creating a contig of length 0 if the size is precisely a multiple of the length
                         out.write("S\t" + ls[1] + "@" + str(chunk) + "\t" + ls[2][chunk*length:min((chunk+1)*length, len(ls[2])+1)] + "\t" + "\t".join(ls[3:]).strip("\n")+"\n")
                         #link the slice with the previous one
                         if chunk > 0 :

@@ -790,6 +790,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     vector<vector<distPart>> distanceBetweenPartitions;
     vector<size_t> suspectPostitions;
     vector <int> interestingParts; //DEBUG
+    int localErrors = 0;
 
     for (int position = 0 ; position < ref.size() ; position++){ 
 
@@ -808,11 +809,20 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
 
         float threshold = min(1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2)), float(0.1*numberOfReadsHere)); //more than 10% of different bases is always suspicious
+        //sort content and store the result in content_sorted
+        int content_sorted[5] = {0,0,0,0,0};
+        std::partial_sort_copy(content, content+5, content_sorted, content_sorted+5, std::greater<int>());
+
         // threshold = 3; //DEBUG
-        if (//content[4] < 0.25*float(numberOfReadsHere) && //not too many '-', because '-' are less specific than snps
-             *std::max_element(content, content+4) < numberOfReadsHere-content[4]-threshold){ //this position is suspect
+        if (content[4] < content_sorted[1] && content_sorted[1] > 3*content_sorted[2] && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
            
             // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
+            char ref_base;
+            if (position < ref.size()){
+                ref_base = ref[position];
+            } else {
+                ref_base = '-';
+            }
 
             suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
@@ -820,20 +830,21 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
                 //if the partition is too far away, do not bother comparing
-                if (std::abs(snps[position].pos-partitions[p].get_right())>30000 || (std::abs(snps[position].pos-partitions[p].get_right())>10000 && partitions[p].number() < 2)){
+                if (std::abs(snps[position].pos-partitions[p].get_right())>10000){
                     continue;
                 }
-                distancePartition dis = distance(partitions[p], snps[position]);
-                auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
-                // if (comparable > 10){
-                //     cout << "coco comparable : " << float(dis.n01+dis.n10)/(dis.n00+dis.n11+dis.n01+dis.n10) << " " << dis.augmented<< " mean distance : " << meanDistance << endl;
-                //     partitions[p].print();
-                //     Partition(snps[position]).print();
-                    
-                // }
 
-                if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                    
+                distancePartition dis = distance(partitions[p], snps[position], ref_base);
+                auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
+                int trashBases = content_sorted[2] + content_sorted[3] + content_sorted[4]; //bases that are probably errors at this position
+
+                float tolerableNumberOfErrors = float(trashBases)/2;
+                if (partitions[p].number() < 5){
+                    tolerableNumberOfErrors = trashBases;
+                }
+
+                //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+                if(dis.n10 <= localErrors && dis.n01 <= tolerableNumberOfErrors && dis.n11 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
                     int pos = -1;
                     if (position < ref.size()){
                         pos = position;
@@ -860,7 +871,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
             if (!found && position < ref.size()){    // the second condition is here to create partitions only at specific spots of the backbone
                 distanceBetweenPartitions.push_back(distances);
-                partitions.push_back(Partition(snps[position], position)); 
+                partitions.push_back(Partition(snps[position], position, ref_base)); 
             }
             else{
                 position += 5;
@@ -870,6 +881,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
             //two suspect positions next to each other can be artificially correlated through alignement artefacts
 
+        }
+        else{
+            localErrors = content_sorted[2] + content_sorted[3] + content_sorted[4];
         }
     }
 
@@ -891,114 +905,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
     }
 
-
-    //for debugging only
-    //outputMatrix(snps, suspectPostitions, std::to_string(read));
-
-    // cout << "Outputting the graph" << endl;
-
-    /* looking at the graph
-    //square the distanceBetweenPartions matrix (which is a triangle matrix until now)
-
-    for (int i = 0 ; i < distanceBetweenPartitions.size() ; i++){
-        distPart diag;
-        distanceBetweenPartitions[i].push_back(diag); //that is the diagonal
-        while(distanceBetweenPartitions[i].size() < distanceBetweenPartitions.size()){
-            distanceBetweenPartitions[i].push_back(diag);
-        }
-    }
-    for (int i = 0 ; i < distanceBetweenPartitions.size() ; i++){
-       for (int j = i+1 ; j < distanceBetweenPartitions.size() ; j++){
-            distanceBetweenPartitions[i][j].distance = distanceBetweenPartitions[j][i].distance;
-        }
-    }
-
-    // build the adjacency matrix
-    vector<vector <float>> adj (distanceBetweenPartitions.size(), vector<float> (distanceBetweenPartitions.size(), 0));
-    //each node keeps only the links to very close elements
-    int numberOfNeighborsKept = 5;
-    for (auto i = 0 ; i < distanceBetweenPartitions.size() ; i++){
-        if (distanceBetweenPartitions[i].size() > numberOfNeighborsKept){
-            vector <distPart> minElements (numberOfNeighborsKept);
-            std::partial_sort_copy(distanceBetweenPartitions[i].begin(), distanceBetweenPartitions[i].end(), minElements.begin(), minElements.end(), comp);
-            float maxDiff = minElements[numberOfNeighborsKept-1].distance;
-
-            //cout << "maxdiff of partition " << i << " : " << maxDiff << endl;
-            if (i == 1){
-                // cout << "1 : " << endl;
-                // for(auto j:adj[i]){cout<<j << " ";}
-                // cout << endl;
-            }
-            
-            int numberOf1s = 0;
-            for (int j = 0 ; j < distanceBetweenPartitions[i].size() ; j++){
-                if (distanceBetweenPartitions[i][j].distance > maxDiff || distanceBetweenPartitions[i][j].distance == 1 || numberOf1s >= numberOfNeighborsKept){
-                    
-                }
-                else {
-                    if (distanceBetweenPartitions[i][j].distance < meanDistance){
-                        // cout << "distance : " << distanceBetweenPartitions[i][j].distance << endl;
-                        adj[i][j] = 1;
-                        adj[i][j] = 1;
-                        numberOf1s++;
-                    }
-                }
-            }
-        }
-    }
-
-    */
-
-   /* to look at the graph
-
-    vector<int> clusters (partitions.size());
-
-    cluster_graph_chinese_whispers(adj, clusters);
-    outputGraph(adj, clusters, "graph.gdf");
-
-    //filter out too small clusters
-    vector <int> sizeOfCluster;
-    for (auto p = 0 ; p < partitions.size() ; p++){
-        while (clusters[p] >= sizeOfCluster.size() ){ 
-            sizeOfCluster.push_back(0);
-        }
-        sizeOfCluster[clusters[p]] += 1;
-    }
-    vector<Partition> listOfFinalPartitionsdebug(sizeOfCluster.size(), Partition(partitions[0].size()));
-
-    //now merge each cluster in one partition
-    for (auto p = 0 ; p < partitions.size() ; p++){
-
-        if (sizeOfCluster[clusters[p]] > 3){
-            // if (sizeOfCluster[clusters[p]] == 41){
-            //     partitions[p].print();
-            // }
-            listOfFinalPartitionsdebug[clusters[p]].mergePartition(partitions[p]);
-        }
-    }
-
-    //filter out empty partitions
-    vector<Partition> listOfFinalPartitions2;
-    for (auto p : listOfFinalPartitionsdebug){
-        if (p.number()> 0 && p.isInformative(meanDistance/2, true)) {
-            listOfFinalPartitions2.push_back(p);
-        }
-    }
-    listOfFinalPartitionsdebug = listOfFinalPartitions2;
-
-    for (auto p : listOfFinalPartitionsdebug){
-        cout << "final : " << endl;
-        p.print();
-    }
-
-    */
     
     float threshold =  max(4.0, min(0.01*numberOfSuspectPostion, 0.001*snps.size()));
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
 
-        // if (partitions[p1].number() > 2){
+        // if (partitions[p1].number() > 5){
         //     cout << "iqdoudofq non informative partition : "  << threshold << " " << numberOfSuspectPostion << " " << snps.size()<< endl;
         //     partitions[p1].print();
         // }
@@ -1117,9 +1030,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
  * 
  * @param par1 
  * @param par2 
+ * @param ref corresponding reference base
  * @return distancePartition (n00, n01, n10, n11, phased, partition_to_augment)
  */
-distancePartition distance(Partition &par1, Column &par2){
+distancePartition distance(Partition &par1, Column &par2, char ref_base){
 
     /*
     when computing the distance, there is not 5 letters but 2 : the two alleles, which are the two most frequent letters
@@ -1170,55 +1084,43 @@ distancePartition distance(Partition &par1, Column &par2){
     }
 
     //determine first and second most frequent bases in par2
-    char mostFrequent2 = 'A';
-    int maxFrequence2 = content2[0];
-    char secondFrequent2 = 'C';
-    int secondFrequence2 = content2[1];
-    if (content2[0] < content2[1]){
-        mostFrequent2 = 'C';
-        maxFrequence2 = content2[1];
-        secondFrequent2 = 'A';
-        secondFrequence2 = content2[0];
-    }
-    for (auto i = 2 ; i < 5 ; i++){
-        if (content2[i] > maxFrequence2){
-            secondFrequence2 = maxFrequence2;
-            secondFrequent2 = mostFrequent2;
-            maxFrequence2 = content2[i];
-            mostFrequent2 = "ACGT-"[i];
-        }
-        else if (content2[i] > secondFrequence2){
-            secondFrequent2 = "ACGT-"[i];
-            secondFrequence2 = content2[i];
+    
+    char mostFrequent = ref_base;
+    auto maxFrequence = content2[bases2content[ref_base]];
+    //now find the second most frequent base
+    char secondFrequent = 'O';
+    int maxFrequence2 = -1;
+    for (auto i = 0 ; i < 5 ; i++){
+        if (ref_base != "ACGT-"[i]) {
+            if (content2[i] > maxFrequence2){
+                secondFrequent = "ACGT-"[i];
+                maxFrequence2 = content2[i];
+            }
         }
     }
 
     // cout << "poiuy Two most frequent : " << mostFrequent2 << "," << secondFrequent2 << "\n";
 
-    float scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
+    float score = 0; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
     float bestScore = 0;
     //remember all types of matches for the chi square test
-    int matches00[2] = {0,0};
-    int matches01[2] = {0,0};
-    int matches10[2] = {0,0};
-    int matches11[2] = {0,0};
-    Column newPartitions [2];
+    int matches00 = 0;
+    int matches01 = 0;
+    int matches10 = 0;
+    int matches11 = 0;
+    Column newPartition;
 
-    newPartitions[0].readIdxs = {};
-    newPartitions[1].readIdxs = {};
+    newPartition.readIdxs = {};
     for (auto ci = 0 ; ci < par2.content.size() ; ci++){
         char c = par2.content[ci];
-        if (c == mostFrequent2){
-            newPartitions[0].readIdxs.push_back(par2.readIdxs[ci]);
-            newPartitions[0].content.push_back('A');
-            newPartitions[1].readIdxs.push_back(par2.readIdxs[ci]);
-            newPartitions[1].content.push_back('a');
+        if (c == mostFrequent){
+            newPartition.readIdxs.push_back(par2.readIdxs[ci]);
+            newPartition.content.push_back('A');
+
         }
-        else if (c == secondFrequent2){
-            newPartitions[0].readIdxs.push_back(par2.readIdxs[ci]);
-            newPartitions[0].content.push_back('a');
-            newPartitions[1].readIdxs.push_back(par2.readIdxs[ci]);
-            newPartitions[1].content.push_back('A');
+        else if (c == secondFrequent){
+            newPartition.readIdxs.push_back(par2.readIdxs[ci]);
+            newPartition.content.push_back('a');
         }
         else{
             //the other bases are not considered
@@ -1238,38 +1140,30 @@ distancePartition distance(Partition &par1, Column &par2){
             ++it1;
             ++it2;
 
-            if (par2.content[n2] == mostFrequent2){
+            if (par2.content[n2] == mostFrequent){
 
                 if (part1[n1] == 1){
-                    scores[0] += conf;
-                    scores[1] -= conf;
+                    score += conf;
                     bestScore += conf;
-                    matches11[0] += 1;
-                    matches10[1] += 1;
+                    matches11 += 1;
                 }
                 else if (part1[n1] == -1){
-                    scores[0] -= conf;
-                    scores[1] += conf;
+                    score -= conf;
                     bestScore += conf;
-                    matches01[0] += 1;
-                    matches00[1] += 1;
+                    matches01 += 1;
                 }
             }
-            else if (par2.content[n2] == secondFrequent2){
+            else if (par2.content[n2] == secondFrequent){
 
                 if (part1[n1] == 1){
-                    scores[0] -= conf;
-                    scores[1] += conf;
+                    score -= conf;
                     bestScore += conf;
-                    matches10[0] += 1;
-                    matches11[1] += 1;
+                    matches10 += 1;
                 }
                 else if (part1[n1] == -1){
-                    scores[0] += conf;
-                    scores[1] -= conf;
+                    score += conf;
                     bestScore += conf;
-                    matches00[0] += 1;
-                    matches01[1] += 1;
+                    matches00 += 1;
                 }
             }
             n1++;
@@ -1285,25 +1179,13 @@ distancePartition distance(Partition &par1, Column &par2){
         }
     }
 
-    //now look at the best scores
-
-    auto maxScore = scores[0];
-    auto maxScoreIdx = 0; //can be either 0 or 1
-    for (auto i = 0 ; i < 2 ; i++){
-        //cout << scores[i] << " , ";
-        if (scores[i]>=maxScore){
-            maxScore = scores[i];
-            maxScoreIdx = i;
-        }
-    }
-
-    res.n00 = matches00[maxScoreIdx];
-    res.n01 = matches01[maxScoreIdx];
-    res.n10 = matches10[maxScoreIdx];
-    res.n11 = matches11[maxScoreIdx];
-    res.score = scores[maxScoreIdx]/bestScore;
-    res.phased = -2*maxScoreIdx + 1;
-    res.partition_to_augment = newPartitions[maxScoreIdx];
+    res.n00 = matches00;
+    res.n01 = matches01;
+    res.n10 = matches10;
+    res.n11 = matches11;
+    res.phased = 1;
+    res.secondBase = secondFrequent;
+    res.partition_to_augment = newPartition;
     //cout << "Computing..." << maxScore << " " << par1.size()-res.nonComparable << " " << res.nmismatch << endl;
 
     return res;

@@ -28,7 +28,7 @@ Partition::Partition(){
     pos_right = -1;
 }
 
-Partition::Partition(Column& snp, int pos){
+Partition::Partition(Column& snp, int pos, char ref_base){
 
     pos_left = pos;
     pos_right = pos;
@@ -51,6 +51,7 @@ Partition::Partition(Column& snp, int pos){
         }
     }
 
+    /*
     char mostFrequent2 = 'A';
     int maxFrequence2 = content[0];
     char secondFrequent2 = 'C';
@@ -73,12 +74,26 @@ Partition::Partition(Column& snp, int pos){
             secondFrequence2 = content[i];
         }
     }
+    */
+    char mostFrequent = ref_base;
+    auto maxFrequence = content[bases2content[ref_base]];
+    //now find the second most frequent base
+    char secondFrequent;
+    int maxFrequence2 = -1;
+    for (auto i = 0 ; i < 5 ; i++){
+        if (ref_base != "ACGT-"[i]) {
+            if (content[i] > maxFrequence2){
+                secondFrequent = "ACGT-"[i];
+                maxFrequence2 = content[i];
+            }
+        }
+    }
 
     for (auto i = 0 ; i < snp.content.size() ; i++){
-        if (snp.content[i] == mostFrequent2){
+        if (snp.content[i] == mostFrequent){
             mostFrequentBases.push_back(1); 
         }
-        else if (snp.content[i] == secondFrequent2){
+        else if (snp.content[i] == secondFrequent){
             mostFrequentBases.push_back(-1);
         }
         else{
@@ -465,6 +480,74 @@ vector<short> Partition::getPartition(){
     return mostFrequentBases;
 }
 
+/**
+ * @brief Returns the partition, taking into account the fact that -1 and 1 are not equiprobable, so switching unsure reads towards the less confident base
+ * 
+ * @return vector<short> 
+ */
+vector<short> Partition::get_tweaked_partition(){
+
+    vector<short> tweaked;
+
+    //you could do a very smart probabilistic computation here if we knew how many partitions participated to each read, but we don't
+
+    //compute the average confidence for the -1 and 1
+    double conf1 = 0;
+    double conf2 = 0;
+    int nb1 = 0;
+    int nb2 = 0;
+    for (auto i = 0 ; i < mostFrequentBases.size() ; i++){
+        if (mostFrequentBases[i] == 1){
+            conf1+=float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]);
+            nb1++;
+        }
+        else if (mostFrequentBases[i] == -1){
+            conf2+=float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]);
+            nb2++;
+        }
+    }
+    if (nb1 > 0){
+        conf1/=nb1;
+    }
+    if (nb2 > 0){
+        conf2/=nb2;
+    }
+
+    //compute p1 such that (1-conf1)/(1-conf2) = p1/(1-p1)
+    double ratio = (1-conf1)/(1-conf2);
+    double p1 = ratio/(1+ratio);
+
+    for (auto i = 0 ; i < mostFrequentBases.size() ; i++){
+        if (mostFrequentBases[i] == 0){
+            tweaked.push_back(0);
+        }
+        else if (mostFrequentBases[i] == 1){
+            if (float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]) > 1-p1){
+                tweaked.push_back(1);
+            }
+            else {
+                tweaked.push_back(-1);
+            }
+        }
+        else if (mostFrequentBases[i] == -1){
+            if (float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]) > p1){
+                tweaked.push_back(-1);
+            }
+            else {
+                tweaked.push_back(1);
+            }
+        }
+    }
+
+    cout << "ufqoidp: " << p1 << " " << conf1 << " " << conf2 << endl;
+    cout << "ufqoidp here is the tweaked partition : " << endl;
+    for (auto i = 0 ; i < tweaked.size() ; i++){
+        cout << tweaked[i] << " ";
+    }
+
+    return tweaked;
+}
+
 vector<int> Partition::getReads(){
     return readIdx;
 }
@@ -530,6 +613,29 @@ void Partition::print(){
     }
 
     cout << " " << numberOfOccurences << " " << pos_left << " <-> " << pos_right << endl;
+    //compute the average confidence of positions containing -1 and of positions containing 1
+    // float conf1 = 0;
+    // float conf0 = 0;
+    // int n1 = 0;
+    // int n0 = 0;
+    // for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
+    //     if (mostFrequentBases[c] == 1){
+    //         conf1 += float(moreFrequence[c])/(moreFrequence[c]+lessFrequence[c]);
+    //         n1++;
+    //     }
+    //     else if (mostFrequentBases[c] == -1){
+    //         conf0 += float(moreFrequence[c])/(moreFrequence[c]+lessFrequence[c]);
+    //         n0++;
+    //     }
+    // }
+    // if (n1 > 0){
+    //     conf1 /= n1;
+    // }
+    // if (n0 > 0){
+    //     conf0 /= n0;
+    // }
+    // cout << "conf 1 : " << conf1 << " conf 0 : " << conf0 << endl;
+
     // for (auto c = 0 ; c < mostFrequentBases.size() ; c++){
     //     cout << moreFrequence[c] << "/" << lessFrequence[c] << ";";
     // }

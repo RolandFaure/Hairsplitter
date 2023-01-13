@@ -27,7 +27,7 @@ class Partition {
 
 public :
     Partition(); //size is the total number of reads in the pileup
-    Partition(Column &snp, int pos); //to initialize a binary partition
+    Partition(Column &snp, int pos, char ref_base); //to initialize a binary partition
     void print(); //little function to print the consensus
     std::vector<int> getReads();
     std::vector<short> getPartition();
@@ -51,6 +51,8 @@ public :
 
     void new_corrected_partition(std::vector<short> newPartition); //Changes partition without changing anything else !!
     void extend_with_partition(Partition &p); //extends the partition with the partition p obtained by correlating the partition at all positions
+
+    std::vector<short> get_tweaked_partition(); //returns the partition tweaked to take into account the fact that 0s and 1s are not equiprobable
 
 private :
     std::vector <int> readIdx; //the list of reads is sparse : here are the filled indices (ordered)

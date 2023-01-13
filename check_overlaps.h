@@ -23,6 +23,7 @@ struct distancePartition{
     float score;
     short phased; // worth -1 or 1
     bool augmented; //to know if the partition was augmented or not
+    char secondBase; //the second base in the partition apart from the reference
     Column partition_to_augment;
 };
 
@@ -81,7 +82,7 @@ std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
     float minDistance, 
     int numberOfReads);
 
-distancePartition distance(Partition &par1, Column &par2);
+distancePartition distance(Partition &par1, Column &par2, char ref_base);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
 
