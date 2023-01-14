@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,10) != "edge_9@0@00" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_85@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -664,6 +664,41 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
     }
     polishseqs.close();
 
+    // assemble de novo using wtdbg2
+    /*
+    string comAsm = "/home/rfaure/Documents/software/wtdbg2/wtdbg2 -e 5 -l 1000 -L 3000 -S 1 -R -o tmp/wtdbg2"+id+" -i tmp/reads_"+id+".fasta 2>tmp/trash.txt";
+    system(comAsm.c_str());
+
+    string cons_wtdbg2 = "/home/rfaure/Documents/software/wtdbg2/wtpoa-cns -i tmp/wtdbg2"+id+".ctg.lay.gz -fo tmp/dbg.raw"+id+".fa 2>tmp/trash.txt";
+    int res_wtdbg2 = system(cons_wtdbg2.c_str());
+
+    if (res_wtdbg2){
+        // polish consensus, not necessary if you want to polish the assemblies using other tools
+        string comMap = "minimap2 -ax map-pb -r2k tmp/dbg.raw"+id+".fa tmp/reads_"+id+".fasta 2>tmp/trash.txt | samtools sort >tmp/dbg"+id+".bam 2>tmp/trash.txt";
+        system(comMap.c_str());
+
+        string comSamtools = "samtools view -F0x900 tmp/dbg"+id+".bam 2>tmp/trash.txt | /home/rfaure/Documents/software/wtdbg2/wtpoa-cns -d tmp/dbg.raw"+id+".fa -i - -fo tmp/dbg.cns"+id+".fa 2>tmp/trash.txt";
+        system(comSamtools.c_str());
+
+        string comUnfold = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' tmp/dbg.cns"+id+".fa > tmp/consensus"+id+".fa  2>tmp/trash.txt";
+        system(comUnfold.c_str());
+
+        //now read the consensus and return it
+        std::ifstream in("tmp/consensus"+id+".fa");
+        string consensus;
+        string line;
+        while (std::getline(in, line)){
+            if (line[0] != '>'){
+                consensus += line;
+            }
+        }
+        in.close();
+        return consensus;
+    }
+
+    else{
+    */
+
     string com = " -t 1 -x map-pb tmp/unpolished_"+id+".fasta tmp/reads_"+id+".fasta > tmp/mapped_"+id+".paf 2>tmp/trash.txt";
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
@@ -808,13 +843,14 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 }
         }
 
-        float threshold = min(1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2)), float(0.1*numberOfReadsHere)); //more than 10% of different bases is always suspicious
+        //float threshold = min(1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2)), float(0.1*numberOfReadsHere)); //more than 10% of different bases is always suspicious
         //sort content and store the result in content_sorted
         int content_sorted[5] = {0,0,0,0,0};
         std::partial_sort_copy(content, content+5, content_sorted, content_sorted+5, std::greater<int>());
 
-        // threshold = 3; //DEBUG
-        if (content[4] < content_sorted[1] && content_sorted[1] > 3*content_sorted[2] && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
+        float probabilityTrash = float(content_sorted[2]/numberOfReadsHere); //probability of having a trash base at this position
+
+        if (content[4] < content_sorted[1] && content_sorted[1] > content_sorted[2]+3*sqrt(content_sorted[2]*(1-probabilityTrash)) /*3*content_sorted[2]*/ && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
            
             // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
             char ref_base;
@@ -839,12 +875,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 int trashBases = content_sorted[2] + content_sorted[3] + content_sorted[4]; //bases that are probably errors at this position
 
                 float tolerableNumberOfErrors = float(trashBases)/2;
-                if (partitions[p].number() < 5){
+                if (partitions[p].number() < 10){
                     tolerableNumberOfErrors = trashBases;
                 }
 
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                if(dis.n10 <= localErrors && dis.n01 <= tolerableNumberOfErrors && dis.n11 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
+                if(dis.n01 <= localErrors && dis.n10 <= tolerableNumberOfErrors && dis.n00 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
                     int pos = -1;
                     if (position < ref.size()){
                         pos = position;
@@ -1013,7 +1049,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
     }
 
-    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(partitions_recomputed, keptPartitions, numberOfReads, meanDistance/2);
+    vector<Partition> listOfFinalPartitionsTrimmed = select_confident_partitions(partitions_recomputed, keptPartitions, numberOfReads, meanDistance/2, numberOfSuspectPostion);
 
     // cout << "threading clusters" << endl;
     //now aggregate all those binary partitions in one final partition. There could be up to 2^numberBinaryPartitions final groups
@@ -1561,7 +1597,7 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
  * @param errorRate 
  * @return vector<Partition> All the confident partitions
  */
-vector<Partition> select_confident_partitions(vector<Partition> &partitions, std::vector<bool> trimmedListOfFinalPartitionBool, int numberOfReads, float errorRate){
+vector<Partition> select_confident_partitions(vector<Partition> &partitions, std::vector<bool> trimmedListOfFinalPartitionBool, int numberOfReads, float errorRate, int numberOfSuspectPositions){
 
     vector<vector<int>> allIdxs;
     for (auto i : partitions){
@@ -1639,8 +1675,9 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
         }
 
         if (float(numberOfUnsureReads)/numberOfPartitionnedRead < 0.15 //then the partition is sure enough of itself 
-            && partitions[par].number() > min(20.0, 0.01*(partitions[par].get_right()-partitions[par].get_left()))){ //and big enough //max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left()))
+            && partitions[par].number() > min(20.0, 0.05*numberOfSuspectPositions)){ //and big enough //max(10.0, min(50.0,float(numberOfUnsureReads+1)/numberOfPartitionnedRead/0.15*0.01*(partitions[par].get_right()-partitions[par].get_left()))
             trimmedListOfFinalPartitionBool[par] = true;
+            numberOfSuspectPositions -= partitions[par].number();
         }
         else if (float(numberOfUnsureReads)/numberOfPartitionnedRead > 0.2 && (par>0||partitions[par].number() < 30)){ //if it's not the best partition it may be a weird version of the best partition
             trimmedListOfFinalPartitionBool[par] = false;
@@ -1699,6 +1736,12 @@ vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
     //list the limits of the intervals
     int lastRight = 0;
     for (auto b : borders){
+        if (b.first == 0){
+            b.first += 1;
+        }
+        if (b.first-b.second == lastRight){
+            continue;
+        }
         set <int> s;
         intervals.push_back(make_pair(make_pair (lastRight, b.first-b.second), s ));
         lastRight = b.first-b.second+1;
@@ -1833,8 +1876,13 @@ int compatible_partitions(Partition &p1 , Partition &p2){
     return compatible;
 }
 
-//input : a list of all binary partitions found in the reads
-//output : a single partition, with several number corresponding to several clusters
+/**
+ * @brief Concatenates binary partitions to form a single multi-part partition
+ * 
+ * @param listOfFinalPartitions the binary partitions
+ * @param numberOfReads 
+ * @return vector<int> the final partition
+ */
 vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads){
 
     vector<vector<short>> allPartitions;
@@ -1847,6 +1895,20 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     }
 
     int numberOfAssignedReads=0;
+    //inventroriate the reads that are present on all partitions
+    vector<int> numberOfTimeOfEachRead (numberOfReads, 0);
+    for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
+        for (auto read : listOfFinalPartitions[binary].getReads()){
+            numberOfTimeOfEachRead[read] += 1;
+        }
+    }
+    //now we have the number of times each read is present in the partitions, create a vector of reads that are present in all partitions
+    vector<int> readsPresentInAllPartitions;
+    for (auto i = 0 ; i < numberOfReads ; i++){
+        if (numberOfTimeOfEachRead[i] == listOfFinalPartitions.size()){
+            readsPresentInAllPartitions.push_back(i);
+        }
+    }
 
     vector<int> clusters (numberOfReads, -1); //this will contain only high-confidence reads
     vector<int> clustersAll (numberOfReads, -1); //this will contain all reads
@@ -1855,7 +1917,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
         int c = 0;
 
-        for (auto read : listOfFinalPartitions[binary].getReads()){
+        for (auto read : readsPresentInAllPartitions){
 
             presentReads[read] -= 1; //this happens only when read in in getReads
 

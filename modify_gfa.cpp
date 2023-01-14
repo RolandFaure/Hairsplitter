@@ -223,6 +223,7 @@ void modify_GFA(
 
                             newcontig = consensus_reads(toPolish2, group.second, thread_id);
                         }
+                        cout << "newcontig computed, here it is: " << endl;// << newcontig << endl;
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
@@ -230,6 +231,7 @@ void modify_GFA(
                         newcontig = newcontig.substr(max(0,result.startLocations[0]), min(result.endLocations[0]-result.startLocations[0]+2, int(newcontig.size())-result.startLocations[0]));
 
                         edlibFreeAlignResult(result);
+                        cout << "elibbbed" << endl;
                         
                         
                     }
