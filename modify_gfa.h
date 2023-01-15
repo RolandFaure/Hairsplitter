@@ -14,7 +14,7 @@ void modify_GFA(
     std::vector<Link> &allLinks, std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, 
     int num_threads);
 
-std::unordered_map<int, std::set<int>> stitch(std::vector<int> &par, std::vector<int> &neighbor);
+std::unordered_map<int, std::set<int>> stitch(std::vector<int> &par, std::vector<int> &neighbor, int position, std::vector<std::pair<int,int>> &readLimits);
 std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<std::pair<int,int>>& readBorders, double originalDepth);
 
 #endif

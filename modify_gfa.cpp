@@ -85,13 +85,13 @@ void modify_GFA(
         }
         if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0 && !dont_recompute_contig){
             //stitch all intervals of each backbone read
-            vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregating the information from stitchesLeft and stitchesRight to know what link to keep
+            vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
 
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
-                    auto stitchLeft = stitch(partitions[backbone][n].second.first, partitions[backbone][n-1].second.first);
-                    auto stitchRight = stitch(partitions[backbone][n-1].second.first, partitions[backbone][n].second.first);
+                    auto stitchLeft = stitch(partitions[backbone][n].second.first, partitions[backbone][n-1].second.first, partitions[backbone][n].first.first, readLimits[backbone]);
+                    auto stitchRight = stitch(partitions[backbone][n-1].second.first, partitions[backbone][n].second.first, partitions[backbone][n].first.second, readLimits[backbone]);
 
                     for (auto s : stitchLeft){
                         stitches[n][s.first] = s.second;
@@ -400,16 +400,23 @@ void modify_GFA(
     o << log_text << endl;
 }
 
-//input : list of links from first par to second par and reciproqually
-//output : for each part of par, the set of parts of neighbor to which it should be linked
-unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor){
+/**
+ * @brief Tells to which parts of neighbor each part of par should be linked
+ * 
+ * @param par partitions on the partition
+ * @param neighbor partitions on the neighbor
+ * @param position position of the stitch in the backbone
+ * @param readLimits limits of the reads in the backbone (so that reads that are not on the position of the stitch are not considered)
+ * @return unordered_map<int, set<int>> map associating a set of partitions of neighbor matching each partition of par
+ */
+unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int position, vector<pair<int,int>> &readLimits){
 
     unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
     unordered_map<int, int> cluster_size; 
     unordered_map<int,set<int>> stitch;
 
     for (auto r = 0 ; r < par.size() ; r++){
-        if (par[r] != -1 && neighbor[r] != -1){
+        if (par[r] != -1 && neighbor[r] != -1 && readLimits[r].first <= position && readLimits[r].second >= position){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
                     fit_left[par[r]][neighbor[r]] += 1;
