@@ -131,93 +131,6 @@ void compute_partition_on_this_contig(
     vector<string> consensuses; //vector containing all the consensus sequences (we hope jeust one, but we might have to do several MSA if the reads are too far away from each other)
     robin_hood::unordered_map<int, int> insertionPositions;
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish);
-    //count the number of true in misalignedReads
-    int nbMisaligned = std::count(misalignedReads.begin(), misalignedReads.end(), true);
-    // if (nbMisaligned > 10){
-    //     cout << "Seems that a lot of reads do not align very well here, I will have to do an all-vs-all alignment, this might take some time\n";
-    //     //output all the reads in a fasta file with num_threads as name
-    //     string readFile = HAIRSPLITTER+"tmp/misaligned_reads_"+std::to_string(omp_get_thread_num())+".fasta";
-    //     ofstream out(readFile);
-    //     for (int i = 0 ; i < misalignedReads.size() ; i++){
-    //         out << ">" << std::to_string(allOverlaps[allreads[contig].neighbors_[i]].sequence1) << endl;
-    //         out << allreads[allOverlaps[allreads[contig].neighbors_[i]].sequence1].sequence_.str() << endl;
-    //     }
-    //     out.close();
-    //     //now run group_reads.py on this file
-    //     string consensusFile = HAIRSPLITTER+"tmp/consensus_"+std::to_string(omp_get_thread_num())+".fasta";
-    //     string command = "python " + HAIRSPLITTER + "/group_reads.py -r  "+readFile+" -c "+ consensusFile+" 2> "+HAIRSPLITTER+"tmp/log_group_reads.txt";
-    //     system(command.c_str());
-
-    //     //now read the consensus file and get all the new contigs
-    //     std::ifstream in(consensusFile);
-    //     string line;
-    //     while (std::getline(in, line)){
-    //         if (line[0] != '>'){
-    //             consensuses.push_back(line);
-    //         }
-    //     }
-    //     cout << "vbsii The new contigs are : " << " (there are " << consensuses.size() << " of them):" << endl;
-    //     for (auto i = 0 ; i < consensuses.size() ; i++){
-    //         cout << consensuses[i] << endl;
-    //     }
-
-    //     if (consensuses.size() > 1){
-    //         //create all the new contigs and discard the old one
-    //         //run minimap2 on the to associate the reads to the new contigs
-    //         string mapFile = HAIRSPLITTER+"tmp/overlaps_"+std::to_string(omp_get_thread_num())+".sam";
-    //         command = "minimap2 -ax ava-ont -t 1 "+consensusFile+" "+readFile+" > "+ mapFile;
-    //         //parse the map file and create a vector associating to each new contig the list of reads that align on it
-    //         vector<vector<long int>> newContigs(consensuses.size());
-    //         std::ifstream in(mapFile);
-    //         string line;
-    //         while (std::getline(in, line)){
-    //             //get the 1st and 6th columns
-    //             std::istringstream iss(line);
-    //             int newcontig;
-    //             int readnumber;
-    //             //go through the columns of the line
-    //             int i = 0;
-    //             string field;
-    //             while (std::getline(iss, field, '\t')){
-    //                 if (i == 5){
-    //                     newcontig = std::atoi(field.c_str());
-    //                 }
-    //                 if (i == 0){
-    //                     readnumber = std::atoi(field.c_str());
-    //                 }
-    //                 i++;
-    //             }
-    //             newContigs[newcontig].push_back(readnumber);
-    //         }
-    //         in.close();
-
-    //         //make sure gfa graph is updated on one thread only
-    //         #pragma omp critical graphUpdate
-    //         {
-    //             for (auto i = 0 ; i < consensuses.size() ; i++){
-    //                 Read newRead;
-    //                 newRead.sequence_ = consensuses[i];
-    //                 newRead.name = "contig_"+std::to_string(contig)+"@"+std::to_string(i);
-    //                 newRead.depth = allreads[contig].depth;
-    //                 newRead.comments = allreads[contig].comments;
-    //                 //all the links left and right are kept
-    //                 for (auto l : allreads[contig].get_links_left()){
-    //                     newRead.add_link(l, 0);
-    //                 }
-    //                 for (auto l : allreads[contig].get_links_right()){
-    //                     newRead.add_link(l, 1);
-    //                 }
-    //                 newRead.neighbors_.
-    //                 allreads.push_back(newRead);
-    //                 //add the new contig to the list of backbones
-    //                 backbones_reads.push_back(allreads.size()-1);
-    //             }
-    //         }
-
-    //         return; //we will need to come back on the newly generated contigs
-    //     }
-    // }
-
 
     //then separate the MSA
     string ref = allreads[contig].sequence_.str();
@@ -234,7 +147,6 @@ void compute_partition_on_this_contig(
     //now compute the consensus for each new contig
     compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
 
-    cout << "Here are the two first consensus: " << partitions[contig][0].first.first << " " << partitions[contig][0].first.second << endl;
     // print all elements of the map partitions[contig][0].second.second
     // auto map = partitions[contig][0].second.second;
     // for (auto it = map.begin(); it != map.end(); ++it) {
@@ -253,10 +165,10 @@ void compute_partition_on_this_contig(
     //free up memory by deleting the sequence of the reads used there
     for (auto n : allreads[contig].neighbors_){
         if (allOverlaps[n].sequence1 != contig){
-            allreads[allOverlaps[n].sequence1].delete_sequence();
+            allreads[allOverlaps[n].sequence1].free_sequence();
         }
         else{
-            allreads[allOverlaps[n].sequence2].delete_sequence();
+            allreads[allOverlaps[n].sequence2].free_sequence();
         }
     }
 }
@@ -955,10 +867,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
 
-    if (listOfFinalPartitions.size() == 0){
-        return vector<pair<pair<int,int>, vector<int>>> (0);
-    }
-
     //now go through windows of width 1000 along the reference and create local partitions
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
     int suspectPostitionIdx = 0;
@@ -1005,7 +913,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //list and strengthen local partitions that have a numberOfOccurences >= 1
         for (auto p = 0 ; p < localPartitions.size() ; p++){
             if (localPartitions[p].number() >= 1){
-                cout << "on window " << chunk << " found partition " << endl;
+                cout << "on windhhow " << chunk << " found partition " << endl;
                 localPartitions[p].print();
             }
         }
@@ -1696,92 +1604,6 @@ vector<Partition> select_confident_partitions(vector<Partition> &partitions, std
     return trimmedListOfFinalPartition;
 }
 
-/**
- * @brief Given all the separated partitions, compute the separation of reads on the length of the contig
- * 
- * @param compatiblePartitions All the partitions found in the reads
- * @param numberOfReads 
- * 
- * @return  a vector defining intervals with their two bounds and their attached local partition
- */
-vector<pair<pair<int,int>, vector<int>> >threadHaplotypes(
-    vector<Partition> &compatiblePartitions, 
-    int numberOfReads
-    ){
-
-    //go through the reference and give the repartition of reads at each position
-
-    //sort the partitions by position left
-    std::sort(compatiblePartitions.begin(), compatiblePartitions.end(), [](Partition& lhs, Partition& rhs) {
-                    return lhs.get_left() < rhs.get_left();});
-
-    vector<pair<pair<int,int>, set<int>>> intervals; //list of intervals, with all partitions on each
-
-    vector<pair<int,int>> borders; //associate the coordinate to either 0 or1 depending if it is the end or the beginning of the interval
-    for (auto p : compatiblePartitions){
-        borders.push_back(make_pair(p.get_left(),1));
-        borders.push_back(make_pair(p.get_right(), 0));
-    }
-    //make sure no elements are present twice in borders
-    std::set<pair<int,int>> set_borders (borders.begin(), borders.end());
-    borders = std::vector<pair<int,int>>(set_borders.begin(), set_borders.end());
-
-    std::sort(borders.begin(), borders.end(), [](const auto& x, const auto& y){return x.first < y.first;} ); //sort by first element
-    
-    //list the limits of the intervals
-    int lastRight = 0;
-    for (auto b : borders){
-        if (b.first == 0){
-            b.first += 1;
-        }
-        if (b.first-b.second == lastRight){
-            continue;
-        }
-        set <int> s;
-        intervals.push_back(make_pair(make_pair (lastRight, b.first-b.second), s ));
-        lastRight = b.first-b.second+1;
-    }
-
-
-    //now list what partition is present on which interval
-    int n = 0;
-    for (auto p : compatiblePartitions){
-        int n2 = 0;
-        for (auto interval : intervals){
-            if (p.get_left() <= interval.first.first && p.get_right() >= interval.first.second-1){
-                intervals[n2].second.emplace(n);
-            }
-            n2++;
-        }
-        n++;
-    }
-
-    
-    //for each interval, determine the partition of reads
-    vector<pair<pair<int,int>, vector<int>>> res;
-    for (auto interval : intervals){
-        vector<Partition> localPartitions;
-        for (auto lp : interval.second){
-            localPartitions.push_back(compatiblePartitions[lp]);
-        }
-        vector<int> localPartition = threadHaplotypes_in_interval(localPartitions, numberOfReads);
-        res.push_back(make_pair(make_pair(interval.first.first, interval.first.second), localPartition));
-    }
-
-    if (DEBUG){
-        cout << "here are the intervals : " << endl;
-        n = 0;
-        for (auto interval : intervals){
-            cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
-            // for (auto p : interval.second){cout << p << ",";} cout << endl;
-            for (auto r : res[n].second){if (r>=0){cout << r+1;}else{cout<< " ";}} cout << endl;
-            n++;
-        }
-    }
-
-    return res;
-}
-
 //input : two partitions
 //output : are those two partitions compatible ? : 0 No, 1 Yes, 2 they're the same partition !
 int compatible_partitions(Partition &p1 , Partition &p2){
@@ -1879,6 +1701,10 @@ int compatible_partitions(Partition &p1 , Partition &p2){
  * @return vector<int> the final partition
  */
 vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads){
+
+    if (listOfFinalPartitions.size() == 0){
+        return vector<int>(numberOfReads, 0);
+    }
 
     vector<vector<short>> allPartitions;
     for (auto i : listOfFinalPartitions){

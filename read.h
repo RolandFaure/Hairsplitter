@@ -40,8 +40,8 @@ public:
     Read();
     Read(std::string s);
 
-    void set_sequence(std::string s);
-    void delete_sequence();
+    void upload_sequence(std::string s);
+    void free_sequence();
     Sequence sequence_;
 
     std::string name;
@@ -66,6 +66,8 @@ public:
 private : //when reads are actually contigs
     std::vector<size_t> links_left; //indices of links in allLinks vector
     std::vector<size_t> links_right;
+
+    int number_of_threads_in_which_it_is_loaded;
 
     long int positionInFile_;
 };

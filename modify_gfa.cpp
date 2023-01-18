@@ -53,7 +53,10 @@ void modify_GFA(
     for (int b = 0 ; b < max_backbone ; b++){
 
         //first load all the reads
-        parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
+        #pragma omp critical
+        {
+            parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
+        }
 
         //then separate the contigs
 
@@ -144,28 +147,11 @@ void modify_GFA(
                 hangingLinks.push_back(linkIdx);
             }
 
-            //construct singlepolish, the sequence polished by all the reads.
-            //it may be different from the polished version we already have because it has been polished using reads that maybe align elsewhere: compare the expected depth with number of reads aligning
             //compute the depth from the number of aligning reads
             std::pair<int,int> limitsAll= std::make_pair(0, allreads[backbone].sequence_.size()-1);
             vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
             unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, readLimits[backbone], allreads[backbone].depth);
 
-            string singlepolish = allreads[backbone].sequence_.str();
-            if (newdepths[1]<0.8*allreads[backbone].depth || newdepths[1]>1.3*allreads[backbone].depth || allreads[backbone].depth == 0){ //if the depths do not match
-                vector<string> allneighbors;
-                for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
-                    auto idxRead = allOverlaps[allreads[backbone].neighbors_[n]].sequence1;
-                    if (allOverlaps[allreads[backbone].neighbors_[n]].strand){
-                        allneighbors.push_back(allreads[idxRead].sequence_.str());
-                    }
-                    else{
-                        allneighbors.push_back(allreads[idxRead].sequence_.reverse_complement().str());
-                    }
-                }
-                string seqbackbone = allreads[backbone].sequence_.str();
-                singlepolish = consensus_reads(seqbackbone, allneighbors, thread_id);
-            }
 
             int n = 0;
             for (auto interval : partitions[backbone]){
@@ -177,8 +163,6 @@ void modify_GFA(
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 //taking exactly the right portion of read we need
-                int coverageLeft = 0;
-                int coverageRight = 0; //count how many reads are aligning on the very edge of the interval, to avoid computing a consensus on a too few reads
                 for (int r = 0 ; r < interval.second.first.size(); r++){
                     if (interval.second.first[r] != -1){
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
@@ -188,6 +172,8 @@ void modify_GFA(
                         int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
 
                         string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
+                        
+                        //cout << "cliipplling read: " << allreads[idxRead].name << " " << limitLeft << " " << limitRight << " " << allreads[idxRead].sequence_.size() << endl;
 
                         if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
                             clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
@@ -201,13 +187,6 @@ void modify_GFA(
                         }
                         else {
                             readsPerPart[clust].push_back(clippedRead);
-                        }
-
-                        if(allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 <= interval.first.first){
-                            coverageLeft++;
-                        }
-                        if(allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 >= interval.first.second){
-                            coverageRight++;
                         }
                     }
                 }
@@ -260,12 +239,7 @@ void modify_GFA(
                         edlibFreeAlignResult(result);                        
                     }
                     else {
-                        string extract = interval.second.second[group.first];
-                        EdlibAlignResult result = edlibAlign(extract.c_str(), extract.size(),
-                                    singlepolish.c_str(), singlepolish.size(),
-                                    edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-                        newcontig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
-
+                        newcontig = interval.second.second[group.first];
                     }
 
                     Read r(newcontig);
@@ -337,18 +311,8 @@ void modify_GFA(
             int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
             std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
-            newdepths = recompute_depths(limits , partition1, readLimits[backbone], allreads[backbone].depth);
-
-            string contig;
-            if (right.size() > 0){
-                EdlibAlignResult result = edlibAlign(right.c_str(), right.size(),
-                    singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-                contig = singlepolish.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+2);
-                edlibFreeAlignResult(result);
-            }
-            else{
-                contig = "";
-            }
+            string contig = "";
+            
             Read r (contig);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = newdepths[1];
@@ -413,10 +377,10 @@ void modify_GFA(
         //free up memory by deleting the sequence of the reads used there
         for (auto n : allreads[backbones_reads[b]].neighbors_){
             if (allOverlaps[n].sequence1 != backbones_reads[b]){
-                allreads[allOverlaps[n].sequence1].delete_sequence();
+                allreads[allOverlaps[n].sequence1].free_sequence();
             }
             else{
-                allreads[allOverlaps[n].sequence2].delete_sequence();
+                allreads[allOverlaps[n].sequence2].free_sequence();
             }
         }
     }

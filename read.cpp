@@ -8,6 +8,7 @@ Read::Read()
 {
     sequence_ = Sequence();
     name = "";
+    number_of_threads_in_which_it_is_loaded = 0;
 }
 
 Read::Read(std::string s)
@@ -15,14 +16,19 @@ Read::Read(std::string s)
     sequence_ = Sequence(s);
     name = "";
     depth = -1;
+    number_of_threads_in_which_it_is_loaded = 0;
 }
 
-void Read::set_sequence(std::string s){
+void Read::upload_sequence(std::string s){
     sequence_ = Sequence(s);
+    number_of_threads_in_which_it_is_loaded += 1;
 }
 
-void Read::delete_sequence(){
-    sequence_ = Sequence();
+void Read::free_sequence(){
+    number_of_threads_in_which_it_is_loaded -= 1;
+    if (number_of_threads_in_which_it_is_loaded == 0){
+        sequence_ = Sequence();
+    }
 }
 
 void Read::add_overlap(long int o){
