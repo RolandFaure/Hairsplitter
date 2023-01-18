@@ -177,12 +177,15 @@ void modify_GFA(
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 //taking exactly the right portion of read we need
+                int coverageLeft = 0;
+                int coverageRight = 0; //count how many reads are aligning on the very edge of the interval, to avoid computing a consensus on a too few reads
                 for (int r = 0 ; r < interval.second.first.size(); r++){
                     if (interval.second.first[r] != -1){
-                        int clust = interval.second.first[r];
-                        int limitLeft = allOverlaps[allreads[backbone].neighbors_[r]].position_1_1; //the limit of the read that we should use
-                        int limitRight = allOverlaps[allreads[backbone].neighbors_[r]].position_1_2;
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
+
+                        int clust = interval.second.first[r];
+                        int limitLeft = max(0,allOverlaps[allreads[backbone].neighbors_[r]].position_1_1-20); //the limit of the read that we should use with a little margin for a clean polish
+                        int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
 
                         string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
 
@@ -199,7 +202,13 @@ void modify_GFA(
                         else {
                             readsPerPart[clust].push_back(clippedRead);
                         }
-                        // cout << "Read " << allreads[idxRead].name << " is in cluster " << clust << endl;
+
+                        if(allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 <= interval.first.first){
+                            coverageLeft++;
+                        }
+                        if(allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 >= interval.first.second){
+                            coverageRight++;
+                        }
                     }
                 }
                 // cout << endl;
@@ -215,32 +224,47 @@ void modify_GFA(
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        // newcontig = local_assembly(group.second);
-
-                        if (newcontig == ""){//if the assembly was not successful for one reason or another
+                        if (newcontig == ""){
                             //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
                             string toPolish2 = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - 100), min(interval.first.first, 100)) + toPolish + allreads[backbone].sequence_.str().substr(interval.first.second+1, min(100, int(allreads[backbone].sequence_.str().size())-interval.first.second-1));
 
                             newcontig = consensus_reads(toPolish2, group.second, thread_id);
                         }
-                        cout << "newcontig computed, here it is: " << endl;// << newcontig << endl;
+
+                        //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
+                        if (interval.first.first <= 50){
+                            //remove the first 50 bases of toPolish
+                            toPolish = toPolish.substr(50, toPolish.size()-50);
+                        }
+                        if (interval.first.second >= allreads[backbone].sequence_.size()-50){
+                            //remove the last 50 bases of toPolish
+                            toPolish = toPolish.substr(0, toPolish.size()-50);
+                        }
+
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-
-                        newcontig = newcontig.substr(max(0,result.startLocations[0]), min(result.endLocations[0]-result.startLocations[0]+2, int(newcontig.size())-result.startLocations[0]));
-
-                        edlibFreeAlignResult(result);
-                        cout << "elibbbed" << endl;
                         
-                        
+                        newcontig = newcontig.substr(max(0,result.startLocations[0]), min(result.endLocations[0]-result.startLocations[0]+1, int(newcontig.size())-result.startLocations[0]));
+
+                        //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
+                        if (interval.first.first <= 50){
+                            //add back the first 50 bases of newcontig
+                            newcontig = interval.second.second[group.first].substr(0, 50) + newcontig;
+                        }
+                        if (interval.first.second >= allreads[backbone].sequence_.size()-50){
+                            //add back the last 50 bases of newcontig
+                            newcontig = newcontig + interval.second.second[group.first].substr(interval.second.second[group.first].size()-50, 50);
+                        }
+
+                        edlibFreeAlignResult(result);                        
                     }
                     else {
-                        string extract = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
+                        string extract = interval.second.second[group.first];
                         EdlibAlignResult result = edlibAlign(extract.c_str(), extract.size(),
                                     singlepolish.c_str(), singlepolish.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-                        newcontig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]);
+                        newcontig = singlepolish.substr(result.startLocations[0], result.endLocations[0]-result.startLocations[0]+1);
 
                     }
 
@@ -321,7 +345,7 @@ void modify_GFA(
                     singlepolish.c_str(), singlepolish.size(),edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
                 contig = singlepolish.substr(result.startLocations[0]-1, result.endLocations[0]-result.startLocations[0]+2);
                 edlibFreeAlignResult(result);
-                }
+            }
             else{
                 contig = "";
             }

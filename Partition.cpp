@@ -160,14 +160,71 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         if (pos > pos_right) {pos_right = pos;}
     }
 
+    //determine the two most frequent bases in supplementaryPartition.content. There can be any character in supplementaryPartition.content
+    vector<int> content (256, 0);//one item for each possible character
+    for (auto c : supplementaryPartition.content){
+        content[c]++;
+    }
+    //go through the content vector to find the two most frequent bases
+    char mostFrequent = 'b';
+    char secondFrequent = 'b';
+    int maxFrequence = -1;
+    //find the index of the two biggest elements of content
+    for (auto i = 0 ; i < 256 ; i++){
+        if (content[i] > maxFrequence){
+            mostFrequent = i;
+            maxFrequence = content[i];
+        }
+    }
+    int maxFrequence2 = -1;
+    for (auto i = 0 ; i < 256 ; i++){
+        if (i != mostFrequent) {
+            if (content[i] > maxFrequence2){
+                secondFrequent = i;
+                maxFrequence2 = content[i];
+            }
+        }
+    }
+
+    //check if the two most frequent bases should be swapped
+    int n1 = 0;
+    int n2 = 0;
+    int swapped = 0;
+    for (auto read : readIdx){
+        while (supplementaryPartition.readIdxs[n2] < read){
+            n2++;
+        }
+        if (supplementaryPartition.readIdxs[n2] == read){
+            if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == 1){
+                swapped -= 1;
+            }
+            else if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == -1){
+                swapped -= 1;
+            }
+            else if (supplementaryPartition.content[n2] == secondFrequent && mostFrequentBases[n1] == -1){
+                swapped += 1;
+            }
+            else if (supplementaryPartition.content[n2] == secondFrequent && mostFrequentBases[n1] == 1){
+                swapped -= 1;
+            }
+        }
+        n1++;
+    }
+    if (swapped < 0){
+        char tmp = mostFrequent;
+        mostFrequent = secondFrequent;
+        secondFrequent = tmp;
+    }
+
+
     auto it1 = readIdx.begin();
     vector<int> idxs1_2;
     vector<short> mostFrequentBases_2;
     vector<int> moreFrequence_2;
     vector<int> lessFrequence_2;
 
-    int n1 = 0;
-    int n2 = 0;
+    n1 = 0;
+    n2 = 0;
     for (auto read : supplementaryPartition.readIdxs){
         while(it1 != readIdx.end() && *it1 < read){ //positions that existed in the old partitions that are not found here
             mostFrequentBases_2.push_back(mostFrequentBases[n1]);
@@ -178,8 +235,8 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             n1++;
         }
         short s = 0;
-        if (supplementaryPartition.content[n2] == 'a'){s=-1;}
-        if (supplementaryPartition.content[n2] == 'A'){s=1;}
+        if (supplementaryPartition.content[n2] == secondFrequent){s=-1;}
+        if (supplementaryPartition.content[n2] == mostFrequent){s=1;}
         if (it1 == readIdx.end() || *it1 != read){ //then this is a new read
             n1--; //because n1++ further down
             if (s == 1){
@@ -455,6 +512,62 @@ void Partition::extend_with_partition(Partition &p){
 
 }
 
+/**
+ * @brief Strengthen the partition with the partition p
+ * 
+ * @param p 
+ */
+void Partition::strengthen_partition(Partition &p){
+
+    //check if the partitiin has the same phase
+    int phase = 0;
+    int n = 0;
+    int n1 = 0;
+    auto preads = p.getReads();
+    auto ppartition = p.getPartition();
+    for (auto n1 = 0 ; n1 < readIdx.size() ; n1++){
+        while (preads[n] < readIdx[n1] && n < preads.size()){
+            n++;
+        }
+        if (preads[n] == readIdx[n1]){
+            if (ppartition[n] != mostFrequentBases[n1]){
+                phase -= 1;
+            }
+            else {
+                phase += 1;
+            }
+            n++;
+        }
+    }
+    if (phase < 0){
+        this->flipPartition();
+    }
+
+    n = 0;
+    preads = p.getReads();
+    auto pmore = p.getMore();
+    auto pless = p.getLess();
+    ppartition = p.getPartition();
+    auto pconf = p.getConfidence();
+
+    auto allConfidences = this->getConfidence();
+
+    for (n1 = 0 ; n1 < readIdx.size() ; n1++){
+        while (preads[n] < readIdx[n1] && n < preads.size()){
+            n++;
+        }
+        if (preads[n] == readIdx[n1]){
+            if ((allConfidences[n1] < 0.8 || numberOfOccurences < 5) && (pconf[n]>0.7 && p.number()>5)){
+                mostFrequentBases[n1] = ppartition[n];
+                moreFrequence[n1] = pmore[n];
+                lessFrequence[n1] = pless[n];
+            }
+            n++;
+        }
+    }
+
+}
+
 //input : nothing except the partition itself
 //output : a confidence score of the partition stored
 float Partition::compute_conf(){
@@ -585,6 +698,7 @@ void Partition::print(){
     int n = 0;
     auto it = readIdx.begin();
 
+
     while(it != readIdx.end()){
         if (*it > c){
             cout << "?";
@@ -688,6 +802,9 @@ void Partition::flipPartition(){
  * 
  * @param newPartition 
  */
-void Partition::new_corrected_partition(vector<short> newPartition){
+void Partition::new_corrected_partition(std::vector<short> newPartition, std::vector<int> newIdxs, std::vector<int> more, std::vector<int> less){
+    readIdx = newIdxs;
     mostFrequentBases = newPartition;
+    moreFrequence = more;
+    lessFrequence = less;
 }
