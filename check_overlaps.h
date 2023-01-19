@@ -88,7 +88,11 @@ float computeChiSquare(distancePartition dis);
 
 void clean_partition(long int backbone, Partition &originalPartition, std::vector <Read> &allreads,std::vector <Overlap> &allOverlaps);
 
-std::vector<Partition> select_compatible_partitions(std::vector<Partition> &partitions, int numberOfReads, float errorRate);
+std::vector<Partition> select_compatible_partitions(
+    std::vector<Partition> &partitions, 
+    int numberOfReads,
+    float errorRate);
+
 std::vector<Partition> select_confident_partitions(
     std::vector<Partition> &partitions, 
     std::vector<bool> trimmedListOfFinalPartitionBool, 
@@ -96,12 +100,14 @@ std::vector<Partition> select_confident_partitions(
     float errorRate,
     int numberOfSuspectPositions);
 
-std::vector< std::pair<std::pair<int,int>, std::vector<int>> > threadHaplotypes(
-    std::vector<Partition> &compatiblePartitions, 
-    int numberOfReads);
     
 int compatible_partitions(Partition &p1 , Partition &p2);
-std::vector<int> threadHaplotypes_in_interval(std::vector<Partition> &listOfFinalPartitions, int numberOfReads);
+
+std::vector<int> threadHaplotypes_in_interval(
+    std::vector<Partition> &listOfFinalPartitions,
+    int numberOfReads,
+    Column &columnThere);
+
 bool extend_with_partition_if_compatible(std::vector<int> &alreadyThreadedHaplotypes, Partition &extension, int partitionIndex,
         std::unordered_map <int, std::pair<int,int>> &clusterLimits);//auxilliary function of threadHaplotypes
 

@@ -934,7 +934,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
 
         //thread partition on this window
-        vector<int> clusteredRead = threadHaplotypes_in_interval(listOfCompatiblePartitions, numberOfReads);
+        vector<int> clusteredRead = threadHaplotypes_in_interval(listOfCompatiblePartitions, numberOfReads, snps[chunk*sizeOfWindow]);
 
         threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), clusteredRead));
 
@@ -1698,12 +1698,18 @@ int compatible_partitions(Partition &p1 , Partition &p2){
  * 
  * @param listOfFinalPartitions the binary partitions
  * @param numberOfReads 
+ * @param columnThere This is a column of SNPs matrix, to know what reads are present in the interval
  * @return vector<int> the final partition
  */
-vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads){
+vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads, Column &columnThere){
 
     if (listOfFinalPartitions.size() == 0){
-        return vector<int>(numberOfReads, 0);
+        //return a vector composed of 0s for reads aligning and -1 for reads not aligning (so that output_GAF does not believe that all the reads are aligning)
+        vector<int> unpartition (numberOfReads, -1);
+        for (auto read : columnThere.readIdxs){
+            unpartition[read] = 0;
+        }
+        return unpartition;
     }
 
     vector<vector<short>> allPartitions;

@@ -1039,30 +1039,32 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 }
 
                 //go through all the intervals and see through which version this read passes
-                vector<pair<string, bool>> sequence_of_traversed_contigs;
-                bool stop = false;
+                vector<pair<string, bool>> sequence_of_traversed_contigs; //string corresponds to the name of the contig, bool is true if the contig is traversed in the same orientation as the read
+                short stop = 0;
                 bool firsthere = false;
                 bool lasthere = false;
                 int inter = 0;
                 for (auto interval : partitions[backbone]){
-                    if (interval.second.first[n] != -1 && !stop){
+
+                    if (interval.second.first[n] != -1 && stop < 2){
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));
                         if (inter == 0){
                             firsthere = true;
                         }
+                        stop = 1;
 
                         // if (stop){ //you have one read that was lost just before !
                         //     cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
                         // }
                     }
-                    else{
-                        stop = true;
+                    else if (stop == 1){
+                        stop = 2;
                     }
                     inter++;
                 }
                 //last contig
-                if (!stop){
+                if (stop < 2){
                     lasthere = true;
                     int right = partitions[backbone][partitions[backbone].size()-1].first.second+1;
                     sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(right)+"_0"
@@ -1116,6 +1118,10 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
         if (readPaths[r].size() > 0){
 
+            if (readPaths[r].size() > 1){
+                cout << "readddezd " << allreads[r].name << " has " << readPaths[r].size() << " paths" << endl;
+            }
+
             std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
             vector<Path> mergedPaths;
             Path currentPath = readPaths[r][0];
@@ -1151,6 +1157,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                     char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
                     if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
                         merge = false;
+                        cout << "qmdsjkdsij " << lastchar << " " << firstnextchar << endl;
                     }
                     if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
                         get<1>(currentPath).erase(get<1>(currentPath).end()-1);
@@ -1174,6 +1181,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             mergedPaths.push_back(currentPath);
             readPaths[r] = mergedPaths;
         }
+
     }
 
     //now the paths have been determined, output the file
