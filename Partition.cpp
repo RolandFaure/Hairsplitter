@@ -109,7 +109,7 @@ Partition::Partition(Column& snp, int pos, char ref_base){
 
 //output : whether or not the position is significatively different from "all reads in the same haplotype"
 //one exception possible : "all reads except last one in the same haplotype" -> that's because reads may be aligned on the last one, creating a bias
-bool Partition::isInformative(float errorRate, bool lastReadBiased){
+bool Partition::isInformative(bool lastReadBiased){
 
     int suspiciousReads [2] = {0,0}; //an array containing how many reads seriously deviate from the "all 1" or "all -1" theories
 
@@ -186,6 +186,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         }
     }
 
+    //print the two most frequent bases
     //check if the two most frequent bases should be swapped
     int n1 = 0;
     int n2 = 0;
@@ -196,7 +197,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         }
         if (supplementaryPartition.readIdxs[n2] == read){
             if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == 1){
-                swapped -= 1;
+                swapped += 1;
             }
             else if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == -1){
                 swapped -= 1;

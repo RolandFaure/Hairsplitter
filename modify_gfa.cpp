@@ -93,43 +93,94 @@ void modify_GFA(
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
-                    auto stitchLeft = stitch(partitions[backbone][n].second.first, partitions[backbone][n-1].second.first, partitions[backbone][n].first.first, readLimits[backbone]);
-                    auto stitchRight = stitch(partitions[backbone][n-1].second.first, partitions[backbone][n].second.first, partitions[backbone][n].first.second, readLimits[backbone]);
+                    std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions[backbone][n].second.first, 
+                                                                            partitions[backbone][n-1].second.first, 
+                                                                            partitions[backbone][n].first.first, 
+                                                                            readLimits[backbone]);
+                    // std::unordered_map<int, std::set<int>> stitchRight = stitch(
+                    //                                                         partitions[backbone][n-1].second.first,
+                    //                                                         partitions[backbone][n].second.first,
+                    //                                                         partitions[backbone][n].first.first, 
+                    //                                                         readLimits[backbone]);
+
 
                     for (auto s : stitchLeft){
                         stitches[n][s.first] = s.second;
                     }
 
-                    for (auto s : stitchRight){
-                        for (int neighbor : s.second){
-                            stitches[n][neighbor].emplace(s.first);
+                    // for (auto s : stitchRight){
+                    //     for (int neighbor : s.second){
+                    //         stitches[n][neighbor].emplace(s.first);
+                    //     }
+                    // }
+
+                    //make sure all contigs on the left and right are stitched
+                    set<int> all_contigs_left;
+                    for (int a : partitions[backbone][n-1].second.first){
+                        all_contigs_left.emplace(a);
+                    }
+                    all_contigs_left.erase(-1);
+
+                    set<int> all_contigs_right;
+                    for (int a : partitions[backbone][n].second.first){
+                        all_contigs_right.emplace(a);
+                    }
+                    all_contigs_right.erase(-1);
+
+                    for (auto s : stitchLeft){
+                        if (s.second.size() == 0){
+                            stitchLeft[s.first] = all_contigs_left;
                         }
                     }
 
-                    //make sure all contigs are stitched
+                    //check if all contigs on the left of the junction are stitched
                     set <int> stitchedContigs;
                     for (auto s : stitches[n]){
                         for (int neighbor : s.second){
                             stitchedContigs.emplace(neighbor);
                         }
                     }
-                    // cout << "stitched contigs : "; for(auto i : stitchedContigs) {cout <<i << ";";} cout << endl;
-                    for (auto s : stitchRight){
-                        if (stitchedContigs.find(s.first) == stitchedContigs.end()){
-                            // cout << "gluing back" << endl;
-                            for (auto s2 : stitchLeft){
-                                stitches[n][s2.first].emplace(s.first);
+                    for (auto contig : all_contigs_left){
+                        if (stitchedContigs.find(contig) == stitchedContigs.end()){
+                            for (auto s : stitchLeft){
+                                stitches[n][s.first].emplace(contig);
                             }
                         }
                     }
+                    // cout << "stitched contigs : "; for(auto i : stitchedContigs) {cout <<i << ";";} cout << endl;
+                    // for (auto s : stitchRight){
+                    //     if (stitchedContigs.find(s.first) == stitchedContigs.end()){
+                    //         // cout << "gluing back" << endl;
+                    //         for (auto s2 : stitchLeft){
+                    //             stitches[n][s2.first].emplace(s.first);
+                    //         }
+                    //     }
+                    // }
 
-                    // cout << "stitching : ";
-                    // for (auto s: stitches[n]){
-                    //     cout << s.first << "<->" ;
-                    //     for (auto s2 : s.second) {cout << s2 << ",";}
-                    //     cout << "  ;  ";
-                    // } 
-                    // cout << endl;
+                    // if (partitions[backbone][n].first.first > 41100 && partitions[backbone][n].first.first < 42900 && omp_get_thread_num() == 0){
+                    //     cout << "stitching : ";
+                    //     for (auto s: stitches[n]){
+                    //         cout << s.first << "<->" ;
+                    //         for (auto s2 : s.second) {cout << s2 << ",";}
+                    //         cout << "  ;  ";
+                    //     } 
+                    //     cout << endl;
+
+                    //     cout << "here are partitions[backbone][n-1].second.first and partitions[backbone][n].second.first : " << endl;
+                    //     for (auto a : partitions[backbone][n-1].second.first){
+                    //         cout << a+1 << " ";
+                    //     }
+                    //     cout << endl;
+                    //     for (auto a : partitions[backbone][n].second.first){
+                    //         cout << a+1 << " ";
+                    //     }
+                    //     cout << endl;
+                    //     while (true)
+                    //     {
+                    //         /* code */
+                    //     }
+                        
+                    // }
                 }
             }
 
@@ -400,6 +451,7 @@ void modify_GFA(
 unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int position, vector<pair<int,int>> &readLimits){
 
     unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
+    unordered_map<int, unordered_map<int,int>> fit_right; //each parts maps to what right part ?
     unordered_map<int, int> cluster_size; 
     unordered_map<int,set<int>> stitch;
 
@@ -419,14 +471,48 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
                 cluster_size[par[r]] = 1;
                 stitch[par[r]] = {};
             }
+
+            if (fit_right.find(neighbor[r]) != fit_right.end()){
+                if (fit_right[neighbor[r]].find(par[r]) != fit_right[neighbor[r]].end()){
+                    fit_right[neighbor[r]][par[r]] += 1;
+                }
+                else{
+                    fit_right[neighbor[r]][par[r]] = 1;
+                }
+            }
+            else{
+                fit_right[neighbor[r]][par[r]] = 1;
+            }
         }
     }
 
     //now give all associations
     for (auto fit : fit_left){
+        // find the best fit
+        int best_fit = 0;
         for (auto candidate : fit.second){
-            if (candidate.second > 0.3*cluster_size[fit.first]){ //good compatibility
+            if (candidate.second > best_fit){
+                best_fit = candidate.second;
+            }
+        }
+        for (auto candidate : fit.second){
+            if (candidate.second == best_fit){ //good compatibility
                 stitch[fit.first].emplace(candidate.first);
+            }
+        }
+    }
+
+    for (auto fit : fit_right){
+        //find the best fit
+        int best_fit = 0;
+        for (auto candidate : fit.second){
+            if (candidate.second > best_fit){
+                best_fit = candidate.second;
+            }
+        }
+        for (auto candidate : fit.second){
+            if (candidate.second == best_fit){
+                stitch[candidate.first].emplace(fit.first);
             }
         }
     }

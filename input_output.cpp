@@ -1118,10 +1118,6 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
         if (readPaths[r].size() > 0){
 
-            if (readPaths[r].size() > 1){
-                cout << "readddezd " << allreads[r].name << " has " << readPaths[r].size() << " paths" << endl;
-            }
-
             std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
             vector<Path> mergedPaths;
             Path currentPath = readPaths[r][0];
@@ -1157,7 +1153,6 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                     char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
                     if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
                         merge = false;
-                        cout << "qmdsjkdsij " << lastchar << " " << firstnextchar << endl;
                     }
                     if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
                         get<1>(currentPath).erase(get<1>(currentPath).end()-1);

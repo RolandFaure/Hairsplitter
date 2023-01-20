@@ -37,7 +37,7 @@ public :
     void augmentPartition(Column &newPar, int pos); //augments the partition with a column composed of 'A' and 'a'
     void mergePartition(Partition &p, short phased); 
     void mergePartition(Partition &p); 
-    bool isInformative(float errorRate, bool lastReadBiased);
+    bool isInformative(bool lastReadBiased);
     int number();
     float proportionOf1();
 

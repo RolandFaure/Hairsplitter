@@ -78,15 +78,21 @@ void compute_consensus_in_partitions(
 // std::string local_assembly(std::vector <std::string> &reads);
 
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
-    std::string& ref, std::vector<Column> &snps,
+    std::string& ref, 
+    std::vector<Column> &snps,
+    float minDistance, 
+    int numberOfReads);
+
+Partition get_best_partition(
+    std::string& ref, 
+    std::vector<Column> &snps,
+    std::vector<bool> &mask,
     float minDistance, 
     int numberOfReads);
 
 distancePartition distance(Partition &par1, Column &par2, char ref_base);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);
-
-void clean_partition(long int backbone, Partition &originalPartition, std::vector <Read> &allreads,std::vector <Overlap> &allOverlaps);
 
 std::vector<Partition> select_compatible_partitions(
     std::vector<Partition> &partitions, 
