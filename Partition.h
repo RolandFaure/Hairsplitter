@@ -28,15 +28,18 @@ class Partition {
 public :
     Partition(); 
     Partition(Column &snp, int pos, char ref_base); //to initialize a binary partition
+
     void print(); //little function to print the consensus
     std::vector<int> getReads();
     std::vector<short> getPartition();
     std::vector<float> getConfidence();
     std::vector<int> getMore();
     std::vector<int> getLess();
+
     void augmentPartition(Column &newPar, int pos); //augments the partition with a column composed of 'A' and 'a'
     void mergePartition(Partition &p, short phased); 
     void mergePartition(Partition &p); 
+
     bool isInformative(bool lastReadBiased);
     int number();
     float proportionOf1();
@@ -48,6 +51,7 @@ public :
     int get_right();
 
     void flipPartition(); //transforms all 1s in 0s and vice-versa
+    void apply_mask(std::vector<bool> &mask); //applies a mask to the partition
 
     void new_corrected_partition(std::vector<short> newPartition, std::vector<int> newIdxs, std::vector<int> more, std::vector<int> less); //Changes the partitions
     void extend_with_partition(Partition &p); //extends the partition with the partition p obtained by correlating the partition at all positions
@@ -57,7 +61,7 @@ public :
 
 private :
     std::vector <int> readIdx; //the list of reads is sparse : here are the filled indices (ordered)
-    std::vector<short> mostFrequentBases; // at each position, 3 possibilities : 1 for allele1, -1 for allele2 and 0 for non-attributed-yet
+    std::vector<short> mostFrequentBases; // at each position, 4 possibilities : 1 for allele1, -1 for allele2, 0 for non-attributed-yet and -2 for masked out
     //then the counts of each allele at each position
     std::vector<int> moreFrequence;
     std::vector<int> lessFrequence;

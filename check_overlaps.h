@@ -80,14 +80,18 @@ void compute_consensus_in_partitions(
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
     std::string& ref, 
     std::vector<Column> &snps,
-    float minDistance, 
     int numberOfReads);
 
-Partition get_best_partition(
+std::vector<Partition> get_solid_partitions(
     std::string& ref, 
     std::vector<Column> &snps,
     std::vector<bool> &mask,
-    float minDistance, 
+    std::vector<size_t> &suspectPostitions,
+    float &meanError,
+    int numberOfReads);
+
+std::vector <std::vector <bool>> create_masks(
+    std::vector<Partition> &partitions, 
     int numberOfReads);
 
 distancePartition distance(Partition &par1, Column &par2, char ref_base);

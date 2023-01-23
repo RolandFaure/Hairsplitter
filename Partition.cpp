@@ -799,6 +799,43 @@ void Partition::flipPartition(){
 }
 
 /**
+ * @brief Mark all the positions that were excluded by the mask as -2s in the partition
+ * 
+ * @param mask 
+ */
+void Partition::apply_mask(std::vector<bool> &mask){
+    //set the partition to 1 for all positions where the mask is false
+
+    vector<int> newIdxReads;
+    vector<short> newMostFrequent;
+    vector<int> newMore;
+    vector<int> newLess;
+
+    int indexIdx = 0;
+    for (auto r = 0 ; r < mask.size() ; r++){
+
+        if (indexIdx < readIdx.size() && readIdx[indexIdx] == r){
+            newIdxReads.push_back(r);
+            newMostFrequent.push_back(mostFrequentBases[indexIdx]);
+            newMore.push_back(moreFrequence[indexIdx]);
+            newLess.push_back(lessFrequence[indexIdx]);
+            indexIdx++;
+        }
+        else if (!mask[r]){
+            newIdxReads.push_back(r);
+            newMostFrequent.push_back(-2);
+            newMore.push_back(1);
+            newLess.push_back(0);
+        }
+    }
+
+    readIdx = newIdxReads;
+    mostFrequentBases = newMostFrequent;
+    moreFrequence = newMore;
+    lessFrequence = newLess;
+}
+
+/**
  * @brief Changes the partition of reads: useful after making a correction to the partition
  * 
  * @param newPartition 

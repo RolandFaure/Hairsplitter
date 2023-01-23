@@ -134,7 +134,7 @@ void compute_partition_on_this_contig(
 
     //then separate the MSA
     string ref = allreads[contig].sequence_.str();
-    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref, snps, meanDistance,
+    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
         
@@ -690,7 +690,7 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
  * @param numberOfReads number of reads of the MSA
  * @return vector<pair<pair<int,int>, vector<int>> >  pairs of coordinates to which are attached a certain partition of reads
  */
-vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, float meanDistance, int numberOfReads){
+vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, int numberOfReads){
 
     /*
     The null model is described as uniform error rate -> binomial error distribution on one position
@@ -708,162 +708,28 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
-    int numberOfSuspectPostion = 0;
-    int numberOfNeighbors = 0;
-
-    //two variables to know how much a position diverges from the consensus on average
-    float meanError = 0;
-    int numberOfExtensions = 0;
-
-    vector<vector<distPart>> distanceBetweenPartitions;
+    vector <bool> no_mask (numberOfReads, true);
     vector<size_t> suspectPostitions;
-    vector <int> interestingParts; //DEBUG
-    int localErrors = 0;
+    float meanError = 0;
+    partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
-    for (int position = 0 ; position < ref.size() ; position++){ 
+    //there is a first list of patitions, now check if there are some sub-partitions that were missed 
+    vector<vector<bool>> masks = create_masks(partitions, numberOfReads);
+    for (auto mask : masks){
+        float meanError = 0;
 
-        if (DEBUG && position%100 == 0){
-            cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
+        vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanError, numberOfReads);
+        cout << "mask : reads, hereeee they are:" << endl;
+        for (int i = 0 ; i < numberOfReads ; i++){
+            cout << mask[i];
         }
-        //first look at the position to see if it is suspect
-        int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
-        int numberOfReadsHere = 0;
-        for (short n = 0 ; n < snps[position].content.size() ; n++){
-                char base = snps[position].content[n];
-                if (base != '?' && bases2content.contains(base)){
-                    content[bases2content[base]] += 1;
-                    numberOfReadsHere += 1;
-                }
-        }
-
-        //float threshold = min(1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2)), float(0.1*numberOfReadsHere)); //more than 10% of different bases is always suspicious
-        //sort content and store the result in content_sorted
-        int content_sorted[5] = {0,0,0,0,0};
-        std::partial_sort_copy(content, content+5, content_sorted, content_sorted+5, std::greater<int>());
-
-        float probabilityTrash = float(content_sorted[2]/numberOfReadsHere); //probability of having a trash base at this position
-
-        if (content[4] < content_sorted[1] && content_sorted[1] > content_sorted[2]+3*sqrt(content_sorted[2]*(1-probabilityTrash)) /*3*content_sorted[2]*/ && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
-           
-            // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
-            char ref_base;
-            if (position < ref.size()){
-                ref_base = ref[position];
-            } else {
-                ref_base = '-';
-            }
-
-            suspectPostitions.push_back(position);
-            //go through the partitions to see if this suspicious position looks like smt we've seen before
-            vector<distPart> distances (distanceBetweenPartitions.size());
-            bool found = false;
-            for (auto p = 0 ; p < partitions.size() ; p++){
-                //if the partition is too far away, do not bother comparing
-                if (std::abs(snps[position].pos-partitions[p].get_right())>10000){
-                    continue;
-                }
-
-                distancePartition dis = distance(partitions[p], snps[position], ref_base);
-                auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
-                int trashBases = content_sorted[2] + content_sorted[3] + content_sorted[4]; //bases that are probably errors at this position
-
-                float tolerableNumberOfErrors = float(trashBases)/2;
-                if (partitions[p].number() < 10){
-                    tolerableNumberOfErrors = trashBases;
-                }
-
-                //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                if(dis.n01 <= localErrors && dis.n10 <= tolerableNumberOfErrors && dis.n00 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
-                    int pos = -1;
-                    if (position < ref.size()){
-                        pos = position;
-                    }
-
-                    partitions[p].augmentPartition(dis.partition_to_augment, pos);
-                    found = true;
-
-                    meanError += float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10);
-                    numberOfExtensions += 1;
-
-                    break;
-                }
-                if (comparable > 5){
-                    //distances[p].distance = max(float(0), (10-dis.chisquare)/10) ;
-                    distances[p].distance = float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10);
-                    distances[p].phased = dis.phased;
-                }
-                else{
-                    distances[p].distance = 1;
-                }
-            }
-
-            if (!found && position < ref.size()){    // the second condition is here to create partitions only at specific spots of the backbone
-                distanceBetweenPartitions.push_back(distances);
-                partitions.push_back(Partition(snps[position], position, ref_base)); 
-            }
-            else{
-                position += 5;
-            }
-            
-            numberOfSuspectPostion += 1;
-
-            //two suspect positions next to each other can be artificially correlated through alignement artefacts
-
-        }
-        else{
-            localErrors = content_sorted[2] + content_sorted[3] + content_sorted[4];
+        cout << endl;
+        cout << "new partidssdstions : " << newPartitions.size() << endl;
+        for (auto p : newPartitions){
+            p.print();
         }
     }
-
-    meanError /= numberOfExtensions;
-
-    if (DEBUG){
-        cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
-    }
-
-    if (partitions.size() == 0){ //there are no position of interest
-        vector<pair<pair<int,int>, vector<int>>> e;
-        return e;
-    }
-
-    
-    float threshold =  max(4.0, min(0.01*numberOfSuspectPostion, 0.001*snps.size()));
-
-    vector<Partition> listOfFinalPartitions;
-    for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
-
-        // if (partitions[p1].number() > 5){
-        //     cout << "iqdoudofq non informative partition : "  << threshold << " " << numberOfSuspectPostion << " " << snps.size()<< endl;
-        //     partitions[p1].print();
-        // }
-        
-        if (partitions[p1].number() > threshold && partitions[p1].isInformative(true)){
-
-
-            bool different = true;
-            
-            for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
-
-                distancePartition dis = distance(listOfFinalPartitions[p2], partitions[p1], 2);
-                if (dis.augmented){
-                    Partition newPart = listOfFinalPartitions[p2];
-                    newPart.mergePartition(partitions[p1], dis.phased);
-
-                    //see if confidence is improved by merging the two partitions, meaning differences were shaky
-                    if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
-
-                        listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
-                        different = false;
-                        break;
-                    }
-                }
-            }
-            
-            if (different){
-                listOfFinalPartitions.push_back(partitions[p1]);
-            }
-        }
-    }
+    while(true){}
 
     //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
 
@@ -872,7 +738,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     int suspectPostitionIdx = 0;
     int sizeOfWindow = 1000;
     for (auto chunk = 0 ; chunk < ref.size()/sizeOfWindow ; chunk++){
-        vector<Partition> localPartitions(listOfFinalPartitions.size());
+        vector<Partition> localPartitions(partitions.size());
 
         //let's see what partitions are found on the local window
         while(suspectPostitionIdx < suspectPostitions.size() && suspectPostitions[suspectPostitionIdx] < (chunk+1)*sizeOfWindow){
@@ -890,7 +756,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 //     cout << i;
                 // }
                 // cout << endl;
-                distancePartition dis = distance(listOfFinalPartitions[p], snps[pos], ref_base);
+                distancePartition dis = distance(partitions[p], snps[pos], ref_base);
                 float distance = min(float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10), float(dis.n00+dis.n11)/(dis.n00 + dis.n11 + dis.n01 + dis.n10));
                 if (distance < closestDistance){
                     closestDistance = distance;
@@ -907,16 +773,16 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         //go through the local partitions and strengthen them
         for (auto p = 0 ; p < localPartitions.size() ; p++){
-            localPartitions[p].strengthen_partition(listOfFinalPartitions[p]);
+            localPartitions[p].strengthen_partition(partitions[p]);
         }
 
-        //list and strengthen local partitions that have a numberOfOccurences >= 1
-        for (auto p = 0 ; p < localPartitions.size() ; p++){
-            if (localPartitions[p].number() >= 1){
-                cout << "on windhhow " << chunk << " found partition " << endl;
-                localPartitions[p].print();
-            }
-        }
+        // //list and strengthen local partitions that have a numberOfOccurences >= 1
+        // for (auto p = 0 ; p < localPartitions.size() ; p++){
+        //     if (localPartitions[p].number() >= 1){
+        //         cout << "on windhhow " << chunk << " found partition " << endl;
+        //         localPartitions[p].print();
+        //     }
+        // }
 
         //create non-null-partitions, compased of local partitions that have a number() >= 1
         vector<Partition> non_null_partitions;
@@ -938,27 +804,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), clusteredRead));
 
-
-        // if (localPartitions.size() != 0 && chunk == 20){
-        //     cout << "on last window, clustered reads:" << endl;
-        //     for (auto i : clusteredRead){
-        //         if (i > -1){
-        //             cout << i;
-        //         }
-        //         else{
-        //             cout << " ";
-        //         }
-        //     }
-        //     cout << endl;
-
-        //     for (auto p : listOfCompatiblePartitions){
-        //         if (p.number() >= 1){
-        //             cout << "pausing" << endl;
-        //             while(true){}
-        //         }
-        //     }
-        // }
-
     }
     return threadedReads;
     
@@ -970,14 +815,16 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
  * @param ref sequence of the original contig
  * @param snps MSA
  * @param mask vector of bool, indicating by "false" what reads not to take
- * @param minDistance 
+ * @param suspectPostitions list of the suspect positions already found
+ * @param meanError will be changed in this function
  * @param numberOfReads 
  * @return Partition 
  */
-Partition get_best_partition(std::string& ref, 
+vector<Partition> get_solid_partitions(std::string& ref, 
     std::vector<Column> &snps,
     vector<bool> &mask,
-    float minDistance,
+    vector <size_t> &suspectPostitions,
+    float &meanError,
     int numberOfReads){
 
     robin_hood::unordered_map<char, short> bases2content;
@@ -994,11 +841,10 @@ Partition get_best_partition(std::string& ref,
     int numberOfNeighbors = 0;
 
     //two variables to know how much a position diverges from the consensus on average
-    float meanError = 0;
     int numberOfExtensions = 0;
     int localErrors = numberOfReads/10;//this is just a starting point, probably the value will never be used
 
-    vector<size_t> suspectPostitions;
+    vector<size_t> suspectPostitionsHere;
 
     for (int position = 0 ; position < ref.size() ; position++){ 
 
@@ -1009,7 +855,7 @@ Partition get_best_partition(std::string& ref,
         int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
         int numberOfReadsHere = 0;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
-            if (mask[n]){
+            if (mask[snps[position].readIdxs[n]]){
                 char base = snps[position].content[n];
                 if (base != '?' && bases2content.contains(base)){
                     content[bases2content[base]] += 1;
@@ -1027,6 +873,8 @@ Partition get_best_partition(std::string& ref,
 
         if (content[4] < content_sorted[1] && content_sorted[1] > content_sorted[2]+3*sqrt(content_sorted[2]*(1-probabilityTrash)) /*3*content_sorted[2]*/ && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
            
+            suspectPostitionsHere.push_back(position);
+
             // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
             char ref_base;
             if (position < ref.size()){
@@ -1035,6 +883,7 @@ Partition get_best_partition(std::string& ref,
                 ref_base = '-';
             }
 
+            //creat the masked snp, with only reads that are not masked
             Column snp;
             snp.pos = position;
             auto content_tmp = snps[position].content;
@@ -1047,7 +896,6 @@ Partition get_best_partition(std::string& ref,
                 n++;
             }
 
-            suspectPostitions.push_back(position);
             //go through the partitions to see if this suspicious position looks like smt we've seen before
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
@@ -1060,13 +908,13 @@ Partition get_best_partition(std::string& ref,
                 auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
                 int trashBases = content_sorted[2] + content_sorted[3] + content_sorted[4]; //bases that are probably errors at this position
 
-                float tolerableNumberOfErrors = float(trashBases)/2;
+                float tolerableErrorRate = float(trashBases)/2/numberOfReadsHere;
                 if (partitions[p].number() < 10){
-                    tolerableNumberOfErrors = trashBases;
+                    tolerableErrorRate *= 2;
                 }
 
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                if(dis.n01 <= localErrors && dis.n10 <= tolerableNumberOfErrors && dis.n00 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
+                if(dis.n01 <= localErrors && dis.n10 <= tolerableErrorRate * (dis.n10+dis.n11) && dis.n00 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
                     int pos = -1;
                     if (position < ref.size()){
                         pos = position;
@@ -1106,7 +954,7 @@ Partition get_best_partition(std::string& ref,
     }
 
     if (partitions.size() == 0){ //there are no position of interest
-        return Partition();
+        return vector<Partition>();
     }
 
     
@@ -1143,23 +991,89 @@ Partition get_best_partition(std::string& ref,
             }
             
             if (different){
+                partitions[p1].apply_mask(mask);
                 listOfFinalPartitions.push_back(partitions[p1]);
             }
         }
     }
 
-    //choose the most confident partition
-    float best_confidence = 0;
-    Partition best_partition;
-    for (auto p : listOfFinalPartitions){
-        if (p.get_conf() > best_confidence){
-            best_confidence = p.get_conf();
-            best_partition = p;
+    vector<size_t> newSuspectPositions;
+    int index_previous = 0;
+    int index_here = 0;
+    for (size_t pos = 0 ; pos < snps.size() ; pos++){
+        bool toAdd = false;
+        if (index_previous < suspectPostitions.size() && suspectPostitions[index_previous] == pos){
+            toAdd = true;
+            index_previous += 1;
+        }
+        if (index_here < suspectPostitionsHere.size() && suspectPostitionsHere[index_here] == pos){
+            toAdd = true;
+            index_here += 1;
+        }
+        if (toAdd){
+            newSuspectPositions.push_back(pos);
         }
     }
+    suspectPostitions = newSuspectPositions;
 
-    return best_partition;
+    return listOfFinalPartitions;
     
+}
+
+/**
+ * @brief Create all the masks, each mask isolating a group of reads that is not separated in partitions 
+ * 
+ * @param partitions 
+ * @param numberOfReads 
+ * @return vector<vector<bool>> A vector of masks
+ */
+vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfReads){
+
+    vector<vector<bool>> masks;
+
+    for (int maskID = 0 ; maskID < pow(2, partitions.size()) ; maskID++){
+
+        vector<bool> mask(numberOfReads, true);
+        vector<bool> seenAtLeastOnce(numberOfReads, false); //the reads that were never seen are on zones where we already failed to separate the reads
+
+        int m = maskID;
+        for (int npart = 0 ; npart < partitions.size() ; npart++){
+            bool doITakeTheOnes = (m % 2 == 1); //if true, I exclude all the -1, if false I exclude all the 1
+            m /= 2;
+
+            vector<int> reads = partitions[npart].getReads();
+            vector<short> part = partitions[npart].getPartition();
+
+            for (int i = 0 ; i < reads.size() ; i++){
+                seenAtLeastOnce[reads[i]] = true;
+                if (part[i] == 1 && !doITakeTheOnes){
+                    mask[reads[i]] = false;
+                }
+                else if (part[i] == -1 && doITakeTheOnes){
+                    mask[reads[i]] = false;
+                }
+            }
+
+        }
+
+        int numberOfReadsInTheMask = 0;
+        for (int i = 0 ; i < numberOfReads ; i++){
+            if (!seenAtLeastOnce[i]){
+                mask[i] = false;
+            }
+            else if (mask[i]){
+                numberOfReadsInTheMask += 1;
+            }
+        }
+        
+        if (numberOfReadsInTheMask > 5){
+            masks.push_back(mask);
+        }
+
+    }
+
+    return masks;
+
 }
 
 /**
