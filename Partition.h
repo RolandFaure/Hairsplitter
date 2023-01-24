@@ -27,7 +27,7 @@ class Partition {
 
 public :
     Partition(); 
-    Partition(Column &snp, int pos, char ref_base); //to initialize a binary partition
+    Partition(Column &snp, int pos, std::vector<bool> &mask, char ref_base); //to initialize a binary partition
 
     void print(); //little function to print the consensus
     std::vector<int> getReads();
@@ -60,6 +60,7 @@ public :
     std::vector<short> get_tweaked_partition(); //returns the partition tweaked to take into account the fact that 0s and 1s are not equiprobable
 
 private :
+
     std::vector <int> readIdx; //the list of reads is sparse : here are the filled indices (ordered)
     std::vector<short> mostFrequentBases; // at each position, 4 possibilities : 1 for allele1, -1 for allele2, 0 for non-attributed-yet and -2 for masked out
     //then the counts of each allele at each position

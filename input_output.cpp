@@ -1292,6 +1292,7 @@ void outputTruePar(Partition truePar, std::string id){
     out.close();
 }
 
+/*
 //input: list of suspicious column
 //output: a file written on disk with 0s and 1s
 void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitions, string id){
@@ -1335,6 +1336,7 @@ void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitio
     }
     out.close();
 }
+*/
 
 void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters, std::string fileOut){
 
@@ -1358,11 +1360,6 @@ void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters
         
     }
 }
-
-
-
-
-
 
 
 

@@ -28,7 +28,7 @@ Partition::Partition(){
     pos_right = -1;
 }
 
-Partition::Partition(Column& snp, int pos, char ref_base){
+Partition::Partition(Column& snp, int pos, vector<bool> &mask, char ref_base){
 
     pos_left = pos;
     pos_right = pos;
@@ -51,30 +51,6 @@ Partition::Partition(Column& snp, int pos, char ref_base){
         }
     }
 
-    /*
-    char mostFrequent2 = 'A';
-    int maxFrequence2 = content[0];
-    char secondFrequent2 = 'C';
-    int secondFrequence2 = content[1];
-    if (content[0] < content[1]){
-        mostFrequent2 = 'C';
-        maxFrequence2 = content[1];
-        secondFrequent2 = 'A';
-        secondFrequence2 = content[0];
-    }
-    for (auto i = 2 ; i < 5 ; i++){
-        if (content[i] > maxFrequence2){
-            secondFrequence2 = maxFrequence2;
-            secondFrequent2 = mostFrequent2;
-            maxFrequence2 = content[i];
-            mostFrequent2 = "ACGT-"[i];
-        }
-        else if (content[i] > secondFrequence2){
-            secondFrequent2 = "ACGT-"[i];
-            secondFrequence2 = content[i];
-        }
-    }
-    */
     char mostFrequent = ref_base;
     auto maxFrequence = content[bases2content[ref_base]];
     //now find the second most frequent base
@@ -104,7 +80,7 @@ Partition::Partition(Column& snp, int pos, char ref_base){
     }
 
     numberOfOccurences = 1;
-
+    this->apply_mask(mask);
 }
 
 //output : whether or not the position is significatively different from "all reads in the same haplotype"
@@ -254,7 +230,12 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             }
         }
         else{ //we're looking at a read that is both old and new
-            if (s == 0){ //the new partition does not brign anything
+            if (mostFrequentBases[n1] == -2){ //this is a masked position, do not touch
+                mostFrequentBases_2.push_back(mostFrequentBases[n1]);
+                moreFrequence_2.push_back(moreFrequence[n1]);
+                lessFrequence_2.push_back(lessFrequence[n1]);
+            }
+            else if (s == 0){ //the new partition does not brign anything
                 mostFrequentBases_2.push_back(mostFrequentBases[n1]);
                 moreFrequence_2.push_back(moreFrequence[n1]);
                 lessFrequence_2.push_back(lessFrequence[n1]);
@@ -326,7 +307,7 @@ void Partition::mergePartition(Partition &p, short phased){
     int n1 = 0;
     int n2 = 0;
     while (n1 < readIdx.size() && n2 < idx2.size() ){
-        while (readIdx[n1] < idx2[n2] && n1 < readIdx.size()){
+        while (readIdx[n1] < idx2[n2] && n1 < readIdx.size()){ //reads present only on the first partition
             newIdx.push_back(readIdx[n1]);
             newMostFrequent.push_back(mostFrequentBases[n1]);
             newMoreFrequence.push_back(moreFrequence[n1]);
@@ -334,7 +315,7 @@ void Partition::mergePartition(Partition &p, short phased){
             n1++;
         }
 
-        while (readIdx[n1] > idx2[n2] && n2 < idx2.size()){
+        while (readIdx[n1] > idx2[n2] && n2 < idx2.size()){ // reads present only on the second partition
             newIdx.push_back(idx2[n2]);
             newMostFrequent.push_back(other[n2]*phased);
             newMoreFrequence.push_back(moreOther[n2]);
@@ -344,12 +325,12 @@ void Partition::mergePartition(Partition &p, short phased){
 
         if (n1 < readIdx.size() && n2 < idx2.size() && readIdx[n1] == idx2[n2]){ //the read is present on both partitions
             newIdx.push_back(readIdx[n1]);
-            if (mostFrequentBases[n1] == 0){
+            if (mostFrequentBases[n1] == 0 || other[n2] == -2){
                 newMostFrequent.push_back(other[n2]*phased);
                 newMoreFrequence.push_back(moreOther[n2]);
                 newLessFrequence.push_back(lessOther[n2]);
             }
-            else if (other[n2] == 0){
+            else if (other[n2] == 0 || mostFrequentBases[n1] == -2){
                 newMostFrequent.push_back(mostFrequentBases[n1]);
                 newMoreFrequence.push_back(moreFrequence[n1]);
                 newLessFrequence.push_back(lessFrequence[n1]);
@@ -421,7 +402,7 @@ void Partition::mergePartition(Partition &p){
         else if (readIdx[n1] > idx2[n2]){
             n2++;
         }
-        else{
+        else if (abs(mostFrequentBases[n1]) == 1 && abs(other[n2]) == 1){ //to avoid merging masked partitions
             phase += mostFrequentBases[n1]*other[n2];
             n1++;
             n2++;
@@ -709,7 +690,10 @@ void Partition::print(){
             if (moreFrequence[n] == 0){
                 cout << "o";
             }
-            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.6){
+            else if (moreFrequence[n] < 3){
+                cout << "_";
+            }
+            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.7){
                 cout << "!";
             }
             else if (ch == 1){
@@ -814,19 +798,24 @@ void Partition::apply_mask(std::vector<bool> &mask){
     int indexIdx = 0;
     for (auto r = 0 ; r < mask.size() ; r++){
 
-        if (indexIdx < readIdx.size() && readIdx[indexIdx] == r){
+        while(indexIdx < readIdx.size() && readIdx[indexIdx] < r){
+            indexIdx++;
+        }
+
+        if (!mask[r]){
+            newIdxReads.push_back(r);
+            newMostFrequent.push_back(-2);
+            newMore.push_back(1);
+            newLess.push_back(0);
+        }
+        else if (indexIdx < readIdx.size() && readIdx[indexIdx] == r){
             newIdxReads.push_back(r);
             newMostFrequent.push_back(mostFrequentBases[indexIdx]);
             newMore.push_back(moreFrequence[indexIdx]);
             newLess.push_back(lessFrequence[indexIdx]);
             indexIdx++;
         }
-        else if (!mask[r]){
-            newIdxReads.push_back(r);
-            newMostFrequent.push_back(-2);
-            newMore.push_back(1);
-            newLess.push_back(0);
-        }
+
     }
 
     readIdx = newIdxReads;
