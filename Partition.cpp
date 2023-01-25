@@ -127,6 +127,12 @@ bool Partition::isInformative(bool lastReadBiased){
 
 //input : a new partition to add to the consensus (the partition must be well-phased in 'A' and 'a')
 //output : updated consensus partition
+/**
+ * @brief Adds a new column that supports the partition
+ * 
+ * @param supplementaryPartition  (the partition composed of 'A' and 'a' corresponding to 1 and -1, there can also be '?')
+ * @param pos 
+ */
 void Partition::augmentPartition(Column& supplementaryPartition, int pos){
 
     //first adjust pos right and pos left if pos changes the limits of the partition
@@ -146,15 +152,16 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     char secondFrequent = 'b';
     int maxFrequence = -1;
     //find the index of the two biggest elements of content
-    for (auto i = 0 ; i < 256 ; i++){
-        if (content[i] > maxFrequence){
+    for (unsigned char i = 0 ; i < 255 ; i++){
+        if (char(i) != '?' && content[i] > maxFrequence){
             mostFrequent = i;
             maxFrequence = content[i];
         }
+        //cout << int(i) << endl;
     }
     int maxFrequence2 = -1;
-    for (auto i = 0 ; i < 256 ; i++){
-        if (i != mostFrequent) {
+    for (unsigned char i = 0 ; i < 255 ; i++){
+        if (i != mostFrequent && i != '?') {
             if (content[i] > maxFrequence2){
                 secondFrequent = i;
                 maxFrequence2 = content[i];
@@ -193,7 +200,6 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         secondFrequent = tmp;
     }
 
-
     auto it1 = readIdx.begin();
     vector<int> idxs1_2;
     vector<short> mostFrequentBases_2;
@@ -216,18 +222,11 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         if (supplementaryPartition.content[n2] == mostFrequent){s=1;}
         if (it1 == readIdx.end() || *it1 != read){ //then this is a new read
             n1--; //because n1++ further down
-            if (s == 1){
-                mostFrequentBases_2.push_back(1);
-                moreFrequence_2.push_back(1);
-                lessFrequence_2.push_back(0);
-                idxs1_2.push_back(read);
-            }
-            else if (s == -1){
-                mostFrequentBases_2.push_back(-1);
-                moreFrequence_2.push_back(1);
-                lessFrequence_2.push_back(0);
-                idxs1_2.push_back(read);
-            }
+
+            mostFrequentBases_2.push_back(s);
+            moreFrequence_2.push_back(1);
+            lessFrequence_2.push_back(0);
+            idxs1_2.push_back(read);
         }
         else{ //we're looking at a read that is both old and new
             if (mostFrequentBases[n1] == -2){ //this is a masked position, do not touch
@@ -512,7 +511,7 @@ void Partition::strengthen_partition(Partition &p){
             n++;
         }
         if (preads[n] == readIdx[n1]){
-            if (ppartition[n] != mostFrequentBases[n1]){
+            if (ppartition[n] == -mostFrequentBases[n1]){
                 phase -= 1;
             }
             else {
@@ -539,7 +538,7 @@ void Partition::strengthen_partition(Partition &p){
             n++;
         }
         if (preads[n] == readIdx[n1]){
-            if ((allConfidences[n1] < 0.8 || numberOfOccurences < 5) && (pconf[n]>0.7 && p.number()>5)){
+            if (mostFrequentBases[n1] == 0 || ((allConfidences[n1] < 0.8 || numberOfOccurences < 5) && (pconf[n]>0.7 && p.number()>5))){
                 mostFrequentBases[n1] = ppartition[n];
                 moreFrequence[n1] = pmore[n];
                 lessFrequence[n1] = pless[n];
@@ -651,7 +650,10 @@ vector<float> Partition::getConfidence(){
     vector<float> conf;
     for (int i = 0 ; i < moreFrequence.size() ; i++){
         //conf.push_back(moreFrequence[i]+lessFrequence[i]);
-        if (moreFrequence[i]+lessFrequence[i] > 0) {
+        if (mostFrequentBases[i] == 0){
+            conf.push_back(0.5); //absolutely not sure
+        }
+        else if (moreFrequence[i]+lessFrequence[i] > 0) {
             conf.push_back(float(moreFrequence[i])/(moreFrequence[i]+lessFrequence[i]));
         }
         else {
@@ -690,9 +692,9 @@ void Partition::print(){
             if (moreFrequence[n] == 0){
                 cout << "o";
             }
-            else if (moreFrequence[n] < 3){
-                cout << "_";
-            }
+            // else if (moreFrequence[n] < 0){
+            //     cout << "_";
+            // }
             else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.7){
                 cout << "!";
             }
@@ -701,6 +703,9 @@ void Partition::print(){
             }
             else if (ch == -1){
                 cout << 0;
+            }
+            else if (ch == 0){
+                cout << "o";
             }
             else {
                 cout << '?';
@@ -741,7 +746,7 @@ void Partition::print(){
     // cout << endl;
 }
 
-float Partition::proportionOf1(){
+float Partition::numberOf0(){
     float n1 = 0;
     float n0 = 0;
     for (auto r : mostFrequentBases){
@@ -752,12 +757,7 @@ float Partition::proportionOf1(){
             n0++;
         }
     }
-    if (n1+n0 > 0){
-        return n1/(n1+n0);
-    }
-    else{
-        return 0.5;
-    }
+    return n0;
 }
 
 float Partition::get_conf(){

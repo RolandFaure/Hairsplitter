@@ -312,48 +312,51 @@ void modify_GFA(
                     }
                     
                     //create the links
-                    for (int h : hangingLinks){
-                        if (linksToKeep.find(allLinks[h].group) != linksToKeep.end()){
-                            Link leftLink;
-                            leftLink.CIGAR = allLinks[h].CIGAR;
-                            if (allLinks[h].end2 == -1){
-                                leftLink.end2 = 0;
-                                leftLink.neighbor2 = allreads.size();
-                                leftLink.end1 = allLinks[h].end1;
-                                leftLink.neighbor1 = allLinks[h].neighbor1;
-                                allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                    #pragma omp critical
+                    {
+                        for (int h : hangingLinks){
+                            if (linksToKeep.find(allLinks[h].group) != linksToKeep.end()){
+                                Link leftLink;
+                                leftLink.CIGAR = allLinks[h].CIGAR;
+                                if (allLinks[h].end2 == -1){
+                                    leftLink.end2 = 0;
+                                    leftLink.neighbor2 = allreads.size();
+                                    leftLink.end1 = allLinks[h].end1;
+                                    leftLink.neighbor1 = allLinks[h].neighbor1;
+                                    allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                                }
+                                else if (allLinks[h].end1 == -1) {
+                                    leftLink.end1 = 0;
+                                    leftLink.neighbor1 = allreads.size();
+                                    leftLink.end2 = allLinks[h].end2;
+                                    leftLink.neighbor2 = allLinks[h].neighbor2;
+                                    allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
+                                }
+                                else {
+                                    // cout << "WHAAAT" << endl;
+                                }
+                                r.add_link(allLinks.size(), 0);
+                                allLinks.push_back(leftLink);
                             }
-                            else if (allLinks[h].end1 == -1) {
-                                leftLink.end1 = 0;
-                                leftLink.neighbor1 = allreads.size();
-                                leftLink.end2 = allLinks[h].end2;
-                                leftLink.neighbor2 = allLinks[h].neighbor2;
-                                allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
-                            }
-                            else {
-                                // cout << "WHAAAT" << endl;
-                            }
-                            r.add_link(allLinks.size(), 0);
-                            allLinks.push_back(leftLink);
                         }
-                    }
                     
-                    Link rightLink;
-                    rightLink.CIGAR = "0M";
-                    rightLink.end1 = 1;
-                    rightLink.neighbor1 = allreads.size();
-                    rightLink.end2 = -1;
-                    rightLink.group = group.first;
-                    allLinks.push_back(rightLink);
-                    r.add_link(allLinks.size()-1, 1);
-                    futureHangingLinks.push_back(allLinks.size()-1);
+                        Link rightLink;
+                        rightLink.CIGAR = "0M";
+                        rightLink.end1 = 1;
+                        rightLink.neighbor1 = allreads.size();
+                        rightLink.end2 = -1;
+                        rightLink.group = group.first;
+                        allLinks.push_back(rightLink);
+                        r.add_link(allLinks.size()-1, 1);
+                        futureHangingLinks.push_back(allLinks.size()-1);
 
-                    allreads.push_back(r);
-                    backbones_reads.push_back(allreads.size()-1);
-                    if (omp_get_thread_num() == 0 && DEBUG){
-                        cout << "created the contig " << r.name << endl;
+                        allreads.push_back(r);
+                        backbones_reads.push_back(allreads.size()-1);
+                        if (omp_get_thread_num() == 0 && DEBUG){
+                            cout << "created the contig " << r.name << endl;
+                        }
+                        local_log_text += "   - " + r.name + "\n";
                     }
-                    local_log_text += "   - " + r.name + "\n";
                 }
                 hangingLinks = futureHangingLinks;
                 n += 1;
@@ -367,54 +370,57 @@ void modify_GFA(
             Read r (contig);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = newdepths[1];
+            
+            #pragma omp critical
+            {
+                for (int h : hangingLinks){
+                    Link leftLink;
+                    leftLink.CIGAR = allLinks[h].CIGAR;
+                    if (allLinks[h].end2 == -1){
+                        leftLink.end2 = 0;
+                        leftLink.neighbor2 = allreads.size();
+                        leftLink.end1 = allLinks[h].end1;
+                        leftLink.neighbor1 = allLinks[h].neighbor1;
+                        allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                    }
+                    else if (allLinks[h].end1 == -1) {
+                        leftLink.end1 = 0;
+                        leftLink.neighbor1 = allreads.size();
+                        leftLink.end2 = allLinks[h].end2;
+                        leftLink.neighbor2 = allLinks[h].neighbor2;
+                        allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
+                    }
+                    else {
+                        // cout << "WHAAAT" << endl;
+                    }
+                    r.add_link(allLinks.size(), 0);
+                    allLinks.push_back(leftLink);
+                    
+                }
 
-            for (int h : hangingLinks){
-                Link leftLink;
-                leftLink.CIGAR = allLinks[h].CIGAR;
-                if (allLinks[h].end2 == -1){
-                    leftLink.end2 = 0;
-                    leftLink.neighbor2 = allreads.size();
-                    leftLink.end1 = allLinks[h].end1;
-                    leftLink.neighbor1 = allLinks[h].neighbor1;
-                    allreads[leftLink.neighbor1].add_link(allLinks.size(), allLinks[h].end1);
+                //now re-build the links right of backbone
+                for (int linkIdx : allreads[backbone].get_links_right()){
+                    if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 1){
+                        allLinks[linkIdx].end1 = 1;
+                        allLinks[linkIdx].neighbor1 = allreads.size() ;
+                    }
+                    else {
+                        allLinks[linkIdx].end2 = 1;
+                        allLinks[linkIdx].neighbor2 = allreads.size() ;
+                    }
+                    r.add_link(linkIdx, 1);
                 }
-                else if (allLinks[h].end1 == -1) {
-                    leftLink.end1 = 0;
-                    leftLink.neighbor1 = allreads.size();
-                    leftLink.end2 = allLinks[h].end2;
-                    leftLink.neighbor2 = allLinks[h].neighbor2;
-                    allreads[leftLink.neighbor2].add_link(allLinks.size(), allLinks[h].end2);
+
+                allreads.push_back(r);
+                backbones_reads.push_back(allreads.size()-1);
+                if (omp_get_thread_num() == 0 && DEBUG){
+                    cout << "now creating the different contigs : " << r.name << endl;
                 }
-                else {
-                    // cout << "WHAAAT" << endl;
-                }
-                r.add_link(allLinks.size(), 0);
-                allLinks.push_back(leftLink);
-                
+                local_log_text += " - Between positions " + to_string(left) + " and " + to_string(allreads[backbone].sequence_.size()) + " of the contig, I've created these contigs:\n";
+                local_log_text +=  "   - " + r.name + "\n\n";
+
+                allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
             }
-
-            //now re-build the links right of backbone
-            for (int linkIdx : allreads[backbone].get_links_right()){
-                if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 1){
-                    allLinks[linkIdx].end1 = 1;
-                    allLinks[linkIdx].neighbor1 = allreads.size() ;
-                }
-                else {
-                    allLinks[linkIdx].end2 = 1;
-                    allLinks[linkIdx].neighbor2 = allreads.size() ;
-                }
-                r.add_link(linkIdx, 1);
-            }
-
-            allreads.push_back(r);
-            backbones_reads.push_back(allreads.size()-1);
-            if (omp_get_thread_num() == 0 && DEBUG){
-                cout << "now creating the different contigs : " << r.name << endl;
-            }
-            local_log_text += " - Between positions " + to_string(left) + " and " + to_string(allreads[backbone].sequence_.size()) + " of the contig, I've created these contigs:\n";
-            local_log_text +=  "   - " + r.name + "\n\n";
-
-            allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
 
         }
         else{
@@ -426,6 +432,7 @@ void modify_GFA(
         }
 
         //free up memory by deleting the sequence of the reads used there
+        cout << "poidqudpf freeing " << endl;
         for (auto n : allreads[backbones_reads[b]].neighbors_){
             if (allOverlaps[n].sequence1 != backbones_reads[b]){
                 allreads[allOverlaps[n].sequence1].free_sequence();
@@ -434,6 +441,7 @@ void modify_GFA(
                 allreads[allOverlaps[n].sequence2].free_sequence();
             }
         }
+        cout << "ffqdpioudj e " << endl;
     }
     std::ofstream o("output.txt");
     o << log_text << endl;

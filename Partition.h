@@ -42,7 +42,7 @@ public :
 
     bool isInformative(bool lastReadBiased);
     int number();
-    float proportionOf1();
+    float numberOf0();
 
     float compute_conf();
     float get_conf();
