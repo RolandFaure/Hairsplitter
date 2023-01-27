@@ -65,6 +65,8 @@ float generate_msa(
 std::string consensus_reads(
     std::string &backbone, 
     std::vector <std::string> &polishingReads, 
+    int overhangLeft,
+    int overhangRight,
     std::string &id);
 
 void compute_consensus_in_partitions(
@@ -92,7 +94,8 @@ std::vector<Partition> get_solid_partitions(
 
 std::vector <std::vector <bool>> create_masks(
     std::vector<Partition> &partitions, 
-    int numberOfReads);
+    int numberOfReads,
+    std::vector<std::vector<bool>> &all_mask_ever_tested);
 
 distancePartition distance(Partition &par1, Column &par2, char ref_base);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);

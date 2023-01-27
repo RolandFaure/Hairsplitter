@@ -1,8 +1,9 @@
 #include "modify_gfa.h"
-#include<algorithm> //for "sort"
+#include <algorithm> //for "sort"
 #include <fstream>
 #include <omp.h>
 #include "input_output.h"
+#include "tools.h"
 
 using std::string;
 using std::cout;
@@ -248,44 +249,75 @@ void modify_GFA(
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
+                    int overhang = 50; //margin we're taking at the ends of the contig to be sure to take exactly the right portion 
                     
-                    string toPolish = interval.second.second[group.first];
+                    int overhangLeft = min(interval.first.first, overhang);
+                    int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
+                    //toPolish should be polished with a little margin on both sides to get cleanly first and last base
+                    string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhang), overhang) 
+                        + interval.second.second[group.first].substr(max(0, overhang-overhangLeft), interval.second.second[group.first].size()+overhangLeft+overhangRight-2*overhang)
+                        + allreads[backbone].sequence_.str().substr(interval.first.second+1+overhangRight-overhang, overhang);
 
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        if (newcontig == ""){
-                            //toPolish2 should be polished with a little margin on both sides to get cleanly first and last base
-                            string toPolish2 = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - 100), min(interval.first.first, 100)) + toPolish + allreads[backbone].sequence_.str().substr(interval.first.second+1, min(100, int(allreads[backbone].sequence_.str().size())-interval.first.second-1));
-
-                            newcontig = consensus_reads(toPolish2, group.second, thread_id);
-                        }
-
                         //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
-                        if (interval.first.first <= 50){
-                            //remove the first 50 bases of toPolish
-                            toPolish = toPolish.substr(50, toPolish.size()-50);
-                        }
-                        if (interval.first.second >= allreads[backbone].sequence_.size()-50){
-                            //remove the last 50 bases of toPolish
-                            toPolish = toPolish.substr(0, toPolish.size()-50);
+                        // if (interval.first.first <= 50){
+                        //     //remove the first 50 bases of toPolish
+                        //     toPolish = toPolish.substr(50, toPolish.size()-50);
+                        // }
+                        // if (interval.first.second >= allreads[backbone].sequence_.size()-50){
+                        //     //remove the last 50 bases of toPolish
+                        //     toPolish = toPolish.substr(0, toPolish.size()-50);
+                        // }
+
+                        if (newcontig == ""){
+                            //if the contig is close to one end, tell racon to not polish the first or last bases
+                            newcontig = consensus_reads(toPolish, group.second, overhang-overhangLeft, overhang-overhangRight, thread_id);
                         }
 
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
                                     edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+
+                        string cig = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
+                        string cigar = convert_cigar(cig);
+                        // extract the part of newcontig that does not align to the first and last overhang bases of toPolish2
+                        int posOnToPolish = 0;
+                        int posOnNewContig = result.startLocations[0];
+                        int posStartOnNewContig = 0;
+                        int posEndOnNewContig = 0;
+                        for (char c : cigar){
+                            if (c == 'M'){
+                                posOnToPolish++;
+                                posOnNewContig++;
+                            }
+                            else if (c == 'D'){
+                                posOnNewContig++;
+                            }
+                            else if (c == 'I'){
+                                posOnToPolish++;
+                            }
+                            if (posOnToPolish == overhangLeft){
+                                posStartOnNewContig = posOnNewContig;
+                            }
+                            if (posOnToPolish == toPolish.size()-overhangRight-1){
+                                posEndOnNewContig = posOnNewContig;
+                            }
+                            // cout << "indices: " << posOnToPolish << " " << posOnNewContig << endl;
+                        }
                         
-                        newcontig = newcontig.substr(max(0,result.startLocations[0]), min(result.endLocations[0]-result.startLocations[0]+1, int(newcontig.size())-result.startLocations[0]));
+                        newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
 
                         //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
-                        if (interval.first.first <= 50){
-                            //add back the first 50 bases of newcontig
-                            newcontig = interval.second.second[group.first].substr(0, 50) + newcontig;
-                        }
-                        if (interval.first.second >= allreads[backbone].sequence_.size()-50){
-                            //add back the last 50 bases of newcontig
-                            newcontig = newcontig + interval.second.second[group.first].substr(interval.second.second[group.first].size()-50, 50);
-                        }
+                        // if (interval.first.first <= 50){
+                        //     //add back the first 50 bases of newcontig
+                        //     newcontig = interval.second.second[group.first].substr(0, 50) + newcontig;
+                        // }
+                        // if (interval.first.second >= allreads[backbone].sequence_.size()-50){
+                        //     //add back the last 50 bases of newcontig
+                        //     newcontig = newcontig + interval.second.second[group.first].substr(interval.second.second[group.first].size()-50, 50);
+                        // }
 
                         edlibFreeAlignResult(result);                        
                     }
@@ -432,7 +464,6 @@ void modify_GFA(
         }
 
         //free up memory by deleting the sequence of the reads used there
-        cout << "poidqudpf freeing " << endl;
         for (auto n : allreads[backbones_reads[b]].neighbors_){
             if (allOverlaps[n].sequence1 != backbones_reads[b]){
                 allreads[allOverlaps[n].sequence1].free_sequence();
@@ -441,7 +472,6 @@ void modify_GFA(
                 allreads[allOverlaps[n].sequence2].free_sequence();
             }
         }
-        cout << "ffqdpioudj e " << endl;
     }
     std::ofstream o("output.txt");
     o << log_text << endl;

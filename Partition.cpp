@@ -381,7 +381,6 @@ void Partition::mergePartition(Partition &p, short phased){
 
 //input : another partition to be merged into this one
 //output : updated consensus partition
-//WARNING like above, the two partitions must be the same size
 void Partition::mergePartition(Partition &p){
 
     auto moreOther = p.getMore();
@@ -403,6 +402,10 @@ void Partition::mergePartition(Partition &p){
         }
         else if (abs(mostFrequentBases[n1]) == 1 && abs(other[n2]) == 1){ //to avoid merging masked partitions
             phase += mostFrequentBases[n1]*other[n2];
+            n1++;
+            n2++;
+        }
+        else{ //one of the read is masked
             n1++;
             n2++;
         }

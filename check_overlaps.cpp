@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "consensus@1@00"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "consensus@0@00"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -300,7 +300,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     string consensus;
     if (polish){
         string thread_id = std::to_string(omp_get_thread_num());
-        consensus = consensus_reads(read_str , polishingReads, thread_id);
+        consensus = consensus_reads(read_str , polishingReads, 0, 0, thread_id);
         if (DEBUG){
             cout << "Done polishing the contig" << endl;
         }
@@ -565,10 +565,11 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
  * 
  * @param backbone sequence to be polished
  * @param polishingReads list of reads to polish it
+ * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @return polished sequence 
  */
-string consensus_reads(string &backbone, vector <string> &polishingReads, string &id){
+string consensus_reads(string &backbone, vector <string> &polishingReads, int overhangLeft, int overhangRight, string &id){
     
     system("mkdir tmp/ 2> trash.txt");
     std::ofstream outseq("tmp/unpolished_"+id+".fasta");
@@ -643,11 +644,13 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
         return backbone;
     }
 
+    //trim the consensus so that the end will be the same as the input backbone
+    consensus = consensus.substr(overhangLeft, consensus.size() - overhangLeft - overhangRight);
 
     //racon tends to drop the ends of the sequence, so attach them back.
     //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
-    auto before_size = min(size_t(500), backbone.size());
-    auto after_size = min(size_t(250), consensus.size());
+    auto before_size = min(size_t(300+overhangLeft+overhangRight), backbone.size());
+    auto after_size = min(size_t(200+overhangLeft+overhangRight), consensus.size());
 
     // Do the alignment for the beginning of the sequence.
     string before_start = backbone.substr(0,before_size);
@@ -667,7 +670,7 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, string
     string before_end = backbone.substr(backbone.size()-before_size, before_size);
     string after_end = consensus.substr(consensus.size()-after_size , after_size);
 
-    result = edlibAlign(after_start.c_str(), after_start.size(), before_start.c_str(), before_start.size(),
+    result = edlibAlign(after_end.c_str(), after_end.size(), before_end.c_str(), before_end.size(),
                                         edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
     int end_pos = result.endLocations[0]+1;
@@ -714,17 +717,20 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
     //there is a first list of patitions, now check if there are some sub-partitions that were missed
+
     int numberOfNewPartitions = partitions.size();
+    vector<vector<bool>> all_masks_ever_tested; //to avoid testing the same mask twice
     while (numberOfNewPartitions > 0){
         numberOfNewPartitions = 0;
         
-        vector<vector<bool>> masks = create_masks(partitions, numberOfReads);
+        // partitions = {partitions[0], partitions[1]};
+        vector<vector<bool>> masks = create_masks(partitions, numberOfReads, all_masks_ever_tested);
+        all_masks_ever_tested.insert(all_masks_ever_tested.end(), masks.begin(), masks.end());
         for (auto mask : masks){
             float meanErrorHere = 0;
-
             vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanErrorHere, numberOfReads);
             // cout << "mask : reads, hereeee they are:" << endl;
-            // for (int i = 0 ; i < numberOfReads ; i++){
+            // for (int i = 0 ; i < numberOfReads ; i+=2){
             //     cout << mask[i];
             // }
             // cout << endl;
@@ -736,9 +742,22 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
         }
 
+        //print all partitions
+        // cout << "here are allss the partitions : " << endl;
+        // for (auto p : partitions){
+        //     p.print();
+        // }
+                    
     }
 
     //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
+
+    if (DEBUG){
+        cout << "final dddaaz partitions : " << partitions.size() << endl;
+        for (auto p : partitions){
+            p.print();
+        }
+    }
 
     //now go through windows of width 1000 along the reference and create local partitions
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
@@ -1079,52 +1098,105 @@ vector<Partition> get_solid_partitions(std::string& ref,
  * 
  * @param partitions 
  * @param numberOfReads 
+ * @param all_maks_ever_tested list of maks already tested, so that the same mask are not computed over and over again
  * @return vector<vector<bool>> A vector of masks
  */
-vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfReads){
+vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfReads, vector<vector<bool>> &all_maks_ever_tested){
 
     vector<vector<bool>> masks;
 
-    for (int maskID = 0 ; maskID < pow(2, partitions.size()) ; maskID++){
-
-        vector<bool> mask(numberOfReads, true);
-        vector<bool> seenAtLeastOnce(numberOfReads, false); //the reads that were never seen are on zones where we already failed to separate the reads
-
-        int m = maskID;
-        for (int npart = 0 ; npart < partitions.size() ; npart++){
-            bool doITakeTheOnes = (m % 2 == 1); //if true, I exclude all the -1, if false I exclude all the 1
-            m /= 2;
-
-            vector<int> reads = partitions[npart].getReads();
-            vector<short> part = partitions[npart].getPartition();
-
-            for (int i = 0 ; i < reads.size() ; i++){
-                seenAtLeastOnce[reads[i]] = true;
-                if (part[i] == 1 && !doITakeTheOnes){
-                    mask[reads[i]] = false;
-                }
-                else if (part[i] == -1 && doITakeTheOnes){
-                    mask[reads[i]] = false;
-                }
-            }
-
+    vector<int> readsRepartition (numberOfReads, 0);
+    for (int npart = 0 ; npart < partitions.size() ; npart++){
+        vector<int> reads = partitions[npart].getReads();
+        vector<short> part = partitions[npart].getPartition();
+        for (int i = 0 ; i < reads.size() ; i++){
+            readsRepartition[reads[i]] += (part[i]+3)/2 * pow(3, npart) ;
         }
+    }
 
-        int numberOfReadsInTheMask = 0;
-        for (int i = 0 ; i < numberOfReads ; i++){
-            if (!seenAtLeastOnce[i]){
-                mask[i] = false;
+    //check what integer is present more than five times in readsRepartition
+    std::unordered_map<int, int> count;
+    for (int i = 0 ; i < readsRepartition.size() ; i++){
+        count[readsRepartition[i]] += 1;
+    }
+    
+    for (auto cluster : count){
+        if (cluster.second > 5 && cluster.first != 0){ //0 means present on no partitions
+            vector<bool> mask(numberOfReads, false);
+            for (int i = 0 ; i < readsRepartition.size() ; i++){
+                if (readsRepartition[i] == cluster.first){
+                    mask[i] = true;
+                }
             }
-            else if (mask[i]){
-                numberOfReadsInTheMask += 1;
-            }
-        }
-        
-        if (numberOfReadsInTheMask > 5){
             masks.push_back(mask);
         }
-
     }
+
+    return masks;
+
+    // for (int maskID = 0 ; maskID < pow(2, partitions.size()) ; maskID++){
+
+    //     vector<bool> mask(numberOfReads, true);
+    //     vector<bool> seenAtLeastOnce(numberOfReads, false); //the reads that were never seen are on zones where we already failed to separate the reads
+
+    //     int m = maskID;
+    //     for (int npart = 0 ; npart < partitions.size() ; npart++){
+    //         bool doITakeTheOnes = (m % 2 == 1); //if true, I exclude all the -1, if false I exclude all the 1
+    //         m /= 2;
+
+    //         vector<int> reads = partitions[npart].getReads();
+    //         vector<short> part = partitions[npart].getPartition();
+
+    //         for (int i = 0 ; i < reads.size() ; i++){
+    //             seenAtLeastOnce[reads[i]] = true;
+    //             if (part[i] == 1 && !doITakeTheOnes){
+    //                 mask[reads[i]] = false;
+    //             }
+    //             else if (part[i] == -1 && doITakeTheOnes){
+    //                 mask[reads[i]] = false;
+    //             }
+    //         }
+
+    //     }
+
+    //     int numberOfReadsInTheMask = 0;
+    //     for (int i = 0 ; i < numberOfReads ; i++){
+    //         if (!seenAtLeastOnce[i]){
+    //             mask[i] = false;
+    //         }
+    //         else if (mask[i]){
+    //             numberOfReadsInTheMask += 1;
+    //         }
+    //     }
+        
+    //     if (numberOfReadsInTheMask > 5){
+    //         //now check if the mask was already tested
+    //         bool alreadyTested = false;
+    //         for (auto mask2 : all_maks_ever_tested){
+    //             int similarity = 0;
+    //             int difference = 0;
+    //             for (int i = 0 ; i < numberOfReads ; i++){
+    //                 if (mask[i] || mask2[i]){
+    //                     if (mask[i] == mask2[i]){
+    //                         similarity += 1;
+    //                     }
+    //                     else{
+    //                         difference += 1;
+    //                     }
+    //                 }
+    //             }
+    //             if (similarity > 4 && difference < 2){
+    //                 alreadyTested = true;
+    //                 break;
+    //             }
+    //         }
+    //         if (!alreadyTested){
+    //             masks.push_back(mask);
+    //             cout << "pushing back: "<< maskID << " " << numberOfReadsInTheMask << " " << numberOfReads << endl;
+    //         }
+    //     }
+
+    // }
 
     return masks;
 
@@ -2420,9 +2492,9 @@ void compute_consensus_in_partitions(long int contig, vector<pair<pair<int,int>,
                 i+=1;
             }
         }
-        //print consensus_sequences
+
         // for (auto cluster : consensus_sequences){
-        //     cout << "consensus sequence: " << cluster.first << " : " << cluster.second << endl;
+        //     cout << "consensus qsequeoeznce: " << cluster.first << " : " << cluster.second << endl;
         // }
         //add the consensus sequences to the partitions
         partitions[contig].push_back(make_pair(interval.first, make_pair(interval.second, consensus_sequences)));
