@@ -8,7 +8,7 @@
 struct Column{
     int pos;
     std::vector<unsigned int> readIdxs;
-    std::vector<char> content;
+    std::vector<unsigned char> content;
 };
 
 //structure for the partition in an arbitrary number of clusters

@@ -60,7 +60,8 @@ float generate_msa(
     bool assemble_on_assembly, 
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, 
     std::vector<bool>& misalignedReads, 
-    bool polish);
+    bool polish,
+    std::string &newref);
 
 std::string consensus_reads(
     std::string &backbone, 

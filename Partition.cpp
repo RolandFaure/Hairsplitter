@@ -36,31 +36,29 @@ Partition::Partition(Column& snp, int pos, vector<bool> &mask, char ref_base){
 
     readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
-    robin_hood::unordered_flat_map<char, short> bases2content;
-    bases2content['A'] = 0;
-    bases2content['C'] = 1; 
-    bases2content['G'] = 2;
-    bases2content['T'] = 3;
-    bases2content['-'] = 4;
-    bases2content['?'] = 5;
-
-    int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '-'
+    //count the number of different chars in the column
+    robin_hood::unordered_map<char, int> content;
     for (int c = 0 ; c < snp.content.size() ; c++){
-        if (snp.content[c] != '?'){
-            content[bases2content[snp.content[c]]] += 1;
+        if (content.find(snp.content[c]) == content.end()){
+            content[snp.content[c]] = 1;
+        }
+        else{
+            content[snp.content[c]] += 1;
         }
     }
 
+    //now find the two most frequent char in content
+
     char mostFrequent = ref_base;
-    auto maxFrequence = content[bases2content[ref_base]];
+    auto maxFrequence = content[ref_base];
     //now find the second most frequent base
     char secondFrequent;
     int maxFrequence2 = -1;
-    for (auto i = 0 ; i < 5 ; i++){
-        if (ref_base != "ACGT-"[i]) {
-            if (content[i] > maxFrequence2){
-                secondFrequent = "ACGT-"[i];
-                maxFrequence2 = content[i];
+    for (auto c : content){
+        if (ref_base != c.first) {
+            if (c.second > maxFrequence2){
+                secondFrequent = c.first;
+                maxFrequence2 = c.second;
             }
         }
     }
@@ -130,7 +128,7 @@ bool Partition::isInformative(bool lastReadBiased){
 /**
  * @brief Adds a new column that supports the partition
  * 
- * @param supplementaryPartition  (the partition composed of 'A' and 'a' corresponding to 1 and -1, there can also be '?')
+ * @param supplementaryPartition  (the partition composed of 'A' and 'a' corresponding to 1 and -1, there can also be ' ')
  * @param pos 
  */
 void Partition::augmentPartition(Column& supplementaryPartition, int pos){
@@ -153,7 +151,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     int maxFrequence = -1;
     //find the index of the two biggest elements of content
     for (unsigned char i = 0 ; i < 255 ; i++){
-        if (char(i) != '?' && content[i] > maxFrequence){
+        if (char(i) != ' ' && content[i] > maxFrequence){
             mostFrequent = i;
             maxFrequence = content[i];
         }
@@ -161,7 +159,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     }
     int maxFrequence2 = -1;
     for (unsigned char i = 0 ; i < 255 ; i++){
-        if (i != mostFrequent && i != '?') {
+        if (i != mostFrequent && i != ' ') {
             if (content[i] > maxFrequence2){
                 secondFrequent = i;
                 maxFrequence2 = content[i];
@@ -335,14 +333,51 @@ void Partition::mergePartition(Partition &p, short phased){
                 newLessFrequence.push_back(lessFrequence[n1]);
             }
             else if (phased*other[n2] == mostFrequentBases[n1]){ //the two partitions agree
+                int whichone = 0;
+                //take the more confident of the two partitions if one of them is shaky
+                double confidence1 = double(moreFrequence[n1])/(moreFrequence[n1]+lessFrequence[n1]);
+                double confidence2 = double(moreOther[n2])/(moreOther[n2]+lessOther[n2]);
+                if (confidence1 < 0.9 && confidence2 > 0.9 && moreOther[n2]>= 10){
+                    whichone = 1;
+                }
+                else if (confidence2 < 0.9 && confidence1 > 0.9 && moreFrequence[n1] >= 10){
+                    whichone = 2;
+                }
                 newMostFrequent.push_back(mostFrequentBases[n1]);
-                newMoreFrequence.push_back(moreFrequence[n1]+moreOther[n2]);
-                newLessFrequence.push_back(lessFrequence[n1]+lessOther[n2]);
+                newMoreFrequence.push_back(0);
+                newLessFrequence.push_back(0);
+                if (whichone != 1){
+                    newMoreFrequence[newMoreFrequence.size()-1] += moreFrequence[n1];
+                    newLessFrequence[newLessFrequence.size()-1] += lessFrequence[n1];
+                }
+                if (whichone != 2){
+                    newMoreFrequence[newMoreFrequence.size()-1] += moreOther[n2];
+                    newLessFrequence[newLessFrequence.size()-1] += lessOther[n2];
+                }
             }
             else if (phased*other[n2] == -mostFrequentBases[n1]){ //the two partitions disagree
+
+            int whichone = 0;
+                //take the more confident of the two partitions if one of them is shaky
+                double confidence1 = double(moreFrequence[n1])/(moreFrequence[n1]+lessFrequence[n1]);
+                double confidence2 = double(moreOther[n2])/(moreOther[n2]+lessOther[n2]);
+                if (confidence1 < 0.9 && confidence2 > 0.9 && moreOther[n2]>= 10){
+                    whichone = 1;
+                }
+                else if (confidence2 < 0.9 && confidence1 > 0.9 && moreFrequence[n1] >= 10){
+                    whichone = 2;
+                }
                 newMostFrequent.push_back(mostFrequentBases[n1]);
-                newMoreFrequence.push_back(moreFrequence[n1]+lessOther[n2]);
-                newLessFrequence.push_back(lessFrequence[n1]+moreOther[n2]);
+                newMoreFrequence.push_back(0);
+                newLessFrequence.push_back(0);
+                if (whichone != 1){
+                    newMoreFrequence[newMoreFrequence.size()-1] += moreFrequence[n1];
+                    newLessFrequence[newLessFrequence.size()-1] += lessFrequence[n1];
+                }
+                if (whichone != 2){
+                    newMoreFrequence[newMoreFrequence.size()-1] += lessOther[n2];
+                    newLessFrequence[newLessFrequence.size()-1] += moreOther[n2];
+                }
 
                 //then the most popular base may have changed
                 if (newLessFrequence[newLessFrequence.size()-1] > newMoreFrequence[newMoreFrequence.size()-1] ){
@@ -711,7 +746,7 @@ void Partition::print(){
                 cout << "o";
             }
             else {
-                cout << '?';
+                cout << ' ';
             }
             it++;
             n++;

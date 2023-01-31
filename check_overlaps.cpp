@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "consensus@0@00"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_4@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -130,11 +130,13 @@ void compute_partition_on_this_contig(
     // cout << "...creating MSA\n";
     vector<string> consensuses; //vector containing all the consensus sequences (we hope jeust one, but we might have to do several MSA if the reads are too far away from each other)
     robin_hood::unordered_map<int, int> insertionPositions;
-    float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish);
+    string ref3mers;
+    float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, 
+        partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, ref3mers);
 
     //then separate the MSA
-    string ref = allreads[contig].sequence_.str();
-    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref, snps,
+    // string ref = allreads[contig].sequence_.str();
+    vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
         
@@ -190,7 +192,10 @@ void compute_partition_on_this_contig(
  */
 float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
-    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish){
+    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish,
+    string &newref){
+
+    string ACGT = "ACGT-";
 
     //go through the neighbors of the backbone read and align it
 
@@ -374,14 +379,16 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         int maxNumberOfInsertions = 20; //maximum number of insertions allowed in a row, then they are discarded
 
         int localDivergence = 0; //number of mismatches/insertions/deletions in the last 100 bases
-        vector<bool> divergences (100, false); //true if there is a mismatch/insertion/deletion in that position
 
         // if (indexQuery < 20){
         //     cout << "beginning of query : " << indexQuery << " " << polishingReads[n].substr(indexQuery,100) << endl;
         // }
         //cout the alignment
         // cout << "alignment : " << alignment << endl;
-
+        
+        char previous_previous_previous_char = 'A';
+        char previous_previous_char = 'C';
+        char previous_char = 'G';
         for (int l = 0; l < alignment.size(); l++) {
 
             if (indexQuery < consensus.size()){
@@ -396,73 +403,112 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                 if (alignment[l] == '=' || alignment[l] == 'X' || alignment[l] == 'M'){
                     //fill inserted columns with '-' just before that position
                     // numberOfConsecutiveMatches += 1;
-                    for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of '?'
-                        snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
-                        snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
-                    }
+                    // for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of ' '
+                    //     snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
+                    //     snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
+                    // }
 
                     if (indexQuery > 0 && polishingReads[n][indexTarget-1] != consensus[indexQuery-1]){
                         totalDistance += 1;
                     }
 
+                    if (polishingReads[n][indexTarget] != previous_char){ //to avoid all homopolymers
+                        previous_previous_previous_char = previous_previous_char;
+                        previous_previous_char = previous_char;
+                        previous_char = polishingReads[n][indexTarget];
+                    }
+
+                    unsigned char three_mer = '!' + ACGT.find(previous_previous_previous_char) + 5*ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char);
+
                     snps[indexQuery].readIdxs.push_back(n);
-                    snps[indexQuery].content.push_back(polishingReads[n][indexTarget]);
+                    snps[indexQuery].content.push_back(three_mer);
+
+                    // if (indexQuery == 29 ){
+                    //     cout << "pusdfg: " << previous_previous_previous_char << " " << previous_previous_char << " " << previous_char << " " << three_mer << " " << endl;
+                    // }
+                    // if ((n == 22 || n == 109 || n == 4 || n == 5 || n == 131) && indexQuery < 40){
+                    //     cout << polishingReads[n][indexTarget];
+                    //     if (indexQuery == 28){
+                    //         cout << " " << previous_previous_previous_char << previous_previous_char << previous_char << " ";
+                    //     }
+                    // }
 
                     indexQuery++;
                     indexTarget++;
                     numberOfInsertionsThere = 0;
 
                     if (alignment[l] != 'M' && alignment[l] != '='){
-                        divergences[l%100] = true;
                         localDivergence += 1;
                     }
                 }
                 else if (alignment[l] == 'S'){ //soft-clipped bases
                     indexTarget++;
-                    divergences[l%100] = true;
                     localDivergence += 1;
                 }
                 else if (alignment[l] == 'D'){
-                    //fill inserted columns with '-' just before that position
-                    for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of '?'
-                        snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
-                        snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
+                    // //fill inserted columns with '-' just before that position
+                    // for (int ins = numberOfInsertionsThere ; ins < numberOfInsertionsHere[indexQuery] ; ins++){ //in these positions, insert '-' instead of ' '
+                    //     snps[insertionPos[10000*indexQuery+ins]].readIdxs.push_back(n);
+                    //     snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
+                    // }
+
+                    if ('-' != previous_char){ //to avoid all homopolymers
+                        previous_previous_previous_char = previous_previous_char;
+                        previous_previous_char = previous_char;
+                        previous_char = '-';
                     }
 
+                    unsigned char three_mer = '!' + ACGT.find(previous_previous_previous_char) + 5*ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char);
+
                     snps[indexQuery].readIdxs.push_back(n);
-                    snps[indexQuery].content.push_back('-');                    
+                    snps[indexQuery].content.push_back(three_mer);                    
                     indexQuery++;
                     numberOfInsertionsThere = 0;
 
+                    // if (indexQuery == 29){
+                    //     cout << "musdhg: " << previous_previous_previous_char << " " << previous_previous_char << " " << previous_char << " " << three_mer << " " << endl;
+                    // }
+                    // if ((n == 22 || n == 109 || n == 4 || n == 5 || n == 131) && indexQuery < 40){
+                    //     cout << "-";
+                    //     if (indexQuery == 28){
+                    //         cout << " ";
+                    //     }
+                    // }
+
                     totalDistance += 1;
 
-                    divergences[l%100] = true;
                     localDivergence += 1;
                 }
-                else if (alignment[l] == 'I'){ //hardest one
-                    if (numberOfInsertionsHere[indexQuery] <= maxNumberOfInsertions && indexQuery > positionOfReads[n].first) {
+                else if (alignment[l] == 'I'){ 
+                    // if (numberOfInsertionsHere[indexQuery] <= maxNumberOfInsertions && indexQuery > positionOfReads[n].first) {
 
-                        if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
-                            insertionPos[10000*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
-                            numberOfInsertionsHere[indexQuery] += 1;
+                    //     if (numberOfInsertionsThere >= numberOfInsertionsHere[indexQuery]) { //i.e. this is a new column
+                    //         insertionPos[10000*indexQuery+numberOfInsertionsHere[indexQuery]] = snps.size();
+                    //         numberOfInsertionsHere[indexQuery] += 1;
                             
-                            Column newInsertedPos;
-                            newInsertedPos.readIdxs = snps[indexQuery-1].readIdxs;    
-                            newInsertedPos.content = vector<char>(snps[indexQuery-1].content.size() , '-');
-                            newInsertedPos.content[newInsertedPos.content.size()-1] = polishingReads[n][indexTarget];
-                            newInsertedPos.pos = l;
-                            snps.push_back(newInsertedPos);
-                        }
-                        else{
-                            snps[insertionPos[10000*indexQuery+numberOfInsertionsThere]].readIdxs.push_back(n);
-                            snps[insertionPos[10000*indexQuery+numberOfInsertionsThere]].content.push_back(polishingReads[n][indexTarget]);
-                        }
-                        numberOfInsertionsThere ++;
+                    //         Column newInsertedPos;
+                    //         newInsertedPos.readIdxs = snps[indexQuery-1].readIdxs;    
+                    //         newInsertedPos.content = vector<char>(snps[indexQuery-1].content.size() , '-');
+                    //         newInsertedPos.content[newInsertedPos.content.size()-1] = polishingReads[n][indexTarget];
+                    //         newInsertedPos.pos = l;
+                    //         snps.push_back(newInsertedPos);
+                    //     }
+                    //     else{
+                    //         snps[insertionPos[10000*indexQuery+numberOfInsertionsThere]].readIdxs.push_back(n);
+                    //         snps[insertionPos[10000*indexQuery+numberOfInsertionsThere]].content.push_back(polishingReads[n][indexTarget]);
+                    //     }
+                    //     numberOfInsertionsThere ++;
+                    // }
+
+                    if (polishingReads[n][indexTarget] != previous_char && indexQuery > 0){ //to avoid all homopolymers
+                        previous_previous_previous_char = previous_previous_char;
+                        previous_previous_char = previous_char;
+                        previous_char = polishingReads[n][indexTarget];
                     }
+
                     indexTarget++;
                     totalDistance += 1;
                     
-                    divergences[l%100] = true;
                     localDivergence += 1;
                 }
 
@@ -475,7 +521,11 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
             }
             //cout << l << " " << result.alignmentLength <<  "\n";
-        } 
+        }
+
+        // if ((n == 22 || n == 109 || n == 4 || n == 6 || n == 131)){
+        //     cout << endl;
+        // }
 
         auto t3 = high_resolution_clock::now();
 
@@ -483,6 +533,20 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         MSAtime += duration_cast<milliseconds>(t3-t2).count();
         
     }
+
+    string newRef = "";
+    unsigned char previous_previous_previous_char = 'A';
+    unsigned char previous_previous_char = 'C';
+    unsigned char previous_char = 'G';
+    for(auto i : consensus){
+        if (i != previous_char){
+            previous_previous_previous_char = previous_previous_char;
+            previous_previous_char = previous_char;
+            previous_char = i;
+        }
+        newRef += (unsigned char) ('!' + ACGT.find(previous_previous_previous_char) + 5*ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char));
+    }
+    newref = newRef;
 
     // if (DEBUG){
     //     cout << "Building MSA took time... " << alignmentTime << " for WFA and " << MSAtime << " for filling the vector" << endl;
@@ -500,19 +564,19 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     // }
     
     //print snps (just for debugging)
-    /*
+    
     int step = 1; //porportions of reads
     int prop = 1; //proportion of positions
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 99900;
-    int end = 100000;
+    int start = 0;
+    int end = 100;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
         for (short n = 0 ; n < numberOfReads ; n+= step){
-            char c = '?';
+            unsigned char c = ' ';
             int ri = 0;
             int soughtRead = firstRead+n;
             for (auto r : snps[i].readIdxs){
@@ -521,40 +585,48 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                 }
                 ri ++;
             }
-            reads[n/step] += c;
+            reads[n/step] += min(c, (unsigned char) 126);
         }
-        for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-            int snpidx = insertionPos[10000*i+insert];
-            for (short n = 0 ; n < numberOfReads*step ; n+= step){
-                char c = '?';
-                int ri = 0;
-                for (auto r : snps[snpidx].readIdxs){
-                    if (r == n){
-                        c = snps[snpidx].content[ri];
-                    }
-                    ri ++;
-                }
-                reads[n/step] += c;
-            }
-        }
+        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+        //     int snpidx = insertionPos[10000*i+insert];
+        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+        //         char c = ' ';
+        //         int ri = 0;
+        //         for (auto r : snps[snpidx].readIdxs){
+        //             if (r == n){
+        //                 c = snps[snpidx].content[ri];
+        //             }
+        //             ri ++;
+        //         }
+        //         reads[n/step] += c;
+        //     }
+        // }
     }
     cout << "Here are the aligned reads : " << endl;
     int index = firstRead;
     for (auto neighbor : reads){
-        if (neighbor[0] != '?'){
+        if (neighbor[0] != ' '){
             cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name.substr(0,10) << endl;
         }
         index+= step;
     }
     int n = 0;
+    previous_previous_previous_char = 'A';
+    previous_previous_char = 'C';
+    previous_char = 'G';
     for(auto i : consensus.substr(start, end-start)){
+        if (i != previous_char){
+            previous_previous_previous_char = previous_previous_char;
+            previous_previous_char = previous_char;
+            previous_char = i;
+        }
         if (n%prop == 0){
-            cout << i;
+            cout << (unsigned char) ('!' + ACGT.find(previous_previous_previous_char) + 5*ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char));
         }
         n+=1;
     } cout << endl;
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-    */
+    
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -687,27 +759,13 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, int ov
 /**
  * @brief separates the reads of the MSA into groups
  * 
- * @param ref reference sequence against which the reads are aligned
+ * @param ref reference sequence against which the reads are aligned (in 3mer space)
  * @param snps MSA
  * @param meanDistance estimation of the error rate
  * @param numberOfReads number of reads of the MSA
  * @return vector<pair<pair<int,int>, vector<int>> >  pairs of coordinates to which are attached a certain partition of reads
  */
 vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, int numberOfReads){
-
-    /*
-    The null model is described as uniform error rate -> binomial error distribution on one position
-    meanDistance ~= 2*sequencingErrorRate (e) at most
-    suspicious positions have p-value < 0.05, i.e. more errors than n*e + 3*sqrt(n*e*(1-e))
-    */
-
-    robin_hood::unordered_map<char, short> bases2content;
-    bases2content['A'] = 0;
-    bases2content['C'] = 1; 
-    bases2content['G'] = 2;
-    bases2content['T'] = 3;
-    bases2content['-'] = 4;
-    bases2content['?'] = 5;
 
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
@@ -762,7 +820,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     //now go through windows of width 1000 along the reference and create local partitions
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
     int suspectPostitionIdx = 0;
-    int sizeOfWindow = 1000;
+    int sizeOfWindow = 3000;
     for (auto chunk = 0 ; chunk < ref.size()/sizeOfWindow ; chunk++){
         vector<Partition> localPartitions(partitions.size());
 
@@ -896,14 +954,6 @@ vector<Partition> get_solid_partitions(std::string& ref,
     float &meanError,
     int numberOfReads){
 
-    robin_hood::unordered_map<char, short> bases2content;
-    bases2content['A'] = 0;
-    bases2content['C'] = 1; 
-    bases2content['G'] = 2;
-    bases2content['T'] = 3;
-    bases2content['-'] = 4;
-    bases2content['?'] = 5;
-
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
     int numberOfSuspectPostion = 0;
@@ -911,7 +961,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
 
     //two variables to know how much a position diverges from the consensus on average
     int numberOfExtensions = 0;
-    int localErrors = numberOfReads/10;//this is just a starting point, probably the value will never be used
+    double meanErrorHere = 0;
 
     vector<size_t> suspectPostitionsHere;
 
@@ -920,27 +970,32 @@ vector<Partition> get_solid_partitions(std::string& ref,
         if (DEBUG && position%100 == 0){
             cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
         }
-        //first look at the position to see if it is suspect
-        int content [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for -
+
+        //count how many time each char appears at this position
+        unordered_map<char, int> content;
         int numberOfReadsHere = 0;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
             if (mask[snps[position].readIdxs[n]]){
                 char base = snps[position].content[n];
-                if (base != '?' && bases2content.contains(base)){
-                    content[bases2content[base]] += 1;
+                if (content.find(base) == content.end()){
+                    content[base] = 0;
+                }
+                if (base != ' '){
+                    content[base] += 1;
                     numberOfReadsHere += 1;
                 }
             }
         }
 
-        //float threshold = min(1 + numberOfReadsHere*meanDistance/2 + 3*sqrt(numberOfReadsHere*meanDistance/2*(1-meanDistance/2)), float(0.1*numberOfReadsHere)); //more than 10% of different bases is always suspicious
-        //sort content and store the result in content_sorted
-        int content_sorted[5] = {0,0,0,0,0};
-        std::partial_sort_copy(content, content+5, content_sorted, content_sorted+5, std::greater<int>());
+        //find the most frequent chars in content
+        vector<pair<char, int>> content_sorted;
+        for (auto it = content.begin() ; it != content.end() ; it++){
+            content_sorted.push_back(make_pair(it->first, it->second));
+        }
+        sort(content_sorted.begin(), content_sorted.end(), [](const pair<char, int>& a, const pair<char, int>& b) {return a.second > b.second;});
 
-        float probabilityTrash = float(content_sorted[2]/numberOfReadsHere); //probability of having a trash base at this position
 
-        if (content[4] < content_sorted[1] && content_sorted[1] > content_sorted[2]+3*sqrt(content_sorted[2]*(1-probabilityTrash)) /*3*content_sorted[2]*/ && content_sorted[1] > 4){ //this position is suspect (for now positions with too many gaps are not considered)
+        if (content_sorted[1].second > 5 && content_sorted[1].second > content_sorted[2].second * 5){ //this position is suspect
            
             suspectPostitionsHere.push_back(position);
 
@@ -969,28 +1024,39 @@ vector<Partition> get_solid_partitions(std::string& ref,
             bool found = false;
             for (auto p = 0 ; p < partitions.size() ; p++){
                 //if the partition is too far away, do not bother comparing
-                if (std::abs(snp.pos-partitions[p].get_right())>10000){
+                if (std::abs(snp.pos-partitions[p].get_right())>50000){
                     continue;
                 }
 
                 distancePartition dis = distance(partitions[p], snp, ref_base);
                 auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
-                int trashBases = content_sorted[2] + content_sorted[3] + content_sorted[4]; //bases that are probably errors at this position
-
-                float tolerableErrorRate = float(trashBases)/2/numberOfReadsHere;
-                if (partitions[p].number() < 10){
-                    tolerableErrorRate *= 2;
-                }
 
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                if(dis.n01 <= localErrors && dis.n10 <= tolerableErrorRate * (dis.n10+dis.n11) && dis.n00 >= max(5, dis.n01+dis.n10) && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){  
+                if(dis.n01 < 0.1 * (dis.n11+dis.n01) && dis.n10 < 0.1 * (dis.n00+dis.n10)){  
                     int pos = -1;
                     if (position < ref.size()){
                         pos = position;
                     }
-                    
-                    partitions[p].augmentPartition(dis.partition_to_augment, pos);
+                
                     found = true;
+
+                    partitions[p].augmentPartition(dis.partition_to_augment, pos);
+                    // if (p == 6){
+                    //     cout << position <<  " distance with 3: ";
+                    //     distancePartition dis2 = distance(partitions[3], snps[position],  ref_base);
+                    //     partitions[3].print();
+                    //     for (auto r : snps[position].content){
+                    //         if (r <= 126){
+                    //             cout << r;
+                    //         }
+                    //         else{
+                    //             cout << (char)(r-80);
+                    //         }
+                    //     }
+                    //     cout << endl;
+                    //     cout << dis2.n00 << " " << dis2.n11 << " " << dis2.n01 << " " << dis2.n10 << endl;
+                    //     cout << float(dis2.n01+dis2.n10)/(min(dis2.n00,dis2.n11) + dis2.n01 + dis2.n10) << endl;
+                    // }
 
                     meanError += float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10);
                     numberOfExtensions += 1;
@@ -1011,9 +1077,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
             //two suspect positions next to each other can be artificially correlated through alignement artefacts
 
         }
-        else{
-            localErrors = content_sorted[2] + content_sorted[3] + content_sorted[4];
-        }
+
     }
 
     meanError /= numberOfExtensions;
@@ -1222,18 +1286,11 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     vector<float> confs1 = par1.getConfidence();
 
     vector <unsigned int> idxs2 = par2.readIdxs;
-    vector <char> part2 = par2.content;
-
-    robin_hood::unordered_flat_map<char, short> bases2content;
-    bases2content['A'] = 0;
-    bases2content['C'] = 1; 
-    bases2content['G'] = 2;
-    bases2content['T'] = 3;
-    bases2content['-'] = 4;
-    bases2content['?'] = 5;
+    vector <unsigned char> part2 = par2.content;
     
-    int content2 [5] = {0,0,0,0,0}; //item 0 for A, 1 for C, 2 for G, 3 for T, 4 for *, 5 for '?'
     float numberOfBases = 0;
+
+    unordered_map<char, int> content2;
 
     auto n2 = 0;
     auto n1 = 0;
@@ -1245,8 +1302,11 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
             break;
         }
         if ( idxs1[n1] == idxs2[n2] && part1[n1] != -2){
+            if (content2.find(part2[n2]) == content2.end()){
+                content2[part2[n2]] = 0;
+            }
             numberOfBases+=1;
-            content2[bases2content[part2[n2]]] += 1;
+            content2[part2[n2]] += 1;
         }
         n2++;
     }
@@ -1263,15 +1323,15 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     //determine first and second most frequent bases in par2
     
     char mostFrequent = ref_base;
-    auto maxFrequence = content2[bases2content[ref_base]];
+    auto maxFrequence = content2[ref_base];
     //now find the second most frequent base
-    char secondFrequent = 'O';
+    char secondFrequent = ' ';
     int maxFrequence2 = -1;
-    for (auto i = 0 ; i < 5 ; i++){
-        if (ref_base != "ACGT-"[i]) {
-            if (content2[i] > maxFrequence2){
-                secondFrequent = "ACGT-"[i];
-                maxFrequence2 = content2[i];
+    for (auto c : content2){
+        if (ref_base != c.first) {
+            if (c.second > maxFrequence2){
+                secondFrequent = c.first;
+                maxFrequence2 = c.second;
             }
         }
     }
@@ -1299,7 +1359,7 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
         }
         else{
             newPartition.readIdxs.push_back(par2.readIdxs[ci]);
-            newPartition.content.push_back('?');
+            newPartition.content.push_back(' ');
         }
     }
 
@@ -2299,7 +2359,7 @@ vector<int> rescue_reads(vector<int> &threadedClusters, vector<Column> &snps, ve
     bases2content['G'] = 2;
     bases2content['T'] = 3;
     bases2content['-'] = 4;
-    bases2content['?'] = 5;
+    bases2content[' '] = 5;
 
     //create a vector counting for each read what cluster fits best
     vector<vector<int>> bestClusters (threadedClusters.size(), vector<int> (clusterIdx.size(), 0));
@@ -2311,7 +2371,7 @@ vector<int> rescue_reads(vector<int> &threadedClusters, vector<Column> &snps, ve
         vector<vector<int>> basesForEachCluster(clusterIdx.size(), vector<int> (5, 0));
         int c = 0;
         for (auto read : snps[position].readIdxs){
-            if (threadedClusters[read] != -1 && snps[position].content[c] != '?'){
+            if (threadedClusters[read] != -1 && snps[position].content[c] != ' '){
                 basesForEachCluster[clusterIdx[threadedClusters[read]]][bases2content[snps[position].content[c]]] += 1;
             }
             c++;
@@ -2320,7 +2380,7 @@ vector<int> rescue_reads(vector<int> &threadedClusters, vector<Column> &snps, ve
         vector<char> clusterBase (clusterIdx.size(), 0);
         bool sure = true; //bool marking if all cluster agree within themselves
         for (auto c = 0 ; c < clusterBase.size() ; c++){
-            char bestBase = '?';
+            char bestBase = ' ';
             int bestBaseNb = 0;
             int totalBaseNb = 0;
             for (auto b = 0 ; b < 5 ; b++){
@@ -2388,7 +2448,7 @@ void compute_consensus_in_partitions(long int contig, vector<pair<pair<int,int>,
 
 
     //define map bases2content
-    robin_hood::unordered_flat_map<char, short> bases2content = {{'A', 0}, {'C', 1}, {'G', 2}, {'T', 3}, {'-', 4}, {'?', 5}};
+    robin_hood::unordered_flat_map<char, short> bases2content = {{'A', 0}, {'C', 1}, {'G', 2}, {'T', 3}, {'-', 4}, {' ', 5}};
     //get the sequence of contig
     string contigSequence = allreads[contig].sequence_.str();
 
@@ -2425,7 +2485,7 @@ void compute_consensus_in_partitions(long int contig, vector<pair<pair<int,int>,
             for (int r = 0 ; r < snps[position].readIdxs.size() ; r++){
                 int read = snps[position].readIdxs[r];
                 
-                if (snps[position].content[r] != '?'){
+                if (snps[position].content[r] != ' '){
                     basesForEachCluster[interval.second[read]][bases2content[snps[position].content[r]]] += 1;
                 }
             }
@@ -2476,7 +2536,7 @@ void compute_consensus_in_partitions(long int contig, vector<pair<pair<int,int>,
                 for (int r = 0 ; r < snps[pos].readIdxs.size() ; r++){
                     int read = snps[pos].readIdxs[r];
                     
-                    if (snps[pos].content[r] != '?'){
+                    if (snps[pos].content[r] != ' '){
                         basesForEachCluster[interval.second[read]][bases2content[snps[pos].content[r]]] += 1;
                     }
                 }
