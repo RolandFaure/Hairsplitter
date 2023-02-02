@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "consensus@1@00"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -785,7 +785,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     // for (auto p : strengthened_partition){
     //     p.print();
     // }
-    exit(0);
+    // exit(0);
 
     //there is a first list of patitions, now check if there are some sub-partitions that were missed
 
@@ -796,22 +796,31 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         
         // partitions = {partitions[0], partitions[1]};
         vector<vector<bool>> masks = create_masks(partitions, numberOfReads, all_masks_ever_tested);
+        // cout << "qaeefzqf here are all the masks : " << endl;
+        // for (auto mask : masks){
+        //     for (int i = 0 ; i < numberOfReads ; i+=1){
+        //         cout << mask[i];
+        //     }
+        //     cout << endl;
+        // }
+        // cout << endl << endl << endl;
         all_masks_ever_tested.insert(all_masks_ever_tested.end(), masks.begin(), masks.end());
         for (auto mask : masks){
             float meanErrorHere = 0;
             vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanErrorHere, numberOfReads);
-            // cout << "mask : reads, hereeee they are:" << endl;
-            // for (int i = 0 ; i < numberOfReads ; i+=2){
-            //     cout << mask[i];
-            // }
-            // cout << endl;
-            // cout << "new partidssdstions : " << newPartitions.size() << endl;
-            // for (auto p : newPartitions){
-            //     p.print();
-            // }
+            cout << "mask : reads, hereeee they are:" << endl;
+            for (int i = 0 ; i < numberOfReads ; i+=1){
+                cout << mask[i];
+            }
+            cout << endl;
+            cout << "new partidssdstions : " << newPartitions.size() << endl;
+            for (auto p : newPartitions){
+                p.print();
+            }
+            // exit(1);
             numberOfNewPartitions += newPartitions.size();
             partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
-            break;
+            // break;
         }
 
         //print all partitions
@@ -856,6 +865,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 float distance = min(float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10), float(dis.n00+dis.n11)/(dis.n00 + dis.n11 + dis.n01 + dis.n10));
                 if (distance < meanError*1.25 && max(min(dis.n00,dis.n11), min(dis.n01,dis.n10)) >= 5){
                     localPartitions[p].augmentPartition(snps[pos], pos);
+                    // cout << "augmenting ddddpartition " << p << " with position " << pos << endl;
                     // if (chunk == 89 && p == 6){
                     //     cout << "on windhhow " << chunk << " found partition " << p << endl;
                     //     //print snps[pos].readIdx;
@@ -927,21 +937,21 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //thread partition on this window
         vector<int> clusteredRead = threadHaplotypes_in_interval(non_null_partitions, numberOfReads, snps[chunk*sizeOfWindow]);
 
-        // if (chunk == 47){
-        //     cout << "on window " << chunk << " found " << clusteredRead.size() << " reads" << endl;
+        if (chunk == 10 || true){
+            cout << "on window " << chunk << " found " << clusteredRead.size() << " reads" << endl;
 
-        //     cout << "local partitions : " << endl;
-        //     for (auto p : non_null_partitions){
-        //         p.print();
-        //     }
+            cout << "local partitions : " << endl;
+            for (auto p : non_null_partitions){
+                p.print();
+            }
 
-        //     for (auto i : clusteredRead){
-        //         cout << i << ",";
-        //     }
-        //     cout << endl;
-        //     while(true){}
+            // for (auto i : clusteredRead){
+            //     cout << i << ",";
+            // }
+            // cout << endl;
+            // exit(1);
 
-        // }
+        }
 
         threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), clusteredRead));
 
@@ -986,7 +996,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
         //count how many time each char appears at this position
         unordered_map<char, int> content;
         int numberOfReadsHere = 0;
-        // bool here496 = false;
+        bool here496 = false;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
             if (mask[snps[position].readIdxs[n]]){
                 char base = snps[position].content[n];
@@ -998,9 +1008,9 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     numberOfReadsHere += 1;
                 }
             }
-            // if (snps[position].readIdxs[n] == 496){
-            //     here496 = true;
-            // }
+            if (snps[position].readIdxs[n] == 2114){
+                here496 = true;
+            }
         }
         content[(unsigned char) 0 ] = 0; //to make sure that there are at least 3 different chars
         content[(unsigned char) 1 ] = 0; //to make sure that there are at least 3 different chars
@@ -1057,8 +1067,9 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     }
 
                     // if (here496 && p == 5){
+                    //     cout << position << " ";
                     //     for (short n = 0 ; n < snps[position].content.size() ; n++){
-                    //         if (snps[position].readIdxs[n] == 496){
+                    //         if (snps[position].readIdxs[n] == 2114){
                     //             cout << " ";
                     //         }
                     //         if (snps[position].content[n] > 126){
@@ -1068,7 +1079,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     //             cout << snps[position].content[n];
                     //         }
                     //     }
-                    //     cout << " fhejd 496 d dd" << ref_base << endl;
+                    //     cout << " fhejd 496 " << ref_base << endl;
                     // }
                 
                     found = true;
@@ -1136,19 +1147,19 @@ vector<Partition> get_solid_partitions(std::string& ref,
     // int np = 5;
     // partitions[np].print();
     // for (auto r = 0 ; r < partitions[np].getPartition().size() ; r++){
-    //     if (partitions[np].getPartition()[r] == -1){
-    //         cout << partitions[np].getReads()[r] << " : " << partitions[np].getMore()[r] << " " << partitions[np].getLess()[r] << endl;
+    //     if ((partitions[np].getPartition()[r] == -1 || partitions[np].getPartition()[r] == 1) && partitions[np].getMore()[r] >= 3){
+    //         cout << "fdiuc " <<  partitions[np].getPartition()[r] << " " << partitions[np].getReads()[r] << " : " << partitions[np].getMore()[r] << " " << partitions[np].getLess()[r] << endl;
     //     }
     // }
 
-    int n = 0;
-    for (auto p : partitions){
-        if (p.number() > 5){
-            cout << n << " ";
-            p.print();
-        }
-        n++;
-    }
+    // int n = 0;
+    // for (auto p : partitions){
+    //     if (p.number() > 5){
+    //         cout << n << " ";
+    //         p.print();
+    //     }
+    //     n++;
+    // }
     // exit(1);
 
     // if (DEBUG){
@@ -1182,13 +1193,13 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     && dis.n10 < 2*dis.n01 && dis.n01 < 2*dis.n10){
                     Partition newPart = listOfFinalPartitions[p2];
 
-                    cout << endl <<  "mergddding : " << endl;
-                    newPart.print();
-                    partitions[p1].print();
+                    // cout << endl <<  "mergddding : " << endl;
+                    // newPart.print();
+                    // partitions[p1].print();
 
                     newPart.mergePartition(partitions[p1], dis.phased);
 
-                    newPart.print();
+                    // newPart.print();
                     // for (auto r = 0 ; r < newPart.getPartition().size() ; r++){
                     //     if (newPart.getPartition()[r] == 1){// newPart.getReads()[r] == 496){
                     //         cout << newPart.getReads()[r] << " " << newPart.getPartition()[r] << ":" << newPart.getMore()[r] << ":" << newPart.getLess()[r] << " ";
@@ -1442,6 +1453,53 @@ std::vector<Partition> second_pass(
  */
 vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfReads, vector<vector<bool>> &all_maks_ever_tested){
 
+    //for each partition, create a mask that isolates the 1s and the -1s
+    // vector<vector<bool>> masks;
+    // for (int npart = 0 ; npart < partitions.size() ; npart++){
+    //     for (int side : {1, -1}){
+    //         vector<bool> mask (numberOfReads, false);
+    //         vector<int> reads = partitions[npart].getReads();
+    //         vector<short> part = partitions[npart].getPartition();
+    //         for (int i = 0 ; i < reads.size() ; i++){
+    //             if (part[i] == side){
+    //                 mask[reads[i]] = true;
+    //             }
+    //         }
+
+    //         // test if this mask has already been tested
+    //         bool already_tested = false;
+    //         for (auto testedMask : all_maks_ever_tested){
+    //             int n11 = 0;
+    //             int n00 = 0;
+    //             int n01 = 0;
+    //             int n10 = 0;
+    //             for (auto r = 0 ; r < mask.size() ; r++){
+    //                 if (mask[r] && testedMask[r]){
+    //                     n11 += 1;
+    //                 }
+    //                 else if (!mask[r] && !testedMask[r]){
+    //                     n00 += 1;
+    //                 }
+    //                 else if (mask[r] && !testedMask[r]){
+    //                     n10 += 1;
+    //                 }
+    //                 else if (!mask[r] && testedMask[r]){
+    //                     n01 += 1;
+    //                 }
+    //             }
+    //             // cout << "diddddddfferent: " << different << " equal: " << equal << endl;
+    //             if (n01 <= 5){ //the this mask is an extension of the tested mask
+    //                 already_tested = true;
+    //             }
+    //         }
+    //         if (!already_tested){
+    //             masks.push_back(mask);
+    //         }
+
+    //     }
+    // }
+    // return masks;
+
     vector<vector<bool>> masks;
 
     vector<int> readsRepartition (numberOfReads, 0);
@@ -1461,10 +1519,10 @@ vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfRea
         count[readsRepartition[i]] += 1;
     }
 
-    cout << "here isee count: " << endl;
-    for (auto cluster : count){
-        cout << cluster.first << " " << cluster.second << endl;
-    }
+    // cout << "here isee count: " << endl;
+    // for (auto cluster : count){
+    //     cout << cluster.first << " " << cluster.second << endl;
+    // }
     
     for (auto cluster : count){
         if (cluster.second > 5 && cluster.first != 0){ //0 means present on no partitions
@@ -1475,91 +1533,37 @@ vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfRea
                 }
             }
 
-            //check if the mask is not already in the list of tested masks
-            // int different = 0;
-            // int equal = 0;
-            // for (auto testedMask : all_maks_ever_tested){
-            //     for (auto r = 0 ; r < mask.size() ; r++){
-            //         if (mask[r] != testedMask[r]){
-            //             different += 1;
-            //         }
-            //         else{
-            //             equal += 1;
-            //         }
-            //     }
-            // }
-            // if (different != 0){
+            bool already_tested = false;
+            for (auto testedMask : all_maks_ever_tested){
+                int n11 = 0;
+                int n00 = 0;
+                int n01 = 0;
+                int n10 = 0;
+                for (auto r = 0 ; r < mask.size() ; r++){
+                    if (mask[r] && testedMask[r]){
+                        n11 += 1;
+                    }
+                    else if (!mask[r] && !testedMask[r]){
+                        n00 += 1;
+                    }
+                    else if (mask[r] && !testedMask[r]){
+                        n10 += 1;
+                    }
+                    else if (!mask[r] && testedMask[r]){
+                        n01 += 1;
+                    }
+                }
+                // cout << "diddddddfferent: " << different << " equal: " << equal << endl;
+                if (n01 <= 5){ //the this mask is an extension of the tested mask
+                    already_tested = true;
+                }
+            }
+            if (!already_tested){
                 masks.push_back(mask);
-            // }
+            }
 
         }
     }
-
-    return masks;
-
-    // for (int maskID = 0 ; maskID < pow(2, partitions.size()) ; maskID++){
-
-    //     vector<bool> mask(numberOfReads, true);
-    //     vector<bool> seenAtLeastOnce(numberOfReads, false); //the reads that were never seen are on zones where we already failed to separate the reads
-
-    //     int m = maskID;
-    //     for (int npart = 0 ; npart < partitions.size() ; npart++){
-    //         bool doITakeTheOnes = (m % 2 == 1); //if true, I exclude all the -1, if false I exclude all the 1
-    //         m /= 2;
-
-    //         vector<int> reads = partitions[npart].getReads();
-    //         vector<short> part = partitions[npart].getPartition();
-
-    //         for (int i = 0 ; i < reads.size() ; i++){
-    //             seenAtLeastOnce[reads[i]] = true;
-    //             if (part[i] == 1 && !doITakeTheOnes){
-    //                 mask[reads[i]] = false;
-    //             }
-    //             else if (part[i] == -1 && doITakeTheOnes){
-    //                 mask[reads[i]] = false;
-    //             }
-    //         }
-
-    //     }
-
-    //     int numberOfReadsInTheMask = 0;
-    //     for (int i = 0 ; i < numberOfReads ; i++){
-    //         if (!seenAtLeastOnce[i]){
-    //             mask[i] = false;
-    //         }
-    //         else if (mask[i]){
-    //             numberOfReadsInTheMask += 1;
-    //         }
-    //     }
-        
-    //     if (numberOfReadsInTheMask > 5){
-    //         //now check if the mask was already tested
-    //         bool alreadyTested = false;
-    //         for (auto mask2 : all_maks_ever_tested){
-    //             int similarity = 0;
-    //             int difference = 0;
-    //             for (int i = 0 ; i < numberOfReads ; i++){
-    //                 if (mask[i] || mask2[i]){
-    //                     if (mask[i] == mask2[i]){
-    //                         similarity += 1;
-    //                     }
-    //                     else{
-    //                         difference += 1;
-    //                     }
-    //                 }
-    //             }
-    //             if (similarity > 4 && difference < 2){
-    //                 alreadyTested = true;
-    //                 break;
-    //             }
-    //         }
-    //         if (!alreadyTested){
-    //             masks.push_back(mask);
-    //             cout << "pushing back: "<< maskID << " " << numberOfReadsInTheMask << " " << numberOfReads << endl;
-    //         }
-    //     }
-
-    // }
 
     return masks;
 
@@ -2269,8 +2273,8 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     //print readsPresentInAllPartitions
 
 
-    vector<int> clusters (numberOfReads, -1); //this will contain only high-confidence reads
-    vector<int> clustersAll (numberOfReads, -1); //this will contain all reads
+    vector<long double> clustersD (numberOfReads, -1); //this will contain only high-confidence reads
+    vector<long double> clustersAll (numberOfReads, -1); //this will contain all reads
     vector<int> presentReads (numberOfReads, listOfFinalPartitions.size()); //this will count to 0 the number of partitions in which the read is present
 
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
@@ -2290,16 +2294,17 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
                 if (camp == -2){ //mark all the masked reads as belogning to an arbitrary part
                     camp = 1;
                 }
-                if (clusters[read] == -1 && camp != 0){ //means that the read is present in one partition
-                    clusters[read] = 0;
+                if (clustersD[read] == -1 && camp != 0){ //means that the read is present in one partition
+                    clustersD[read] = 0;
                     clustersAll[read] = 0;
                 }
 
                 if (allConfidences[binary][c] < 0.7 || camp == 0 /*|| allMores[binary][c] < 5*/){  //0.7 to be pretty confident about the reads we separate (more than 70% on all partitions)
-                    clusters[read] = -pow(2, listOfFinalPartitions.size())-2; //definitely putting that below -1
+                    clustersD[read] = -10; //definitely putting that below -1
+                    continue;
                 }
                 else if (camp != 0){
-                    clusters[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
+                    clustersD[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
                 }
                 if (camp!=0){
                     clustersAll[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
@@ -2317,13 +2322,28 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     // cout << endl;
 
     set<int> count; //a set of all existing groups
-    vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size())); 
-    for (auto id : clusters){
+    // vector<int> frequenceOfPart (pow(2, listOfFinalPartitions.size())); 
+    unordered_map<int, int> frequenceOfPart;
+    unordered_map<long double, int> doubleToIdx;
+    int idx = 0;
+    vector <int> clusters (numberOfReads, -1);
+    int n = 0;
+    for (auto id : clustersD){
         if (id >= 0){
-            frequenceOfPart[id] += 1;
-            count.emplace(id);
+            if (doubleToIdx.find(id) == doubleToIdx.end()){
+                frequenceOfPart[idx] = 0;
+                doubleToIdx[id] = idx;
+                idx += 1;
+            }
+            frequenceOfPart[doubleToIdx[id]] += 1;
+            count.emplace(idx);
             numberOfAssignedReads ++;
+            clusters[n] = doubleToIdx[id];
         }
+        else{
+            clusters[n] = -1;
+        }
+        n += 1;
     }
     
     /*

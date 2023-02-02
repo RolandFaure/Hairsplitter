@@ -730,16 +730,13 @@ void Partition::print(){
 
     while(it != readIdx.end()){
         if (*it > c){
-            cout << "?";
+            // cout << "?";
         }
         else{
             auto ch = mostFrequentBases[n];
-            if (moreFrequence[n] == 0){
-                cout << "_";
+            if (moreFrequence[n] <= 2){
+                // cout << "_";
             }
-            // else if (moreFrequence[n] < 0){
-            //     cout << "_";
-            // }
             else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.5){
                 cout << "!";
             }
@@ -750,10 +747,10 @@ void Partition::print(){
                 cout << 0;
             }
             else if (ch == 0){
-                cout << "_";
+                // cout << "_";
             }
             else {
-                cout << ' ';
+                // cout << ' ';
             }
             it++;
             n++;
