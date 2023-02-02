@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_4@0@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -564,14 +564,14 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     // }
     
     //print snps (just for debugging)
-    
+    /*
     int step = 1; //porportions of reads
-    int prop = 1; //proportion of positions
+    int prop = 300; //proportion of positions
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
     int start = 0;
-    int end = 100;
+    int end = 30000;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -626,7 +626,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         n+=1;
     } cout << endl;
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-    
+    */
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -774,6 +774,19 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     float meanError = 0;
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
+    cout << "partition dnooww: " << partitions.size() << endl;
+    for (auto p : partitions){
+        p.print();
+    }
+
+    // vector <Partition> strengthened_partition = second_pass(ref, partitions, snps, suspectPostitions, meanError, numberOfReads);
+
+    // cout << "partition strengththththened: " << strengthened_partition.size() << endl;
+    // for (auto p : strengthened_partition){
+    //     p.print();
+    // }
+    exit(0);
+
     //there is a first list of patitions, now check if there are some sub-partitions that were missed
 
     int numberOfNewPartitions = partitions.size();
@@ -798,6 +811,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             // }
             numberOfNewPartitions += newPartitions.size();
             partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
+            break;
         }
 
         //print all partitions
@@ -962,7 +976,6 @@ vector<Partition> get_solid_partitions(std::string& ref,
     //two variables to know how much a position diverges from the consensus on average
     int numberOfExtensions = 0;
     double meanErrorHere = 0;
-
     vector<size_t> suspectPostitionsHere;
 
     for (int position = 0 ; position < ref.size() ; position++){ 
@@ -970,10 +983,10 @@ vector<Partition> get_solid_partitions(std::string& ref,
         if (DEBUG && position%100 == 0){
             cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
         }
-
         //count how many time each char appears at this position
         unordered_map<char, int> content;
         int numberOfReadsHere = 0;
+        // bool here496 = false;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
             if (mask[snps[position].readIdxs[n]]){
                 char base = snps[position].content[n];
@@ -985,7 +998,13 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     numberOfReadsHere += 1;
                 }
             }
+            // if (snps[position].readIdxs[n] == 496){
+            //     here496 = true;
+            // }
         }
+        content[(unsigned char) 0 ] = 0; //to make sure that there are at least 3 different chars
+        content[(unsigned char) 1 ] = 0; //to make sure that there are at least 3 different chars
+        content[(unsigned char) 2 ] = 0; //to make sure that there are at least 3 different chars
 
         //find the most frequent chars in content
         vector<pair<char, int>> content_sorted;
@@ -994,8 +1013,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
         }
         sort(content_sorted.begin(), content_sorted.end(), [](const pair<char, int>& a, const pair<char, int>& b) {return a.second > b.second;});
 
-
-        if (content_sorted[1].second > 5 && content_sorted[1].second > content_sorted[2].second * 5){ //this position is suspect
+        if (content_sorted[1].second > 5 && content_sorted[1].second > content_sorted[2].second * 5 ){ //this position is suspect
            
             suspectPostitionsHere.push_back(position);
 
@@ -1027,19 +1045,50 @@ vector<Partition> get_solid_partitions(std::string& ref,
                 if (std::abs(snp.pos-partitions[p].get_right())>50000){
                     continue;
                 }
-
                 distancePartition dis = distance(partitions[p], snp, ref_base);
                 auto comparable = min(dis.n00,dis.n11) + dis.n01 + dis.n10;
 
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-                if(dis.n01 < 0.1 * (dis.n11+dis.n01) && dis.n10 < 0.1 * (dis.n00+dis.n10)){  
+                if ((partitions[p].number() < 3 && dis.n01 < 0.2 * (dis.n11+dis.n01) && dis.n10 < 0.1 * (dis.n00+dis.n10)) && min(dis.n00, dis.n11) > 4 
+                    || (dis.solid11 > 5 && dis.solid10 < min(5.0, 0.2*dis.solid11) && dis.n01 < 0.4*(dis.n00+dis.n01))){
                     int pos = -1;
                     if (position < ref.size()){
                         pos = position;
                     }
+
+                    // if (here496 && p == 5){
+                    //     for (short n = 0 ; n < snps[position].content.size() ; n++){
+                    //         if (snps[position].readIdxs[n] == 496){
+                    //             cout << " ";
+                    //         }
+                    //         if (snps[position].content[n] > 126){
+                    //             cout << (unsigned char) snps[position].content[n] - 80;
+                    //         }
+                    //         else{
+                    //             cout << snps[position].content[n];
+                    //         }
+                    //     }
+                    //     cout << " fhejd 496 d dd" << ref_base << endl;
+                    // }
                 
                     found = true;
-
+                    // if (p == 2){
+                    //     cout << "quaomugj emja aaa " << endl;
+                    //     partitions[p].print();
+                    //     for (auto r : dis.partition_to_augment.content){
+                    //         cout << r;
+                    //     }
+                    //     cout << endl;
+                    //     for (unsigned char r : snps[position].content){
+                    //         if (r > 126){
+                    //             cout << (unsigned char) r - 80;
+                    //         }
+                    //         else{
+                    //             cout << r;
+                    //         }
+                    //     }
+                    //     cout << endl;
+                    // }
                     partitions[p].augmentPartition(dis.partition_to_augment, pos);
                     // if (p == 6){
                     //     cout << position <<  " distance with 3: ";
@@ -1080,8 +1129,27 @@ vector<Partition> get_solid_partitions(std::string& ref,
 
     }
 
-    meanError /= numberOfExtensions;
+    meanError /= numberOfExtensions+1;
 
+    cout << "dodoozozz" << endl;
+
+    // int np = 5;
+    // partitions[np].print();
+    // for (auto r = 0 ; r < partitions[np].getPartition().size() ; r++){
+    //     if (partitions[np].getPartition()[r] == -1){
+    //         cout << partitions[np].getReads()[r] << " : " << partitions[np].getMore()[r] << " " << partitions[np].getLess()[r] << endl;
+    //     }
+    // }
+
+    int n = 0;
+    for (auto p : partitions){
+        if (p.number() > 5){
+            cout << n << " ";
+            p.print();
+        }
+        n++;
+    }
+    // exit(1);
 
     // if (DEBUG){
     //     cout << "found " << numberOfSuspectPostion << " suspect positions" << endl;
@@ -1104,15 +1172,31 @@ vector<Partition> get_solid_partitions(std::string& ref,
         
         if (partitions[p1].number() > threshold && partitions[p1].isInformative(true)){
 
-
             bool different = true;
             
             for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
 
                 distancePartition dis = distance(listOfFinalPartitions[p2], partitions[p1], 2);
-                if (dis.augmented){
+                if (dis.augmented 
+                    && (dis.n00+dis.n11 > 5*(dis.n01+dis.n10) || dis.n10 + dis.n01 > 5*(dis.n00+dis.n11))
+                    && dis.n10 < 2*dis.n01 && dis.n01 < 2*dis.n10){
                     Partition newPart = listOfFinalPartitions[p2];
+
+                    cout << endl <<  "mergddding : " << endl;
+                    newPart.print();
+                    partitions[p1].print();
+
                     newPart.mergePartition(partitions[p1], dis.phased);
+
+                    newPart.print();
+                    // for (auto r = 0 ; r < newPart.getPartition().size() ; r++){
+                    //     if (newPart.getPartition()[r] == 1){// newPart.getReads()[r] == 496){
+                    //         cout << newPart.getReads()[r] << " " << newPart.getPartition()[r] << ":" << newPart.getMore()[r] << ":" << newPart.getLess()[r] << " ";
+                    //     }
+                    // }
+                    // cout << endl;
+                    
+                    // exit(1);
 
                     //see if confidence is improved by merging the two partitions, meaning differences were shaky
                     if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
@@ -1158,6 +1242,197 @@ vector<Partition> get_solid_partitions(std::string& ref,
 }
 
 /**
+ * @brief Given positions and snps, tries to solidify the partitions by adding new positions to them
+ * 
+ * @param ref 
+ * @param partitions 
+ * @param snps 
+ * @param mask 
+ * @param suspectPostitions 
+ * @param meanError 
+ * @param numberOfReads 
+ * @return std::vector<Partition> 
+ */
+std::vector<Partition> second_pass(
+    std::string& ref,
+    std::vector<Partition> &partitions, 
+    std::vector<Column> &snps,
+    std::vector<size_t> &suspectPostitions,
+    float &meanError,
+    int numberOfReads){
+
+    // for each partition, identify a group of confident '1' (and of confident '-1'). At positions where they all agree with consensus, exclude all reads that do not agree with consensus
+
+    vector<Partition> newPartitions;
+    for (auto p : partitions){
+
+        for (auto conf : p.getConfidence()){
+            cout << int((1-conf)*10) << " ";
+        }
+        cout << endl;
+
+        auto readsIdx = p.getReads();
+        auto part = p.getPartition();
+        auto mores = p.getMore();
+        vector <float> conf = p.getConfidence();
+
+        for (int side : {1,-1}){
+
+            vector <int> excludedReads (numberOfReads, 0);
+            vector <int> includedReads (numberOfReads, 0);
+
+            vector <bool> confidentReads (numberOfReads, false);
+
+            //first find a group of confident reads that are on 'side'
+
+            for (auto pos = 0 ; pos < ref.size() ; pos += 1000){
+                //find the three most confident reads at this position
+                vector <pair<int, float>> confidentReadsAtPos;
+                int indexInSnp = 0;
+                for (int i = 0 ; i < readsIdx.size() ; i++){
+                    while (indexInSnp < snps[pos].content.size() && snps[pos].readIdxs[indexInSnp] < readsIdx[i]){
+                        indexInSnp++;
+                    }
+                    if (indexInSnp >= snps[pos].content.size()){
+                        break;
+                    }
+                    if (snps[pos].readIdxs[indexInSnp] == readsIdx[i] && part[i] == side && mores[i] > 5){
+                        confidentReadsAtPos.push_back({readsIdx[i], conf[i]});
+                    }
+                }
+                sort(confidentReadsAtPos.begin(), confidentReadsAtPos.end(), [](pair<int, float> a, pair<int, float> b){return a.second > b.second;});
+                confidentReadsAtPos.resize(min(3, (int)confidentReadsAtPos.size()));
+                for (auto r : confidentReadsAtPos){
+                    confidentReads[r.first] = true;
+                }
+            }
+            
+            cout << "confiiiiiiident reads : " << confidentReads.size() << endl;
+            for (auto r = 0 ; r < confidentReads.size() ; r++){
+                if (confidentReads[r]){
+                    cout << r << " ";
+                }
+            }
+            cout << endl;
+
+            //now go through snps and take all positions that agree with the confident reads
+            for (auto position : suspectPostitions){
+
+                //first find the two most frequent alleles at this position
+                unordered_map<char, int> alleleCount;
+                int indexsnp = 0;
+                for (auto r = 0 ; r < readsIdx.size() ; r++){
+                    while(indexsnp < snps[position].readIdxs.size() && snps[position].readIdxs[indexsnp] < readsIdx[r]){
+                        indexsnp += 1;
+                    }
+                    if (indexsnp >= snps[position].readIdxs.size()){
+                        break;
+                    }
+                    if (part[r] != -2){
+                        char ch = snps[position].content[indexsnp];
+                        if (alleleCount.find(ch) == alleleCount.end()){
+                            alleleCount[ch] = 0;
+                        }
+                        alleleCount[ch] += 1;
+                    }
+                }
+                unsigned char refBase = ref[position];
+                unsigned char altBase = ' ';
+                int maxCount = 0;
+                int secondMaxCount = 0;
+                for (auto it = alleleCount.begin() ; it != alleleCount.end() ; it++){
+                    if (it->first != refBase && it->second >= maxCount){
+                        secondMaxCount = maxCount;
+                        maxCount = it->second;
+                        altBase = it->first;
+                    }
+                    else if (it->first != refBase && it->second >= secondMaxCount){
+                        secondMaxCount = it->second;
+                    }
+                }
+                if (maxCount < secondMaxCount *5 || maxCount < 5){ //this is not so much a biallelic loci
+                    continue;
+                }
+
+                int not1 = 0;
+                int numberOfConfidentReadsHere = 0;
+                for (int r = 0 ; r < snps[position].readIdxs.size() ; r++){
+
+                    //looking for positions where all the confident reads agree with consensus
+                    if (confidentReads[snps[position].readIdxs[r]]){
+                        if (snps[position].content[r] == altBase){
+                            not1 += 1;
+                        }
+
+                        numberOfConfidentReadsHere += 1;
+                    }
+                }
+
+                cout << "Posiddtion: " << position << " not1: " << not1 << " numberOfConfidentReadsHere: " << numberOfConfidentReadsHere << " " << refBase << " "<< altBase << endl;
+                int n = 0;
+                int cri = 0;
+                for (unsigned char i : snps[position].content){
+
+                    if (confidentReads[snps[position].readIdxs[n]]){
+                        cout << ".";
+                    }
+                    if (i > 126){
+                        cout << (unsigned char) i - 80 << " ";
+                    }
+                    else if (i < 33){
+                        cout << (unsigned char) i + 33 << " ";
+                    }
+                    else{
+                        cout << i << " ";
+                    }
+                    n += 1;
+                }
+                cout << endl;
+
+                //now, if all confident reads agree with consensus, exclude all reads that do not agree with consensus
+                if (not1 < min(1.0 ,0.1*numberOfConfidentReadsHere) && numberOfConfidentReadsHere >= 3){
+                    for (int r = 0 ; r < snps[position].readIdxs.size() ; r++){
+                        if (snps[position].content[r] == altBase){
+                            excludedReads[snps[position].readIdxs[r]] += 1;
+                        }
+                        else if (snps[position].content[r] == refBase){
+                            includedReads[snps[position].readIdxs[r]] += 1;
+                        }
+                    }
+                }
+            }
+
+            cout << "Recomputed a partition: " << side << endl;
+            p.print();
+            int allEx = 0;
+            int allIn = 0;
+            cout << "Excluded reads: " << endl;
+            for (int i = 0 ; i < excludedReads.size() ; i++){
+                if (includedReads[i] > 9){
+                    cout << excludedReads[i] << " ";
+                }
+                else{
+                    cout << "  ";
+                }
+                if (excludedReads[i] < 5 ){
+                    allIn += includedReads[i];
+                    allEx += excludedReads[i];
+                }
+            }
+            cout << endl;
+            cout << "All excluddded reads: " << allEx << " all included reads: " << allIn << endl;
+
+        }
+
+
+    }
+    cout << "fiouqisodpouqfp" << endl;
+    exit(1);
+    return {};
+ 
+}
+
+/**
  * @brief Create all the masks, each mask isolating a group of reads that is not separated in partitions 
  * 
  * @param partitions 
@@ -1174,7 +1449,9 @@ vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfRea
         vector<int> reads = partitions[npart].getReads();
         vector<short> part = partitions[npart].getPartition();
         for (int i = 0 ; i < reads.size() ; i++){
-            readsRepartition[reads[i]] += (part[i]+3)/2 * pow(3, npart) ;
+            if (part[i] == 1 || part[i] == -1){
+                readsRepartition[reads[i]] += (part[i]+3)/2 * pow(3, npart) ;
+            }
         }
     }
 
@@ -1182,6 +1459,11 @@ vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfRea
     std::unordered_map<int, int> count;
     for (int i = 0 ; i < readsRepartition.size() ; i++){
         count[readsRepartition[i]] += 1;
+    }
+
+    cout << "here isee count: " << endl;
+    for (auto cluster : count){
+        cout << cluster.first << " " << cluster.second << endl;
     }
     
     for (auto cluster : count){
@@ -1192,7 +1474,24 @@ vector<vector<bool>> create_masks(vector<Partition> &partitions, int numberOfRea
                     mask[i] = true;
                 }
             }
-            masks.push_back(mask);
+
+            //check if the mask is not already in the list of tested masks
+            // int different = 0;
+            // int equal = 0;
+            // for (auto testedMask : all_maks_ever_tested){
+            //     for (auto r = 0 ; r < mask.size() ; r++){
+            //         if (mask[r] != testedMask[r]){
+            //             different += 1;
+            //         }
+            //         else{
+            //             equal += 1;
+            //         }
+            //     }
+            // }
+            // if (different != 0){
+                masks.push_back(mask);
+            // }
+
         }
     }
 
@@ -1284,6 +1583,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     vector <int> idxs1 = par1.getReads();
     vector<short> part1 = par1.getPartition();
     vector<float> confs1 = par1.getConfidence();
+    vector<int> more1 = par1.getMore();
+    vector<int> less1 = par1.getLess();
 
     vector <unsigned int> idxs2 = par2.readIdxs;
     vector <unsigned char> part2 = par2.content;
@@ -1316,6 +1617,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
         res.n01 = 0;
         res.n10 = 0;
         res.n11 = 0;
+        res.solid10 = 0;
+        res.solid11 = 0;
         res.augmented = false;
         return res;
     }
@@ -1336,13 +1639,13 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
         }
     }
 
-    float score = 0; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
-    float bestScore = 0;
     //remember all types of matches for the chi square test
     int matches00 = 0;
     int matches01 = 0;
     int matches10 = 0;
     int matches11 = 0;
+    int solid11 = 0;
+    int solid10 = 0;
     Column newPartition;
 
     newPartition.readIdxs = {};
@@ -1370,8 +1673,6 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     auto it2 = par2.readIdxs.begin();
     while (it1 != idxs1.end() && it2 != par2.readIdxs.end()){
 
-        float conf = 2*confs1[n2]-1;
-
         if (*it1 == *it2){
             ++it1;
             ++it2;
@@ -1379,26 +1680,24 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
             if (par2.content[n2] == mostFrequent){
 
                 if (part1[n1] == 1){
-                    score += conf;
-                    bestScore += conf;
                     matches11 += 1;
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid11 += 1;
+                    }
                 }
                 else if (part1[n1] == -1){
-                    score -= conf;
-                    bestScore += conf;
                     matches01 += 1;
                 }
             }
             else if (par2.content[n2] == secondFrequent){
 
                 if (part1[n1] == 1){
-                    score -= conf;
-                    bestScore += conf;
                     matches10 += 1;
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid10 += 1;
+                    }
                 }
                 else if (part1[n1] == -1){
-                    score += conf;
-                    bestScore += conf;
                     matches00 += 1;
                 }
             }
@@ -1419,6 +1718,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     res.n01 = matches01;
     res.n10 = matches10;
     res.n11 = matches11;
+    res.solid10 = solid10;
+    res.solid11 = solid11;
     res.phased = 1;
     res.secondBase = secondFrequent;
     res.partition_to_augment = newPartition;
@@ -1483,6 +1784,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
 
     int scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
     short ndivergentPositions[2] = {0,0}; //number of positions where these two partitions could not have been so different by chance
+    short nNotSurePositions[2] = {0,0}; //number of positions where the partitions disagree even though one of them was pretty sure
     //remember all types of matches for the chi square test
     int matches00[2] = {0,0};
     int matches01[2] = {0,0};
@@ -1498,7 +1800,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
         else if (idx2[r2] < idx1[r1]){
             r2++;
         }
-        else{
+        else if (more1[r1] > 4 && more2[r2] > 4){
 
             numberOfComparableBases += 1;
 
@@ -1517,6 +1819,9 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
                     if (more1[r1] > threshold1 && more2[r2] > threshold2){
                         ndivergentPositions[1] += 1;
                     }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[1] += 1;
+                    }
                 }
                 else if (part1[r1] == -1){
                     scores[0] -= 1;
@@ -1527,6 +1832,9 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
                     //if both positions are certain, this may be bad
                     if (more1[r1] > threshold1 && more2[r2] > threshold2){
                         ndivergentPositions[0] += 1;
+                    }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[0] += 1;
                     }
                 }
             }
@@ -1542,6 +1850,9 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
                     if (more1[r1] > threshold1 && more2[r2] > threshold2){
                         ndivergentPositions[0] += 1;
                     }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[0] += 1;
+                    }
                 }
                 else if (part1[r1] == -1){
                     scores[0] += 1;
@@ -1553,9 +1864,16 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
                     if (more1[r1] > threshold1 && more2[r2] > threshold2){
                         ndivergentPositions[1] += 1;
                     }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[1] += 1;
+                    }
                 }
             }
 
+            r1++;
+            r2++;
+        }
+        else{
             r1++;
             r2++;
         }
@@ -1566,7 +1884,7 @@ distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
     res.augmented = true;
 
     //check if there are too many unenxplainable positions
-    if ((ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p) || numberOfComparableBases == 0){
+    if ((ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p) || (nNotSurePositions[0] >= 5 && nNotSurePositions[1] >= 5) || numberOfComparableBases == 0){
         // cout << "Should not merge those two partitions ! " << endl;
         res.augmented = false;
     }

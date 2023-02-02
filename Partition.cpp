@@ -357,14 +357,21 @@ void Partition::mergePartition(Partition &p, short phased){
             }
             else if (phased*other[n2] == -mostFrequentBases[n1]){ //the two partitions disagree
 
-            int whichone = 0;
-                //take the more confident of the two partitions if one of them is shaky
+                int whichone = 0;
+                //take the partition containing the '-1's or else the most confident of the two partitions or else the sum of the two
                 double confidence1 = double(moreFrequence[n1])/(moreFrequence[n1]+lessFrequence[n1]);
                 double confidence2 = double(moreOther[n2])/(moreOther[n2]+lessOther[n2]);
-                if (confidence1 < 0.9 && confidence2 > 0.9 && moreOther[n2]>= 10){
+                // if (mostFrequentBases[n1] == -1 && other[n2] == 1){
+                //     whichone = 2;
+                // }
+                // else if (mostFrequentBases[n1] == 1 && other[n2] == -1){
+                //     whichone = 1;
+                // }
+
+                if (whichone == 0 && confidence1 < 0.8 && confidence2 > 0.8 && moreOther[n2]>= 10){
                     whichone = 1;
                 }
-                else if (confidence2 < 0.9 && confidence1 > 0.9 && moreFrequence[n1] >= 10){
+                else if (whichone == 0 && confidence2 < 0.8 && confidence1 > 0.8 && moreFrequence[n1] >= 10){
                     whichone = 2;
                 }
                 newMostFrequent.push_back(mostFrequentBases[n1]);
@@ -728,22 +735,22 @@ void Partition::print(){
         else{
             auto ch = mostFrequentBases[n];
             if (moreFrequence[n] == 0){
-                cout << "o";
+                cout << "_";
             }
             // else if (moreFrequence[n] < 0){
             //     cout << "_";
             // }
-            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.7){
+            else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.5){
                 cout << "!";
             }
-            else if (ch == 1){
+            else if (ch == 1 /*&& (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) > 0.9 || lessFrequence[n] < 5)*/){
                 cout << 1;
             }
-            else if (ch == -1){
+            else if (ch == -1 || ch == 1){
                 cout << 0;
             }
             else if (ch == 0){
-                cout << "o";
+                cout << "_";
             }
             else {
                 cout << ' ';

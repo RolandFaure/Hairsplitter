@@ -20,6 +20,8 @@ struct distancePartition{
     int n01;
     int n10;
     int n11;
+    int solid11;
+    int solid10;
     float score;
     short phased; // worth -1 or 1
     bool augmented; //to know if the partition was augmented or not
@@ -89,6 +91,14 @@ std::vector<Partition> get_solid_partitions(
     std::string& ref, 
     std::vector<Column> &snps,
     std::vector<bool> &mask,
+    std::vector<size_t> &suspectPostitions,
+    float &meanError,
+    int numberOfReads);
+
+std::vector<Partition> second_pass(
+    std::string& ref,
+    std::vector<Partition> &partitions, 
+    std::vector<Column> &snps,
     std::vector<size_t> &suspectPostitions,
     float &meanError,
     int numberOfReads);
