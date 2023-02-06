@@ -22,6 +22,8 @@ struct distancePartition{
     int n11;
     int solid11;
     int solid10;
+    int solid01;
+    int solid00;
     float score;
     short phased; // worth -1 or 1
     bool augmented; //to know if the partition was augmented or not
@@ -131,6 +133,13 @@ std::vector<int> threadHaplotypes_in_interval(
     std::vector<Partition> &listOfFinalPartitions,
     int numberOfReads,
     Column &columnThere);
+
+std::vector<int> merge_wrongly_separated_haplotypes(
+    std::vector<int> &clusteredReads, 
+    std::vector<Column> &snps, 
+    int chunk, 
+    std::vector<size_t> &suspectPostitions,
+    int sizeOfWindow);
 
 bool extend_with_partition_if_compatible(std::vector<int> &alreadyThreadedHaplotypes, Partition &extension, int partitionIndex,
         std::unordered_map <int, std::pair<int,int>> &clusterLimits);//auxilliary function of threadHaplotypes

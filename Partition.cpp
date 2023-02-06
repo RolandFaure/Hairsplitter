@@ -146,12 +146,12 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         content[c]++;
     }
     //go through the content vector to find the two most frequent bases
-    char mostFrequent = 'b';
-    char secondFrequent = 'b';
+    unsigned char mostFrequent = 'b';
+    unsigned char secondFrequent = 'b';
     int maxFrequence = -1;
     //find the index of the two biggest elements of content
     for (unsigned char i = 0 ; i < 255 ; i++){
-        if (char(i) != ' ' && content[i] > maxFrequence){
+        if (i != ' ' && content[i] > maxFrequence){
             mostFrequent = i;
             maxFrequence = content[i];
         }
@@ -222,7 +222,7 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
             n1--; //because n1++ further down
 
             mostFrequentBases_2.push_back(s);
-            moreFrequence_2.push_back(1);
+            moreFrequence_2.push_back(abs(s));//if s = 0, then moreFrequence_2 = 0
             lessFrequence_2.push_back(0);
             idxs1_2.push_back(read);
         }
@@ -730,12 +730,12 @@ void Partition::print(){
 
     while(it != readIdx.end()){
         if (*it > c){
-            // cout << "?";
+            // cout << " ";
         }
         else{
             auto ch = mostFrequentBases[n];
             if (moreFrequence[n] <= 2){
-                // cout << "_";
+                cout << " ";
             }
             else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.5){
                 cout << "!";
@@ -747,10 +747,10 @@ void Partition::print(){
                 cout << 0;
             }
             else if (ch == 0){
-                // cout << "_";
+                // cout << " ";
             }
             else {
-                // cout << ' ';
+                // cout << " ";
             }
             it++;
             n++;
@@ -822,6 +822,27 @@ void Partition::flipPartition(){
     for (auto r = 0 ; r < mostFrequentBases.size() ; r++){
         mostFrequentBases[r] *= -1;
     }
+}
+
+/**
+ * @brief Get the mask of the partition, i.e. vector of bools with false for positions that were excluded by the mask
+ * 
+ * @return vector<bool> 
+ */
+vector<bool> Partition::get_mask(){
+    vector<bool> mask;
+    for (auto r = 0 ; r < mostFrequentBases.size() ; r++){
+        while (mask.size() < readIdx[r]){
+            mask.push_back(true);
+        }
+        if (mostFrequentBases[r] == -2){
+            mask.push_back(false);
+        }
+        else {
+            mask.push_back(true);
+        }
+    }
+    return mask;
 }
 
 /**

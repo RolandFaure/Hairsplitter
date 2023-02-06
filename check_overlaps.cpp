@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "consensus@1@00"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "consensus@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -808,15 +808,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         for (auto mask : masks){
             float meanErrorHere = 0;
             vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanErrorHere, numberOfReads);
-            cout << "mask : reads, hereeee they are:" << endl;
-            for (int i = 0 ; i < numberOfReads ; i+=1){
-                cout << mask[i];
-            }
-            cout << endl;
-            cout << "new partidssdstions : " << newPartitions.size() << endl;
-            for (auto p : newPartitions){
-                p.print();
-            }
+            // cout << "mask : reads, hereeee they are:" << endl;
+            // for (int i = 0 ; i < numberOfReads ; i+=1){
+            //     cout << mask[i];
+            // }
+            // cout << endl;
+            // cout << "new partidssdstions : " << newPartitions.size() << endl;
+            // for (auto p : newPartitions){
+            //     p.print();
+            // }
             // exit(1);
             numberOfNewPartitions += newPartitions.size();
             partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
@@ -845,7 +845,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     int suspectPostitionIdx = 0;
     int sizeOfWindow = 3000;
     for (auto chunk = 0 ; chunk < ref.size()/sizeOfWindow ; chunk++){
-        vector<Partition> localPartitions(partitions.size());
+        vector<Partition> localPartitions;
+        for (auto p : partitions){
+            Partition new_partition;
+            auto m = p.get_mask();
+            new_partition.apply_mask(m);
+            localPartitions.push_back(new_partition);
+        }
 
         //let's see what partitions are found on the local window
         while(suspectPostitionIdx < suspectPostitions.size() && suspectPostitions[suspectPostitionIdx] < (chunk+1)*sizeOfWindow){
@@ -862,29 +868,54 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 // }
                 // cout << endl;
                 distancePartition dis = distance(partitions[p], snps[pos], ref_base);
-                float distance = min(float(dis.n01+dis.n10)/(dis.n00 + dis.n11 + dis.n01 + dis.n10), float(dis.n00+dis.n11)/(dis.n00 + dis.n11 + dis.n01 + dis.n10));
-                if (distance < meanError*1.25 && max(min(dis.n00,dis.n11), min(dis.n01,dis.n10)) >= 5){
+                if (( min(dis.n00,dis.n11) >= 5 && float(dis.n01+dis.n10)/min(dis.n00 , dis.n11) < 0.2 && dis.phased == 1) 
+                    || (min(dis.n01,dis.n10) >= 5 && float(dis.n00+dis.n11)/min(dis.n01 , dis.n10) < 0.2 && dis.phased == -1)){
+                // if (dis.solid11 >= 5 && dis.solid00 >= 5
+                //     && dis.solid10 < min(5.0, 0.2*dis.solid11) 
+                //     && dis.solid01 < min(5.0, 0.2*dis.solid00)
+                //     && dis.n01 < 0.4*(dis.n00+dis.n01)){
                     localPartitions[p].augmentPartition(snps[pos], pos);
                     // cout << "augmenting ddddpartition " << p << " with position " << pos << endl;
-                    // if (chunk == 89 && p == 6){
+                    // if (chunk == 5 && p == 6){
                     //     cout << "on windhhow " << chunk << " found partition " << p << endl;
+                    //     for (auto r = 0 ; r < localPartitions[p].getReads().size() ; r++){
+                    //         if (localPartitions[p].getPartition()[r] == 1 || localPartitions[p].getPartition()[r] == -1){
+                    //             cout << localPartitions[p].getReads()[r] << "_" << localPartitions[p].getPartition()[r] << "_" << localPartitions[p].getMore()[r] << "_" << localPartitions[p].getLess()[r] << " ; ";
+                    //         }
+                    //     }
+                    //     cout << endl;
                     //     //print snps[pos].readIdx;
-                    //     for (auto i : snps[pos].readIdxs){
-                    //         cout << i << " ";
-                    //     }
-                    //     cout << endl;
+                    //     // for (auto i : snps[pos].readIdxs){
+                    //     //     cout << i << " ";
+                    //     // }
+                    //     // cout << endl;
                     //     for (auto i : snps[pos].content){
-                    //         cout << i << " ";
+                    //         cout << i;
                     //     }
                     //     cout << endl;
+                    //     cout << "dis.n00 : " << dis.n10 << " " << dis.n01 << " " << dis.n11 << " " << dis.n00 << endl;
                     //     localPartitions[p].print();
-                    //     cout << localPartitions[p].getReads()[localPartitions[p].getReads().size()-1] << endl;
-                    //     while(true){}
+                    //     partitions[p].print();
+                    //     // cout << localPartitions[p].getReads()[localPartitions[p].getReads().size()-1] << endl;
+                    //     // while(true){}
+                    //     // if (localPartitions[p].number() > 5){
+                    //     //     exit(0);
+                    //     // }
                     // }
                 }
             }
             suspectPostitionIdx += 1;
         }
+
+        // if (chunk == 5){
+        //     cout << "partitions beppofore strengthening : " << endl;
+        //     for (auto p = 0 ; p < localPartitions.size() ; p++){
+        //         if (localPartitions[p].number() >= 1){
+        //             cout << "on winzzhow " << chunk << " found partition " << p << endl;
+        //             localPartitions[p].print();
+        //         }
+        //     }
+        // }
 
         //go through the local partitions and strengthen them
         for (auto p = 0 ; p < localPartitions.size() ; p++){
@@ -935,25 +966,48 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         // }
 
         //thread partition on this window
-        vector<int> clusteredRead = threadHaplotypes_in_interval(non_null_partitions, numberOfReads, snps[chunk*sizeOfWindow]);
+        vector<int> clusteredReads = threadHaplotypes_in_interval(non_null_partitions, numberOfReads, snps[chunk*sizeOfWindow]);
 
-        if (chunk == 10 || true){
-            cout << "on window " << chunk << " found " << clusteredRead.size() << " reads" << endl;
+        //clustered reads represent subsets of reads that have never been separated in no partition
+        //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
+        //however, they should not be actually separated in snps: merge them
 
-            cout << "local partitions : " << endl;
-            for (auto p : non_null_partitions){
-                p.print();
+        vector<int> haplotypes = merge_wrongly_separated_haplotypes(clusteredReads, snps, chunk, suspectPostitions, sizeOfWindow);
+
+        // if (chunk == 5){
+        //     cout << "on window " << chunk << " found " << clusteredReads.size() << " reads" << endl;
+
+        //     cout << "local partitions : " << endl;
+        //     for (auto p : non_null_partitions){
+        //         p.print();
+        //     }
+
+        //     for (auto i : clusteredReads){
+        //         if (i < 0){
+        //             // cout << " ";
+        //         }
+        //         else{
+        //             cout << i << ",";
+        //         }
+        //     }
+        //     cout << endl;
+            
+        //     exit(1);
+
+        // }
+
+        cout << "hsoaplotypes : " << endl;
+        for (auto i : haplotypes){
+            if (i < 0){
+                // cout << " ";
             }
-
-            // for (auto i : clusteredRead){
-            //     cout << i << ",";
-            // }
-            // cout << endl;
-            // exit(1);
-
+            else{
+                cout << i << ",";
+            }
         }
+        cout << endl;
 
-        threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), clusteredRead));
+        threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), haplotypes));
 
     }
     return threadedReads;
@@ -1142,7 +1196,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
 
     meanError /= numberOfExtensions+1;
 
-    cout << "dodoozozz" << endl;
+    // cout << "dodoozozz" << endl;
 
     // int np = 5;
     // partitions[np].print();
@@ -1623,6 +1677,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
         res.n11 = 0;
         res.solid10 = 0;
         res.solid11 = 0;
+        res.solid00 = 0;
+        res.solid01 = 0;
         res.augmented = false;
         return res;
     }
@@ -1650,6 +1706,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     int matches11 = 0;
     int solid11 = 0;
     int solid10 = 0;
+    int solid01 = 0;
+    int solid00 = 0;
     Column newPartition;
 
     newPartition.readIdxs = {};
@@ -1691,6 +1749,9 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
                 }
                 else if (part1[n1] == -1){
                     matches01 += 1;
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid01 += 1;
+                    }
                 }
             }
             else if (par2.content[n2] == secondFrequent){
@@ -1703,6 +1764,9 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
                 }
                 else if (part1[n1] == -1){
                     matches00 += 1;
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid00 += 1;
+                    }
                 }
             }
             n1++;
@@ -1724,6 +1788,8 @@ distancePartition distance(Partition &par1, Column &par2, char ref_base){
     res.n11 = matches11;
     res.solid10 = solid10;
     res.solid11 = solid11;
+    res.solid00 = solid00;
+    res.solid01 = solid01;
     res.phased = 1;
     res.secondBase = secondFrequent;
     res.partition_to_augment = newPartition;
@@ -2299,13 +2365,14 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
                     clustersAll[read] = 0;
                 }
 
+                
                 if (allConfidences[binary][c] < 0.7 || camp == 0 /*|| allMores[binary][c] < 5*/){  //0.7 to be pretty confident about the reads we separate (more than 70% on all partitions)
                     clustersD[read] = -10; //definitely putting that below -1
-                    continue;
                 }
-                else if (camp != 0){
+                else if (camp != 0 && clustersD[read] != -10){
                     clustersD[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
                 }
+
                 if (camp!=0){
                     clustersAll[read] += pow(2, binary)*int(0.5+0.5*camp); //*0 if haplotype -1, *1 if haplotype 1
                 }
@@ -2315,9 +2382,11 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     }
 
-    // cout << "clustszerAll: " << endl;
-    // for (auto i : clustersAll){
-    //     cout << i << " ";
+    // cout << "clustszerD: " << endl;
+    // for (auto i : clustersD){
+    //     if (i >= 0){
+    //         cout << i << " ";
+    //     }
     // }
     // cout << endl;
 
@@ -2333,10 +2402,10 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
             if (doubleToIdx.find(id) == doubleToIdx.end()){
                 frequenceOfPart[idx] = 0;
                 doubleToIdx[id] = idx;
+                count.emplace(idx);
                 idx += 1;
             }
             frequenceOfPart[doubleToIdx[id]] += 1;
-            count.emplace(idx);
             numberOfAssignedReads ++;
             clusters[n] = doubleToIdx[id];
         }
@@ -2345,6 +2414,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
         n += 1;
     }
+
     
     /*
         As a first approximation:
@@ -2405,7 +2475,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     int numberOfAssignedReads2 = numberOfAssignedReads;
     float newtotalproba = 1;
     for (auto group : count){
-        if (/*listOfLikelihoods[indexOfCount] >= minLikelihood &&*/ frequenceOfPart[group] > 5){ //>5 because we want at least 5 reads per haplotype
+        if (/*listOfLikelihoods[indexOfCount] >= minLikelihood &&*/ frequenceOfPart[group] >= 5){ //>5 because we want at least 5 reads per haplotype
             listOfGroups.emplace(group);
             numberOfAssignedReads2 -= frequenceOfPart[group];
             // newtotalproba -= listOfProbas[indexOfCount];
@@ -2465,7 +2535,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
                 double score = 0;
                 int groupDecomposition = group;
-                int readDecomposition = clustersAll[read];
+                long long int readDecomposition = clustersAll[read];
 
                 for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
                     int expectedAssignation = groupDecomposition%2;
@@ -2509,6 +2579,119 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
 }
 
+/**
+ * @brief Checks if the separation of some clusters is never justified by snps and if so, merges them
+ * 
+ * @param clusteredReads First separation of the reads
+ * @param snps Vector of columns containing the snps
+ * @param chunk To look only at the interesting snps
+ * @param suspectPostitions To look only at the interesting snps
+ * @param sizeOfWindow To look only at the interesting snps
+ * @return std::vector<int> 
+ */
+std::vector<int> merge_wrongly_separated_haplotypes(
+    std::vector<int> &clusteredReads, 
+    std::vector<Column> &snps, 
+    int chunk, 
+    std::vector<size_t> &suspectPostitions,
+    int sizeOfWindow){
+
+    unordered_map<int,set<int>> new_to_old_clusters;
+    new_to_old_clusters[0] = set<int>();
+    int max_cluster = 0;
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        if (clusteredReads[read] > -1){
+            new_to_old_clusters[0].emplace(clusteredReads[read]);
+        }
+    }
+
+
+    for (auto position : suspectPostitions){
+        if (position >= chunk*sizeOfWindow && position < (chunk+1)*sizeOfWindow){
+            
+            //what bases occur in which cluster ?
+            unordered_map<int,int> cluster_to_majority_base;
+            unordered_map<int,unordered_map<char,int>> bases_in_each_cluster;
+            for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+                auto read = snps[position].readIdxs[r];
+                auto base = snps[position].content[r];
+                auto cluster = clusteredReads[read];
+                if (cluster > -1){
+                    if (bases_in_each_cluster.find(cluster) == bases_in_each_cluster.end()){
+                        bases_in_each_cluster[cluster] = unordered_map<char,int>();
+                    }
+                    if (bases_in_each_cluster[cluster].find(base) == bases_in_each_cluster[cluster].end()){
+                        bases_in_each_cluster[cluster][base] = 0;
+                    }
+                    bases_in_each_cluster[cluster][base]++;
+                }
+            }
+            //count the majority base of each cluster at this position
+            for (auto cluster : bases_in_each_cluster){
+                int max = 0;
+                char maxBase = ' ';
+                for (auto base : cluster.second){
+                    if (base.second > max){
+                        max = base.second;
+                        maxBase = base.first;
+                    }
+                }
+                cluster_to_majority_base[cluster.first] = maxBase;
+            }
+
+            //now separate the clusters that have different majority bases
+            set<int> toErase;
+            for (auto g : new_to_old_clusters){
+                if (g.second.size() > 1){
+                    unordered_map<char,set<int>> base_to_clusters;
+                    for (auto cluster : g.second){
+                        if (base_to_clusters.find(cluster_to_majority_base[cluster]) == base_to_clusters.end()){
+                            base_to_clusters[cluster_to_majority_base[cluster]] = set<int>();
+                        }
+                        base_to_clusters[cluster_to_majority_base[cluster]].emplace(cluster);
+                    }
+                    if (base_to_clusters.size() > 1){ //then we have to separate the clusters
+                        for (auto base : base_to_clusters){
+                            max_cluster++;
+                            new_to_old_clusters[max_cluster] = base.second;
+                        }
+                        toErase.emplace(g.first);
+                    }
+                }
+            }
+            for (auto g : toErase){
+                new_to_old_clusters.erase(g);
+            }
+
+        }
+    }
+
+    unordered_map<int,int> old_to_new_clusters;
+    for (auto g : new_to_old_clusters){
+        for (auto c : g.second){
+            old_to_new_clusters[c] = g.first;
+        }
+    }
+
+    //now create a new clustering
+    vector<int> new_clustering(clusteredReads.size(),-1);
+    for (auto r = 0 ; r < clusteredReads.size() ; r++){
+        if (clusteredReads[r] > -1){
+            new_clustering[r] = old_to_new_clusters[clusteredReads[r]];
+        }
+    }
+
+    // cout << "new_sssto_old_clusters : " << endl;
+    // for (auto g : new_to_old_clusters){
+    //     cout << g.first << " : ";
+    //     for (auto c : g.second){
+    //         cout << c << " ";
+    //     }
+    //     cout << endl;
+    // }
+
+    return new_clustering;
+}
 
 //input : all the already threaded haplotypes and a new partition
 //output : a bool telling if the new partition is compatible with already threaded haplotypes. If yes, alreadyThreadedHaplotype modified

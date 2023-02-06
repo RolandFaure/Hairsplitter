@@ -50,6 +50,8 @@ public :
     int get_left();
     int get_right();
 
+    std::vector<bool> get_mask();
+
     void flipPartition(); //transforms all 1s in 0s and vice-versa
     void apply_mask(std::vector<bool> &mask); //applies a mask to the partition
 
