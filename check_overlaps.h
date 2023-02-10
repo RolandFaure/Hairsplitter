@@ -131,10 +131,9 @@ int compatible_partitions(Partition &p1 , Partition &p2);
 
 std::vector<int> threadHaplotypes_in_interval(
     std::vector<Partition> &listOfFinalPartitions,
-    int numberOfReads,
-    Column &columnThere);
+    int numberOfReads);
 
-std::vector<int> merge_wrongly_separated_haplotypes(
+std::vector<int> rescue_reads(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps, 
     int chunk, 
@@ -143,7 +142,5 @@ std::vector<int> merge_wrongly_separated_haplotypes(
 
 bool extend_with_partition_if_compatible(std::vector<int> &alreadyThreadedHaplotypes, Partition &extension, int partitionIndex,
         std::unordered_map <int, std::pair<int,int>> &clusterLimits);//auxilliary function of threadHaplotypes
-
-std::vector<int> rescue_reads(std::vector<int> &threadedClusters, std::vector<Column> &snps, std::vector<size_t> &suspectPostitions);
 
 #endif

@@ -242,6 +242,9 @@ void modify_GFA(
                         }
                     }
                 }
+                if (readsPerPart.size() == 0 && interval.second.first.size() > 0 && interval.second.first[0] == -1){
+                    readsPerPart[-1] = {}; //so that it defaults back to the consensus
+                }
                 // cout << endl;
 
                 vector<int> futureHangingLinks;
@@ -257,6 +260,8 @@ void modify_GFA(
                     string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhang), overhang) 
                         + interval.second.second[group.first].substr(max(0, overhang-overhangLeft), interval.second.second[group.first].size()+overhangLeft+overhangRight-2*overhang)
                         + allreads[backbone].sequence_.str().substr(interval.first.second+1+overhangRight-overhang, overhang);
+
+                    cout << "toPolisssdcvh: " << toPolish << endl;
 
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
@@ -397,7 +402,7 @@ void modify_GFA(
             int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
             string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
             std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
-            string contig = "";
+            string contig = right;
             
             Read r (contig);
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);

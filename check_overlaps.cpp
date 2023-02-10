@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "consensus@0@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_13@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -139,15 +139,21 @@ void compute_partition_on_this_contig(
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
-        
-    // auto par = truePar.getPartition();//DEBUG
     // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
     // cout << "Proposed partition : " << endl;
     // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
     // cout << endl;
 
-    //now compute the consensus for each new contig
-    compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
+    //now compute the consensus for each new contig compute_consensus_in_partitions does not work with 3mers for now
+    // compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
+    for (auto interval : par){
+        unordered_map <int, string> consensus_sequences;
+        for (auto cluster : interval.second){
+            consensus_sequences[cluster] = allreads[contig].sequence_.subseq(interval.first.first, interval.first.second-interval.first.first+1).str();
+        }
+        partitions[contig].push_back(make_pair(interval.first, make_pair(interval.second, consensus_sequences)));
+    }
+
 
     // print all elements of the map partitions[contig][0].second.second
     // auto map = partitions[contig][0].second.second;
@@ -774,10 +780,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     float meanError = 0;
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
-    cout << "partition dnooww: " << partitions.size() << endl;
-    for (auto p : partitions){
-        p.print();
-    }
+    // cout << "partition dnooww: " << partitions.size() << endl;
+    // for (auto p : partitions){
+    //     p.print();
+    // }
 
     // vector <Partition> strengthened_partition = second_pass(ref, partitions, snps, suspectPostitions, meanError, numberOfReads);
 
@@ -833,23 +839,63 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
 
-    if (DEBUG){
-        cout << "final dddaaz partitions : " << partitions.size() << endl;
-        for (auto p : partitions){
-            p.print();
-        }
-    }
+    // if (DEBUG){
+    //     cout << "final dddaaz partitions : " << partitions.size() << endl;
+    //     for (auto p : partitions){
+    //         p.print();
+    //     }
+    // }
 
     //now go through windows of width 1000 along the reference and create local partitions
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
     int suspectPostitionIdx = 0;
-    int sizeOfWindow = 3000;
+    int sizeOfWindow = 2000;
     for (auto chunk = 0 ; chunk < ref.size()/sizeOfWindow ; chunk++){
         vector<Partition> localPartitions;
+
+        //only consider reads that span the whole length of the window: create a mask
+        vector<bool> mask_at_this_position (numberOfReads, false); 
+        if (chunk < ref.size()/sizeOfWindow - 1){
+            for (auto r : snps[(chunk+1)*sizeOfWindow].readIdxs){
+                mask_at_this_position[r] = true;
+            }
+        }
+        int index = 0;
+        for (auto r = 0 ; r < mask_at_this_position.size(); r++){
+            while(index < snps[chunk*sizeOfWindow].readIdxs.size() && snps[chunk*sizeOfWindow].readIdxs[index] < r){
+                index++;
+            }
+            if (index >= snps[chunk*sizeOfWindow].readIdxs.size() || snps[chunk*sizeOfWindow].readIdxs[index] != r){
+                mask_at_this_position[r] = false;
+            }
+        }
+
+        // for (auto p = chunk*sizeOfWindow ; p < (chunk+1)*sizeOfWindow ; p++){
+        //     int indexsnp = 0;
+        //     cout << p << " : ";
+        //     for (auto read = 0 ; read<numberOfReads ; read++){
+        //         if (mask_at_this_position[read]){
+        //             while (indexsnp < snps[p].readIdxs.size() && snps[p].readIdxs[indexsnp] < read){
+        //                 indexsnp++;
+        //             }
+        //             if (indexsnp >= snps[p].readIdxs.size() || snps[p].readIdxs[indexsnp] != read){
+        //                 cout << " ";
+        //             }
+        //             else {
+        //                 cout << snps[p].content[indexsnp];
+        //             }
+        //         }
+        //     }
+        //     cout << endl;
+        // }
+
         for (auto p : partitions){
             Partition new_partition;
             auto m = p.get_mask();
             new_partition.apply_mask(m);
+            if (chunk < ref.size()/sizeOfWindow - 1 && chunk > 0){
+                new_partition.apply_mask(mask_at_this_position);
+            }
             localPartitions.push_back(new_partition);
         }
 
@@ -876,29 +922,35 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 //     && dis.n01 < 0.4*(dis.n00+dis.n01)){
                     localPartitions[p].augmentPartition(snps[pos], pos);
                     // cout << "augmenting ddddpartition " << p << " with position " << pos << endl;
-                    // if (chunk == 5 && p == 6){
+                    // if (chunk == 4 && p == 4){
                     //     cout << "on windhhow " << chunk << " found partition " << p << endl;
-                    //     for (auto r = 0 ; r < localPartitions[p].getReads().size() ; r++){
-                    //         if (localPartitions[p].getPartition()[r] == 1 || localPartitions[p].getPartition()[r] == -1){
-                    //             cout << localPartitions[p].getReads()[r] << "_" << localPartitions[p].getPartition()[r] << "_" << localPartitions[p].getMore()[r] << "_" << localPartitions[p].getLess()[r] << " ; ";
-                    //         }
-                    //     }
-                    //     cout << endl;
+                    //     // for (auto r = 0 ; r < localPartitions[p].getReads().size() ; r++){
+                    //     //     if (localPartitions[p].getPartition()[r] == 1 || localPartitions[p].getPartition()[r] == -1){
+                    //     //         cout << localPartitions[p].getReads()[r] << "_" << localPartitions[p].getPartition()[r] << "_" << localPartitions[p].getMore()[r] << "_" << localPartitions[p].getLess()[r] << " ; ";
+                    //     //     }
+                    //     // }
+                    //     // cout << endl;
                     //     //print snps[pos].readIdx;
                     //     // for (auto i : snps[pos].readIdxs){
                     //     //     cout << i << " ";
                     //     // }
                     //     // cout << endl;
-                    //     for (auto i : snps[pos].content){
-                    //         cout << i;
+                    //     auto index = 0;
+                    //     for (auto i = 0; i < snps[pos].content.size() ; i++){
+                    //         while(index < localPartitions[p].getReads().size() && localPartitions[p].getReads()[index] < snps[pos].readIdxs[i]){
+                    //             index++;
+                    //         }
+                    //         if (localPartitions[p].getReads()[index] == snps[pos].readIdxs[i] && localPartitions[p].getPartition()[index] != -2){
+                    //             cout << snps[pos].content[i];
+                    //         }
                     //     }
                     //     cout << endl;
                     //     cout << "dis.n00 : " << dis.n10 << " " << dis.n01 << " " << dis.n11 << " " << dis.n00 << endl;
                     //     localPartitions[p].print();
-                    //     partitions[p].print();
+                    //     // partitions[p].print();
                     //     // cout << localPartitions[p].getReads()[localPartitions[p].getReads().size()-1] << endl;
                     //     // while(true){}
-                    //     // if (localPartitions[p].number() > 5){
+                    //     // if (localPartitions[p].number() > 3){
                     //     //     exit(0);
                     //     // }
                     // }
@@ -907,15 +959,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             suspectPostitionIdx += 1;
         }
 
-        // if (chunk == 5){
-        //     cout << "partitions beppofore strengthening : " << endl;
-        //     for (auto p = 0 ; p < localPartitions.size() ; p++){
-        //         if (localPartitions[p].number() >= 1){
-        //             cout << "on winzzhow " << chunk << " found partition " << p << endl;
-        //             localPartitions[p].print();
-        //         }
-        //     }
-        // }
 
         //go through the local partitions and strengthen them
         for (auto p = 0 ; p < localPartitions.size() ; p++){
@@ -965,47 +1008,55 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     }
         // }
 
+
+
         //thread partition on this window
-        vector<int> clusteredReads = threadHaplotypes_in_interval(non_null_partitions, numberOfReads, snps[chunk*sizeOfWindow]);
+        vector<int> clusteredReads = threadHaplotypes_in_interval(non_null_partitions, numberOfReads);
+        for (auto r = 0 ; r < numberOfReads ; r++){
+            if (mask_at_this_position[r] == false){
+                clusteredReads[r] = -2;
+            }
+        }
 
         //clustered reads represent subsets of reads that have never been separated in no partition
         //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
         //however, they should not be actually separated in snps: merge them
 
-        vector<int> haplotypes = merge_wrongly_separated_haplotypes(clusteredReads, snps, chunk, suspectPostitions, sizeOfWindow);
+        vector<int> haplotypes = rescue_reads(clusteredReads, snps, chunk, suspectPostitions, sizeOfWindow);
 
-        // if (chunk == 5){
-        //     cout << "on window " << chunk << " found " << clusteredReads.size() << " reads" << endl;
+        if (chunk == 4){
 
-        //     cout << "local partitions : " << endl;
-        //     for (auto p : non_null_partitions){
-        //         p.print();
-        //     }
+            // cout << "on window " << chunk << " found " << clusteredReads.size() << " reads" << endl;
 
-        //     for (auto i : clusteredReads){
-        //         if (i < 0){
-        //             // cout << " ";
-        //         }
-        //         else{
-        //             cout << i << ",";
-        //         }
-        //     }
-        //     cout << endl;
-            
-        //     exit(1);
-
-        // }
-
-        cout << "hsoaplotypes : " << endl;
-        for (auto i : haplotypes){
-            if (i < 0){
-                // cout << " ";
+            cout << "local partitions : " << endl;
+            int n = 0;
+            for (auto p : non_null_partitions){
+                cout << n << " ";
+                p.print();
+                n+=1;
             }
-            else{
+
+            cout << "chdfunk " << chunk << " clusteredReads : " << endl;
+            for (auto i : clusteredReads){
                 cout << i << ",";
             }
+            cout << endl;
+
+            cout << "chunk " << chunk << " hsoaplotypes : " << endl;
+            for (auto i : haplotypes){
+                if (i < 0){
+                    cout << " ,";
+                }
+                else{
+                    cout << i << ",";
+                }
+            }
+            cout << endl;
+            
+            exit(1);
+
         }
-        cout << endl;
+
 
         threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), haplotypes));
 
@@ -1050,7 +1101,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
         //count how many time each char appears at this position
         unordered_map<char, int> content;
         int numberOfReadsHere = 0;
-        bool here496 = false;
+        // bool here496 = false;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
             if (mask[snps[position].readIdxs[n]]){
                 char base = snps[position].content[n];
@@ -1062,9 +1113,9 @@ vector<Partition> get_solid_partitions(std::string& ref,
                     numberOfReadsHere += 1;
                 }
             }
-            if (snps[position].readIdxs[n] == 2114){
-                here496 = true;
-            }
+            // if (snps[position].readIdxs[n] == 2114){
+            //     here496 = true;
+            // }
         }
         content[(unsigned char) 0 ] = 0; //to make sure that there are at least 3 different chars
         content[(unsigned char) 1 ] = 0; //to make sure that there are at least 3 different chars
@@ -2292,14 +2343,11 @@ int compatible_partitions(Partition &p1 , Partition &p2){
  * @param columnThere This is a column of SNPs matrix, to know what reads are present in the interval
  * @return vector<int> the final partition
  */
-vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads, Column &columnThere){
+vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartitions, int numberOfReads){
 
     if (listOfFinalPartitions.size() == 0){
         //return a vector composed of 0s for reads aligning and -1 for reads not aligning (so that output_GAF does not believe that all the reads are aligning)
-        vector<int> unpartition (numberOfReads, -1);
-        for (auto read : columnThere.readIdxs){
-            unpartition[read] = 0;
-        }
+        vector<int> unpartition (numberOfReads, 0);
         return unpartition;
     }
 
@@ -2320,11 +2368,15 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     int numberOfAssignedReads=0;
     //inventroriate the reads that are present on all partitions
     vector<int> numberOfTimeOfEachRead (numberOfReads, 0);
+    vector<bool> notAllMasked (numberOfReads, false);
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
         int r = 0;
         for (auto read : listOfFinalPartitions[binary].getReads()){
             if (allPartitions[binary][r] != 0){
                 numberOfTimeOfEachRead[read] += 1;
+            }
+            if (allPartitions[binary][r] == 1 || allPartitions[binary][r] == -1){
+                notAllMasked[read] = true;
             }
             r += 1;
         }
@@ -2338,9 +2390,8 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     }
     //print readsPresentInAllPartitions
 
-
-    vector<long double> clustersD (numberOfReads, -1); //this will contain only high-confidence reads
-    vector<long double> clustersAll (numberOfReads, -1); //this will contain all reads
+    vector<long double> clustersD (numberOfReads, -1); 
+    vector<long double> clustersAll (numberOfReads, -1); 
     vector<int> presentReads (numberOfReads, listOfFinalPartitions.size()); //this will count to 0 the number of partitions in which the read is present
 
     for (auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++){
@@ -2360,13 +2411,13 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
                 if (camp == -2){ //mark all the masked reads as belogning to an arbitrary part
                     camp = 1;
                 }
-                if (clustersD[read] == -1 && camp != 0){ //means that the read is present in one partition
+                if (clustersAll[read] == -1 && camp != 0){ //means that the read is present in one partition
                     clustersD[read] = 0;
                     clustersAll[read] = 0;
                 }
 
-                
-                if (allConfidences[binary][c] < 0.7 || camp == 0 /*|| allMores[binary][c] < 5*/){  //0.7 to be pretty confident about the reads we separate (more than 70% on all partitions)
+                //only keep a read if it covers at least 50% of the suspect positions
+                if ( allConfidences[binary][c] < 0.8 && allMores[binary][c] < 0.5*listOfFinalPartitions[binary].number() /*|| camp == 0 /*|| allMores[binary][c] < 5*/){  //0.7 to be pretty confident about the reads we separate (more than 70% on all partitions)
                     clustersD[read] = -10; //definitely putting that below -1
                 }
                 else if (camp != 0 && clustersD[read] != -10){
@@ -2382,8 +2433,20 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
 
     }
 
-    // cout << "clustszerD: " << endl;
+    // cout << "clustszeD: " << endl;
+    // int nr = 0;
     // for (auto i : clustersD){
+    //     if (i == 8191){
+    //         cout << " ";
+    //     }
+    //     else{
+    //         cout << i << ",";
+    //     }
+    // }
+    // cout << endl;
+
+    // cout << "clustersall :" << endl;
+    // for (auto i : clustersAll){
     //     if (i >= 0){
     //         cout << i << " ";
     //     }
@@ -2398,7 +2461,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     vector <int> clusters (numberOfReads, -1);
     int n = 0;
     for (auto id : clustersD){
-        if (id >= 0){
+        if (id >= 0 && notAllMasked[n]){
             if (doubleToIdx.find(id) == doubleToIdx.end()){
                 frequenceOfPart[idx] = 0;
                 doubleToIdx[id] = idx;
@@ -2409,7 +2472,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
             numberOfAssignedReads ++;
             clusters[n] = doubleToIdx[id];
         }
-        else{
+        else {
             clusters[n] = -1;
         }
         n += 1;
@@ -2482,6 +2545,13 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         }
         indexOfCount++;
     }
+
+    //switch all the clusters present less than 5 times to -1
+    for (int i = 0 ; i < clusters.size() ; i++){
+        if (clusters[i] >= 0 && listOfGroups.find(clusters[i]) == listOfGroups.end()){
+            clusters[i] = -1;
+        }
+    }
     //now maybe rescue cluster that were not 100% sure but in hindsight seem good
     // indexOfCount = 0;
     // for (auto group : count){
@@ -2496,7 +2566,7 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
     //     indexOfCount++;
     // }
 
-    // cout << "posssible clusters : "; for (auto g : listOfGroups){cout << g << " ";} cout << endl;
+    // cout << "posssippoble clusters : "; for (auto g : listOfGroups){cout << g << " ";} cout << endl;
     // cout << "Ryes : ";
     // for (auto i : clusters){
     //     cout << i << ",";
@@ -2508,64 +2578,53 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
         return vector<int> (clusters.size(), 1);
     }
 
-    for (auto read = 0 ; read < clusters.size() ; read++){
-
-        if (clusters[read] < 0 || presentReads[read] > 0){
-            clusters[read] = -1;
-        }
-    }
-
     //now most reads should be assigned to a cluster. Rescue those that have not been assigned or assigned to a rare cluster
 
-    for (auto read = 0 ; read < clusters.size() ; read++){
+    // for (auto read = 0 ; read < clusters.size() ; read++){
 
-        if (clusters[read] < 0){
-            clusters[read] = -1;
-        }
+    //     if (listOfGroups.find(clusters[read]) == listOfGroups.end() && presentReads[read] == 0 && notAllMasked[read] && clusters[read] == -1){ //this means the read needs to be rescued 
 
-        if (listOfGroups.find(clusters[read]) == listOfGroups.end() && presentReads[read] == 0){ //this means the read needs to be rescued 
+    //         //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
+    //         //iterate through the list of groups and choose the one that can be explained by the less mistakes
+    //         int bestGroup = -1;
+    //         double bestGroupScore = 0;
 
-            //cout << "rescuing "; for(auto binary = 0 ; binary < listOfFinalPartitions.size() ; binary++) {cout << allPartitions[binary][read];} cout << endl;
-            //iterate through the list of groups and choose the one that can be explained by the less mistakes
-            int bestGroup = -1;
-            double bestGroupScore = 0;
+    //         //compute a score for assigning the read to each existing group, then assign the read to the best group
+    //         for (auto group : listOfGroups){
 
-            //compute a score for assigning the read to each existing group, then assign the read to the best group
-            for (auto group : listOfGroups){
+    //             double score = 0;
+    //             int groupDecomposition = group;
+    //             long long int readDecomposition = clustersAll[read];
 
-                double score = 0;
-                int groupDecomposition = group;
-                long long int readDecomposition = clustersAll[read];
+    //             for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
+    //                 int expectedAssignation = groupDecomposition%2;
+    //                 int actualAssignation = readDecomposition%2;
 
-                for (int binary = listOfFinalPartitions.size() -1 ; binary > -1  ; binary--){
-                    int expectedAssignation = groupDecomposition%2;
-                    int actualAssignation = readDecomposition%2;
+    //                 if (actualAssignation != expectedAssignation && allPartitions[binary][read] != 0){
+    //                     score -= allConfidences[binary][read]-0.5;
+    //                 }
+    //                 else if (actualAssignation == expectedAssignation){
+    //                     score += allConfidences[binary][read]-0.5;
+    //                 }
 
-                    if (actualAssignation != expectedAssignation && allPartitions[binary][read] != 0){
-                        score -= allConfidences[binary][read]-0.5;
-                    }
-                    else if (actualAssignation == expectedAssignation){
-                        score += allConfidences[binary][read]-0.5;
-                    }
+    //                 groupDecomposition /= 2;
+    //                 readDecomposition /= 2;
+    //             }
+    //             if (score > bestGroupScore){
+    //                 bestGroup = group;
+    //                 bestGroupScore = score;
+    //             }
+    //         }
+    //         clusters[read] = bestGroup;
 
-                    groupDecomposition /= 2;
-                    readDecomposition /= 2;
-                }
-                if (score > bestGroupScore){
-                    bestGroup = group;
-                    bestGroupScore = score;
-                }
-            }
-            clusters[read] = bestGroup;
-
-            // cout << "Rescuing ";
-            // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
-            //     cout << listOfFinalPartitions[binary].getMore()[read]<< "/" << listOfFinalPartitions[binary].getLess()[read] << " ";
-            // }
-            // cout << " as : " << bestGroup << endl;
+    //         // cout << "Rescuing ";
+    //         // for (int binary = 0 ; binary < listOfFinalPartitions.size()  ; binary++){
+    //         //     cout << listOfFinalPartitions[binary].getMore()[read]<< "/" << listOfFinalPartitions[binary].getLess()[read] << " ";
+    //         // }
+    //         // cout << " as : " << bestGroup << endl;
             
-        }
-    }
+    //     }
+    // }
 
     // cout << "Res of threazd haplotypes: ";
     // for (auto i : clusters){
@@ -2589,46 +2648,64 @@ vector<int> threadHaplotypes_in_interval(vector<Partition> &listOfFinalPartition
  * @param sizeOfWindow To look only at the interesting snps
  * @return std::vector<int> 
  */
-std::vector<int> merge_wrongly_separated_haplotypes(
+std::vector<int> rescue_reads(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps, 
     int chunk, 
     std::vector<size_t> &suspectPostitions,
     int sizeOfWindow){
 
-    unordered_map<int,set<int>> new_to_old_clusters;
-    new_to_old_clusters[0] = set<int>();
+    set<int> listOfGroups;
     int max_cluster = 0;
     for (auto read = 0 ; read < clusteredReads.size() ; read++){
         if (clusteredReads[read] > -1){
-            new_to_old_clusters[0].emplace(clusteredReads[read]);
+            listOfGroups.emplace(clusteredReads[read]);
         }
     }
 
+    if (listOfGroups.size() <= 1){
+        return clusteredReads;
+    }
+
+    //vector associating to each read how many times it is excluded from each cluster
+    vector < unordered_map<int, int> > with_which_clusters_goes_this_read (clusteredReads.size());
+    vector < int > on_how_many_snps_is_this_read_defined (clusteredReads.size(), 0);
+    //fill the vector with 0s
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        for (auto group : listOfGroups){
+            with_which_clusters_goes_this_read[read][group] = 0;
+        }
+    }
 
     for (auto position : suspectPostitions){
         if (position >= chunk*sizeOfWindow && position < (chunk+1)*sizeOfWindow){
-            
+
             //what bases occur in which cluster ?
-            unordered_map<int,int> cluster_to_majority_base;
-            unordered_map<int,unordered_map<char,int>> bases_in_each_cluster;
+            unordered_map<int,unsigned char> cluster_to_majority_base;
+            unordered_map<int,unordered_map<unsigned char,int>> bases_in_each_cluster;
+            unordered_map<unsigned char,int> bases_in_total;
             for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
-                auto read = snps[position].readIdxs[r];
-                auto base = snps[position].content[r];
-                auto cluster = clusteredReads[read];
+                int read = snps[position].readIdxs[r];
+                unsigned char base = snps[position].content[r];
+                int cluster = clusteredReads[read];
                 if (cluster > -1){
                     if (bases_in_each_cluster.find(cluster) == bases_in_each_cluster.end()){
-                        bases_in_each_cluster[cluster] = unordered_map<char,int>();
+                        bases_in_each_cluster[cluster] = unordered_map<unsigned char,int>();
                     }
                     if (bases_in_each_cluster[cluster].find(base) == bases_in_each_cluster[cluster].end()){
                         bases_in_each_cluster[cluster][base] = 0;
                     }
+                    if (bases_in_total.find(base) == bases_in_total.end()){
+                        bases_in_total[base] = 0;
+                    }
+                    bases_in_total[base]++;
                     bases_in_each_cluster[cluster][base]++;
                 }
             }
+            
             //count the majority base of each cluster at this position
             for (auto cluster : bases_in_each_cluster){
-                int max = 0;
+                int max = 3;
                 char maxBase = ' ';
                 for (auto base : cluster.second){
                     if (base.second > max){
@@ -2639,58 +2716,236 @@ std::vector<int> merge_wrongly_separated_haplotypes(
                 cluster_to_majority_base[cluster.first] = maxBase;
             }
 
-            //now separate the clusters that have different majority bases
-            set<int> toErase;
-            for (auto g : new_to_old_clusters){
-                if (g.second.size() > 1){
-                    unordered_map<char,set<int>> base_to_clusters;
-                    for (auto cluster : g.second){
-                        if (base_to_clusters.find(cluster_to_majority_base[cluster]) == base_to_clusters.end()){
-                            base_to_clusters[cluster_to_majority_base[cluster]] = set<int>();
-                        }
-                        base_to_clusters[cluster_to_majority_base[cluster]].emplace(cluster);
-                    }
-                    if (base_to_clusters.size() > 1){ //then we have to separate the clusters
-                        for (auto base : base_to_clusters){
-                            max_cluster++;
-                            new_to_old_clusters[max_cluster] = base.second;
-                        }
-                        toErase.emplace(g.first);
+            //fill with_which_clusters_goes_this_read
+            for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+                int read = snps[position].readIdxs[r];
+                unsigned char base = snps[position].content[r];
+                int cluster = clusteredReads[read];
+
+                for (int group : listOfGroups){
+                    if (cluster_to_majority_base[group] != base && bases_in_total[base] >= 5 && cluster_to_majority_base[group] != ' '){
+                        with_which_clusters_goes_this_read[read][group]++;
                     }
                 }
+                if (bases_in_total[base] >= 5){
+                    on_how_many_snps_is_this_read_defined[read]++;
+                }
             }
-            for (auto g : toErase){
-                new_to_old_clusters.erase(g);
+
+            // int nr = 0;
+            // cout << "eexxww ";
+            // for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+            //     while (nr < r){
+            //         if (clusteredReads[nr] >= 0){
+            //             cout << " ";
+            //         }
+            //         nr += 1;
+            //     }
+            //     if (clusteredReads[nr] >= 0){
+            //         unsigned char c = snps[position].content[r];
+            //         if (c > 126){
+            //             cout << (unsigned char) (c - 80);
+            //         }
+            //         else{
+            //             cout << (unsigned char) c;
+            //         }
+            //     }
+            //     nr += 1;
+            // }
+            // cout << endl;
+
+            // if (chunk == 4 && cluster_to_majority_base.find(3) != cluster_to_majority_base.end() && cluster_to_majority_base.find(2) != cluster_to_majority_base.end()){
+            //     // cout << "posddition " << position << " : " << (char) cluster_to_majority_base[3] << " " << (char) cluster_to_majority_base[2] << endl;
+            //     if (cluster_to_majority_base[3] != cluster_to_majority_base[2]){
+
+            //         cout << "posddisqdodlmqjmtion " << position << " : ";
+
+            //         cout << "bases_in_each_cluster : " << endl;
+            //         for (auto c : bases_in_each_cluster){
+            //             cout << c.first << " : ";
+            //             for (auto b : c.second){
+            //                 cout << (char) b.first << " " << b.second << " ";
+            //             }
+            //             cout << endl;
+            //         }
+
+            //         cout << "skljiuzau clusters: " << endl;
+            //         int nc = 0;
+            //         for (auto c : clusteredReads){
+            //             if (c == 2 || c == 3){
+            //                 cout << nc << " " <<  c << endl;
+            //             }
+            //             nc++;
+            //         } 
+            //         cout << endl;
+
+            //         cout << "eeddzxxww ";
+            //         for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+            //             int nr2 = snps[position].readIdxs[r];
+            //             if (clusteredReads[nr2] == 2){
+            //                 cout << nr2 << " ." << endl;
+            //             }
+            //             if (clusteredReads[nr2] == 3){
+            //                 cout << nr2 << " ," << endl;
+            //             }
+            //             // if (clusteredReads[nr2] >= 0){
+            //             //     unsigned char c = snps[position].content[r];
+            //             //     if (c > 126){
+            //             //         cout << (unsigned char) (c - 80);
+            //             //     }
+            //             //     else{
+            //             //         cout << (unsigned char) c;
+            //             //     }
+            //             // }
+            //             // else{
+            //             //     cout << " ";
+            //             // }
+            //         }
+            //         cout << endl;
+            //         exit(1);
+            //     }
+            // }
+
+        }
+    }
+
+    //count how many times a group of reads is exluded from its own cluster (because of this errors)
+    unordered_map <int , vector<double>> how_many_times_a_group_is_excluded_from_its_own_cluster;
+    unordered_map <int , vector<double>> how_many_times_a_group_is_excluded_from_different_cluster;
+    int read = 0;
+    int total_number_of_reads = 0;
+    bool add = false;
+    for (auto read_exclusions : with_which_clusters_goes_this_read){
+        int group_number_of_exclusions = 0;
+        for (auto group : listOfGroups){
+            if (clusteredReads[read] == group){
+                if (how_many_times_a_group_is_excluded_from_its_own_cluster.find(group) == how_many_times_a_group_is_excluded_from_its_own_cluster.end()){
+                    how_many_times_a_group_is_excluded_from_its_own_cluster[group] = vector<double>();
+                }
+                group_number_of_exclusions = read_exclusions[group];
+            }
+            else if (on_how_many_snps_is_this_read_defined[read] > 0 && listOfGroups.find(clusteredReads[read]) != listOfGroups.end()){
+                if (how_many_times_a_group_is_excluded_from_different_cluster.find(group) == how_many_times_a_group_is_excluded_from_different_cluster.end()){
+                    how_many_times_a_group_is_excluded_from_different_cluster[group] = vector<double>();
+                }
+                how_many_times_a_group_is_excluded_from_different_cluster[group].push_back(double(read_exclusions[group])/on_how_many_snps_is_this_read_defined[read]);
+            }
+        }
+        if (listOfGroups.find(clusteredReads[read]) != listOfGroups.end()){
+            how_many_times_a_group_is_excluded_from_its_own_cluster[clusteredReads[read]].push_back(double(group_number_of_exclusions)/on_how_many_snps_is_this_read_defined[read]);
+        }
+        read++;
+    }
+
+    //print how many times a group is excluded from its own cluster
+    unordered_map <int, pair<double, double>> confidence_level_clusters; // thresholds below which 90% of the cluster is and above which 90% of non-cluster are
+    unordered_map <int, pair<double, double>> mean_confidence_level_clusters; // mean confidence level if in cluster or out of cluster
+    for (auto group : listOfGroups){
+        if (how_many_times_a_group_is_excluded_from_its_own_cluster.find(group) != how_many_times_a_group_is_excluded_from_its_own_cluster.end()){
+            int sum = 0;
+            int total = 0;
+            //find the first decile of how many times a group is excluded from its own cluster
+            sort(how_many_times_a_group_is_excluded_from_its_own_cluster[group].begin(), how_many_times_a_group_is_excluded_from_its_own_cluster[group].end(), std::greater<double>());
+            int decile = max(int(how_many_times_a_group_is_excluded_from_its_own_cluster[group].size()/10),1);
+            double threshold1 = 0;
+            double mean1 = 0;
+            if (how_many_times_a_group_is_excluded_from_its_own_cluster[group].size() > 0){
+                threshold1 = how_many_times_a_group_is_excluded_from_its_own_cluster[group][decile];
+                mean1 = how_many_times_a_group_is_excluded_from_its_own_cluster[group][int(how_many_times_a_group_is_excluded_from_its_own_cluster[group].size()/2)];
+            }
+
+            //find the last decile of how many times a group is excluded from a different cluster
+            sort(how_many_times_a_group_is_excluded_from_different_cluster[group].begin(), how_many_times_a_group_is_excluded_from_different_cluster[group].end(), std::less<double>());
+            int decile2 = max(int(how_many_times_a_group_is_excluded_from_different_cluster[group].size()/20),1);
+            double threshold2 = 0;
+            double mean2 = 0;
+            if (how_many_times_a_group_is_excluded_from_different_cluster[group].size() > 0){
+                threshold2 = how_many_times_a_group_is_excluded_from_different_cluster[group][decile2];
+                mean2 = how_many_times_a_group_is_excluded_from_different_cluster[group][int(how_many_times_a_group_is_excluded_from_different_cluster[group].size()/2)];
+            }
+
+            // cout << "gzgrroup " << group << " is excluded " << how_many_times_a_group_is_excluded_from_its_own_cluster[group][decile] << " times while accepted " <<
+            //     how_many_times_a_group_is_excluded_from_different_cluster[group][decile2] << endl;
+            
+            //confidence level of the cluster
+            confidence_level_clusters[group] = make_pair(threshold1, threshold2);
+            mean_confidence_level_clusters[group] = make_pair(mean1, mean2);
+        }
+    }
+
+    //go through the reads and classify them
+    vector <int> haplotypes (clusteredReads.size(), -1);
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        if (clusteredReads[read] != -2){
+            unordered_map<int, bool> in_this_cluster;
+            for (auto group : listOfGroups){
+                in_this_cluster[group] = false;
+            }
+            int clusterLessExcluded = 0;
+            double minExclusion = 1;
+            double secondMinExclusion = 1;
+            for (auto g : with_which_clusters_goes_this_read[read]){ //g.first: group ; g.second : number of times this group is excluded from this read
+                double exclusionLevel = double(g.second)/on_how_many_snps_is_this_read_defined[read];
+
+                // cout << "read " << read << " is excluded " << exclusionLevel << " times from cluster " << g.first << " wiht confidence levells " << confidence_level_clusters[g.first].first
+                //      << " " << confidence_level_clusters[g.first].second << " " << mean_confidence_level_clusters[g.first].second << endl;
+                if (exclusionLevel <= confidence_level_clusters[g.first].first && exclusionLevel <= confidence_level_clusters[g.first].second){
+                    in_this_cluster[g.first] = true;
+                }
+                if (exclusionLevel < minExclusion ){
+                    secondMinExclusion = minExclusion;
+                    minExclusion = exclusionLevel;
+                    clusterLessExcluded = g.first;
+                }
+                else if (exclusionLevel < secondMinExclusion){
+                    secondMinExclusion = exclusionLevel;
+                }
+            }
+            //if there is exactly one cluster that is not excluded, then this read is in this cluster
+            int n = 0;
+            int cluster = -1;
+            bool foundTwiceOrMore = false;
+            for (auto g : in_this_cluster){
+                if (g.second && cluster == -1){
+                    cluster = g.first;
+                }
+                else if (g.second && cluster != -1){
+                    foundTwiceOrMore = true;
+                }
+                n++;
+            }
+
+            if (!foundTwiceOrMore && cluster != -1){
+                haplotypes[read] = cluster;
+            }
+            else if (minExclusion*2 < secondMinExclusion){ //means that it is less exluded from one cluster than the mean
+                haplotypes[read] = clusterLessExcluded;
             }
 
         }
     }
 
-    unordered_map<int,int> old_to_new_clusters;
-    for (auto g : new_to_old_clusters){
-        for (auto c : g.second){
-            old_to_new_clusters[c] = g.first;
-        }
-    }
-
-    //now create a new clustering
-    vector<int> new_clustering(clusteredReads.size(),-1);
-    for (auto r = 0 ; r < clusteredReads.size() ; r++){
-        if (clusteredReads[r] > -1){
-            new_clustering[r] = old_to_new_clusters[clusteredReads[r]];
-        }
-    }
-
-    // cout << "new_sssto_old_clusters : " << endl;
-    // for (auto g : new_to_old_clusters){
-    //     cout << g.first << " : ";
-    //     for (auto c : g.second){
-    //         cout << c << " ";
+    // cout << "with_which_clusters_goes_this_read : " << endl;
+    // int n = 0;
+    // for (auto r : with_which_clusters_goes_this_read){
+    //     if (clusteredReads[n] != -2){
+    //         cout << n << " : ";
+    //         for (auto g : r ){
+    //             cout << g.first << " " << double(g.second)/on_how_many_snps_is_this_read_defined[n] << ", ";
+    //         }
+    //         cout << endl;
     //     }
-    //     cout << endl;
+    //     n++;
     // }
 
-    return new_clustering;
+    cout << "haplotypes : " << endl;
+    for (auto h : haplotypes){
+        cout << h << " ";
+    }
+    cout << endl;
+
+
+    return haplotypes;
 }
 
 //input : all the already threaded haplotypes and a new partition
@@ -2850,249 +3105,6 @@ bool extend_with_partition_if_compatible(vector<int> &alreadyThreadedHaplotypes,
 
     return compatible;
 
-}
-
-//input : the list of threaded clusters and snps
-//output : reassign ALL reads to the cluster where they fit best
-vector<int> rescue_reads(vector<int> &threadedClusters, vector<Column> &snps, vector<size_t> &suspectPostitions){
-
-    if(DEBUG){cout << "Rescuing reads\r" << endl;}
-
-    //list all the clusters in a map
-    std::unordered_map <int, int> clusterIdx;
-    int idx = 0;
-    for (auto clust : threadedClusters){
-        if (clust != -1){
-            if (clusterIdx.find(clust) == clusterIdx.end()) {
-                clusterIdx[clust] = idx;
-                idx++;
-            }
-        } 
-    }
-
-    if (clusterIdx.size() == 0){
-        return vector<int> (threadedClusters.size(), 0);
-    }
-
-    robin_hood::unordered_flat_map<char, short> bases2content;
-    bases2content['A'] = 0;
-    bases2content['C'] = 1; 
-    bases2content['G'] = 2;
-    bases2content['T'] = 3;
-    bases2content['-'] = 4;
-    bases2content[' '] = 5;
-
-    //create a vector counting for each read what cluster fits best
-    vector<vector<int>> bestClusters (threadedClusters.size(), vector<int> (clusterIdx.size(), 0));
-
-    //now iterate through the suspect positions
-    for (auto position : suspectPostitions){
-
-        //look at what base is normal for each cluster
-        vector<vector<int>> basesForEachCluster(clusterIdx.size(), vector<int> (5, 0));
-        int c = 0;
-        for (auto read : snps[position].readIdxs){
-            if (threadedClusters[read] != -1 && snps[position].content[c] != ' '){
-                basesForEachCluster[clusterIdx[threadedClusters[read]]][bases2content[snps[position].content[c]]] += 1;
-            }
-            c++;
-        }
-
-        vector<char> clusterBase (clusterIdx.size(), 0);
-        bool sure = true; //bool marking if all cluster agree within themselves
-        for (auto c = 0 ; c < clusterBase.size() ; c++){
-            char bestBase = ' ';
-            int bestBaseNb = 0;
-            int totalBaseNb = 0;
-            for (auto b = 0 ; b < 5 ; b++){
-                int thisBaseNb = basesForEachCluster[c][b]; 
-                totalBaseNb += thisBaseNb;
-                if (thisBaseNb > bestBaseNb){
-                    bestBaseNb = thisBaseNb;
-                    bestBase = "ACGT-"[b];
-                }
-            }
-            clusterBase[c] = bestBase;
-            if (float(bestBaseNb)/totalBaseNb < 0.8){
-                sure = false;
-                break; //this position is not worth looking at
-            }
-        }
-
-        //now each cluster has its base, let's update bestClusters
-        if (sure){
-            int c =0;
-            for (auto read :snps[position].readIdxs){
-                for (auto clust = 0 ; clust < clusterIdx.size() ; clust++){
-                    if (snps[position].content[c] == clusterBase[clust]){
-                        bestClusters[read][clust] += 1;
-                    }
-                    else{
-                        bestClusters[read][clust] -= 1;
-                    }
-                }
-                c++;
-            }
-        }
-    }
-
-    //now for each read we know at how many positions it agrees with each cluster : find best cluster
-    vector<int> newClusters (threadedClusters.size(), -1);
-    for (auto r = 0 ; r < newClusters.size() ; r++){
-
-        // cout << "for read " << r << ", here is the bestCluster :"; for(auto i : bestClusters[r]){cout << i << ",";} cout << endl; 
-        auto maxIterator = std::max_element(bestClusters[r].begin(), bestClusters[r].end());
-        if (*maxIterator > 0){
-            newClusters[r] = std::distance(bestClusters[r].begin() , maxIterator );
-        }
-        // else {
-        //     cout << "wow, this read " << r << " has 0 positions, sad sad sad " << r << endl;
-        // }
-    }
-
-    return newClusters;
-}
-
-/**
- * @brief Computes the consensus for each part of each partition of the contig using snps
- * 
- * @param contig 
- * @param partition Partition only on this contig
- * @param allreads 
- * @param allOverlaps 
- * @param snps 
- * @param partitions All the partitions, to be updated
- */
-void compute_consensus_in_partitions(long int contig, vector<pair<pair<int,int>, vector<int>> > &partition,  vector <Read> &allreads, vector <Overlap> &allOverlaps, 
-    vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPositions,
-    std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, std::string>>  > >> &partitions){
-
-
-    //define map bases2content
-    robin_hood::unordered_flat_map<char, short> bases2content = {{'A', 0}, {'C', 1}, {'G', 2}, {'T', 3}, {'-', 4}, {' ', 5}};
-    //get the sequence of contig
-    string contigSequence = allreads[contig].sequence_.str();
-
-    int n = 0;
-    for (auto interval : partition){
-
-        std::unordered_map <int, string> consensus_sequences; //consensus sequence of group int on this interval
-
-        //be careful around homopolymers, there may be several equivalent alignments
-        char currentBase = contigSequence[interval.first.first];
-        std::unordered_map<int, int> numberOfDeletionsInHomopolymer;
-        for (auto cluster: interval.second){
-            numberOfDeletionsInHomopolymer[cluster] = 0;
-        }
-
-        //create a map associating each cluster to the number of reads of this cluster
-        std::unordered_map<int, int> numberOfReadsInCluster;
-        for (auto cluster: interval.second){
-            numberOfReadsInCluster[cluster] = 0;
-        }
-        for (auto cluster: interval.second){
-            numberOfReadsInCluster[cluster] += 1;
-        }
-
-        //iterate through the snps in this interval
-        for (auto position = interval.first.first ; position <= interval.first.second ; position++){
-
-            std::unordered_map <int, vector<int>> basesForEachCluster; //count the number of bases for each cluster on this interval
-            for (auto cluster: interval.second){
-                basesForEachCluster[cluster] = vector<int> (5, 0);
-            }
-
-            //look at what base is normal for each group
-            for (int r = 0 ; r < snps[position].readIdxs.size() ; r++){
-                int read = snps[position].readIdxs[r];
-                
-                if (snps[position].content[r] != ' '){
-                    basesForEachCluster[interval.second[read]][bases2content[snps[position].content[r]]] += 1;
-                }
-            }
-
-            if (contigSequence[position] == currentBase){ //we are in a homopolymer
-                //if we are in a homopolymer, we need to count the number of deletions in the homopolymer (so that it can maybe compensate an insertion)
-                for (auto cluster : numberOfDeletionsInHomopolymer){
-                    numberOfDeletionsInHomopolymer[cluster.first] += basesForEachCluster[cluster.first][bases2content['-']];
-                    //cluster size is the number of reads for which interval.second[read] == cluster.first
-                    int clusterSize = numberOfReadsInCluster[cluster.first];
-                    //if the number of deletions is too high, this base is a deletion (even though the deletions may be spread over several positions of the homopolymer)
-                    if (numberOfDeletionsInHomopolymer[cluster.first] > clusterSize/2){
-                        basesForEachCluster[cluster.first][bases2content['-']] += clusterSize; //making sure a deletion is chosen
-                        numberOfDeletionsInHomopolymer[cluster.first] -= clusterSize;
-                    }
-                }
-            }
-            else{
-                //set the number of deletions in homopolymer to the deletions at this position
-                for (auto cluster : numberOfDeletionsInHomopolymer){
-                    numberOfDeletionsInHomopolymer[cluster.first] = basesForEachCluster[cluster.first][bases2content['-']];
-                }
-            }
-
-            //for all clusters, also add the base of contigSequence to basesForEachCluster to be sure there are no empty positions
-            for (auto cluster : basesForEachCluster){
-                basesForEachCluster[cluster.first][bases2content[contigSequence[position]]] += 3;
-            }
-
-            //find the index of highest base in basesForEachCluster
-            for (auto cluster : basesForEachCluster){
-                auto maxIterator = std::max_element(cluster.second.begin(), cluster.second.end());
-                auto d = std::distance(cluster.second.begin() , maxIterator );
-                if (d != 4){ //do not add a base if it is a gap
-                    consensus_sequences[cluster.first] += "ACGT"[std::distance(cluster.second.begin() , maxIterator )];
-                    // cout << "adding " << "ACGT"[std::distance(cluster.second.begin() , maxIterator )] << " to cluster " << cluster.first << " " << position << endl;
-                }
-            }
-
-            //also iterate through the insertions 
-            int i = 0;
-            while (insertionPositions.find(10000*position+i) != insertionPositions.end() && i<10000){
-                int pos = insertionPositions[10000*position+i];
-                for (auto cluster: interval.second){
-                    basesForEachCluster[cluster] = vector<int> (5, 0);
-                }
-                //look at what base is normal for each group
-                for (int r = 0 ; r < snps[pos].readIdxs.size() ; r++){
-                    int read = snps[pos].readIdxs[r];
-                    
-                    if (snps[pos].content[r] != ' '){
-                        basesForEachCluster[interval.second[read]][bases2content[snps[pos].content[r]]] += 1;
-                    }
-                }
-                //find the index of highest base in basesForEachCluster
-                for (auto cluster : basesForEachCluster){
-                    auto maxIterator = std::max_element(cluster.second.begin(), cluster.second.end());
-                    auto d = std::distance(cluster.second.begin() , maxIterator );
-                    if (d != 4){ //do not add a base if it is a gap
-                        consensus_sequences[cluster.first] += "ACGT"[std::distance(cluster.second.begin() , maxIterator )];
-                        // cout << "inserfqdqseting pheraps : " << "ACGT"[std::distance(cluster.second.begin() , maxIterator )] << " to cluster " << cluster.first << " " << position << endl;
-                    }
-                }
-                i+=1;
-            }
-        }
-
-        // for (auto cluster : consensus_sequences){
-        //     cout << "consensus qsequeoeznce: " << cluster.first << " : " << cluster.second << endl;
-        // }
-        //add the consensus sequences to the partitions
-        partitions[contig].push_back(make_pair(interval.first, make_pair(interval.second, consensus_sequences)));
-        n += 1;
-
-        // if (n == partition.size()){
-        //     cout << "here are the partitiaeraezons for contig " << allreads[contig].name << " : " << endl;
-        //     //print interval.second
-        //     for (auto a : interval.second){
-        //         cout << a << " ";
-        //     }
-        //     cout << endl;
-        //     cout << "done with contig " << allreads[contig].name << " " << consensus_sequences[2] << endl;
-        //     while(true){};
-        // }
-
-    }
 }
 
 

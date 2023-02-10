@@ -555,7 +555,7 @@ void Partition::strengthen_partition(Partition &p){
         while (preads[n] < readIdx[n1] && n < preads.size()){
             n++;
         }
-        if (preads[n] == readIdx[n1]){
+        if (preads[n] == readIdx[n1] && (ppartition[n] == 1 || ppartition[n] == -1)){
             if (ppartition[n] == -mostFrequentBases[n1]){
                 phase -= 1;
             }
@@ -583,10 +583,12 @@ void Partition::strengthen_partition(Partition &p){
             n++;
         }
         if (preads[n] == readIdx[n1]){
-            if (mostFrequentBases[n1] == 0 || ((allConfidences[n1] < 0.8 || numberOfOccurences < 5) && (pconf[n]>0.7 && p.number()>5))){
-                mostFrequentBases[n1] = ppartition[n];
-                moreFrequence[n1] = pmore[n];
-                lessFrequence[n1] = pless[n];
+            if (mostFrequentBases[n1] != -2){
+                if (mostFrequentBases[n1] == 0 || ((allConfidences[n1] < 0.8 || numberOfOccurences < 5) && (pconf[n]>0.7 && p.number()>5))){
+                    mostFrequentBases[n1] = ppartition[n];
+                    moreFrequence[n1] = pmore[n];
+                    lessFrequence[n1] = pless[n];
+                }
             }
             n++;
         }
@@ -730,13 +732,16 @@ void Partition::print(){
 
     while(it != readIdx.end()){
         if (*it > c){
-            // cout << " ";
+            cout << " ";
         }
         else{
             auto ch = mostFrequentBases[n];
-            if (moreFrequence[n] <= 2){
-                cout << " ";
+            if (ch == -2){
+                cout << "_";
             }
+            // else if (moreFrequence[n] <= 2){
+            //     cout << "!";
+            // }
             else if (float(moreFrequence[n])/(moreFrequence[n]+lessFrequence[n]) < 0.5){
                 cout << "!";
             }
@@ -747,16 +752,25 @@ void Partition::print(){
                 cout << 0;
             }
             else if (ch == 0){
-                // cout << " ";
+                cout << " ";
             }
             else {
-                // cout << " ";
+                cout << " ";
             }
             it++;
             n++;
         }
         c++;
     }
+
+
+    // cout << endl;
+
+    // for (auto i = 0 ; i < mostFrequentBases.size() ; i++){
+    //     if (mostFrequentBases[i] != -2){
+    //         cout << moreFrequence[i] << "," << lessFrequence[i] << " ; ";
+    //     }
+    // }
 
     cout << " " << numberOfOccurences << " " << pos_left << " <-> " << pos_right << endl;
     //compute the average confidence of positions containing -1 and of positions containing 1
@@ -820,7 +834,9 @@ int Partition::get_right(){
 //transforms all -1 in 1 and vice-versa
 void Partition::flipPartition(){
     for (auto r = 0 ; r < mostFrequentBases.size() ; r++){
-        mostFrequentBases[r] *= -1;
+        if (mostFrequentBases[r] == 1 || mostFrequentBases[r] == -1){
+            mostFrequentBases[r] *= -1;
+        }
     }
 }
 
