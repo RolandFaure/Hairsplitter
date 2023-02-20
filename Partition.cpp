@@ -28,7 +28,7 @@ Partition::Partition(){
     pos_right = -1;
 }
 
-Partition::Partition(Column& snp, int pos, vector<bool> &mask, char ref_base){
+Partition::Partition(Column& snp, int pos, vector<bool> &mask, unsigned char ref_base){
 
     pos_left = pos;
     pos_right = pos;
@@ -37,7 +37,7 @@ Partition::Partition(Column& snp, int pos, vector<bool> &mask, char ref_base){
     readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
     //count the number of different chars in the column
-    robin_hood::unordered_map<char, int> content;
+    robin_hood::unordered_map<unsigned char, int> content;
     for (int c = 0 ; c < snp.content.size() ; c++){
         if (content.find(snp.content[c]) == content.end()){
             content[snp.content[c]] = 1;
@@ -49,10 +49,10 @@ Partition::Partition(Column& snp, int pos, vector<bool> &mask, char ref_base){
 
     //now find the two most frequent char in content
 
-    char mostFrequent = ref_base;
+    unsigned char mostFrequent = ref_base;
     auto maxFrequence = content[ref_base];
     //now find the second most frequent base
-    char secondFrequent;
+    unsigned char secondFrequent;
     int maxFrequence2 = -1;
     for (auto c : content){
         if (ref_base != c.first) {
@@ -763,7 +763,6 @@ void Partition::print(){
         c++;
     }
 
-
     // cout << endl;
 
     // for (auto i = 0 ; i < mostFrequentBases.size() ; i++){
@@ -913,4 +912,25 @@ void Partition::new_corrected_partition(std::vector<short> newPartition, std::ve
     mostFrequentBases = newPartition;
     moreFrequence = more;
     lessFrequence = less;
+}
+
+
+/**
+ * @brief Print a SNP
+ * 
+ * @param snp 
+ */
+void print_snp(Column snp, vector<bool> &mask){
+    cout << snp.pos << " ";
+    for (short n = 0 ; n < snp.content.size() ; n++){
+        if (mask[snp.readIdxs[n]]){
+            if (snp.content[n] > 126){
+                cout << (unsigned char) (snp.content[n] - 80);
+            }
+            else{
+                cout << snp.content[n];
+            }
+        }
+    }
+    cout << endl;
 }

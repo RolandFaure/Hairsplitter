@@ -9,6 +9,8 @@ struct Column{
     int pos;
     std::vector<unsigned int> readIdxs;
     std::vector<unsigned char> content;
+    unsigned char ref_base;
+    unsigned char second_base;
 };
 
 //structure for the partition in an arbitrary number of clusters
@@ -27,7 +29,7 @@ class Partition {
 
 public :
     Partition(); 
-    Partition(Column &snp, int pos, std::vector<bool> &mask, char ref_base); //to initialize a binary partition
+    Partition(Column &snp, int pos, std::vector<bool> &mask, unsigned char ref_base); //to initialize a binary partition
 
     void print(); //little function to print the consensus
     std::vector<int> getReads();
@@ -75,5 +77,8 @@ private :
     int pos_left; //position of leftmost position of the partition on the consensus
     int pos_right; //position of the rightmost position of the partition on the consensus
 };
+
+void print_snp(Column snp, std::vector<bool> &mask);
+
 
 #endif

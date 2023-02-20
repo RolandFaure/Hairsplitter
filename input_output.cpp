@@ -26,7 +26,6 @@ using std::stoi;
 using std::min;
 using std::max;
 using robin_hood::unordered_map;
-using namespace std::chrono;
 
 extern long int MAX_SIZE_OF_CONTIGS;
 
@@ -181,7 +180,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 else if (fieldNb == 2){ //here is the sequence
 
                     //create contigs no longer than 100000bp to keep memory usage low
-                    nbofchunks[nameOfSequence] = ceil(field.size()/MAX_SIZE_OF_CONTIGS);
+                    nbofchunks[nameOfSequence] = field.size()/MAX_SIZE_OF_CONTIGS + 1;
                     for (chunk = 0 ; chunk < field.size() ; chunk += MAX_SIZE_OF_CONTIGS){
                         Read r(field.substr(chunk, MAX_SIZE_OF_CONTIGS));
                         r.name = nameOfSequence+"@"+std::to_string(chunk/MAX_SIZE_OF_CONTIGS);
@@ -457,8 +456,8 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 // }
 
                 //now add the overlap to all the concerned chunks of the contigs
-                int chunk1_1 = floor(pos2_1 / MAX_SIZE_OF_CONTIGS);
-                int chunk1_2 = floor(pos2_2 / MAX_SIZE_OF_CONTIGS);
+                int chunk1_1 = pos2_1 / MAX_SIZE_OF_CONTIGS;
+                int chunk1_2 = pos2_2 / MAX_SIZE_OF_CONTIGS;
                 int positionPartialMapping = pos1_1;
                 for (int chunk = chunk1_1; chunk <= chunk1_2; chunk++){
                     Overlap overlap;
@@ -500,9 +499,6 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                         positionPartialMapping = overlap.position_1_1;
                     }
 
-                    if (name1.substr(0,6) == "3_ade3"){
-                        cout << "peoaru loaded overlap : " << overlap.position_1_1 << " " << overlap.position_1_2 << endl;
-                    }
 
                     overlap.strand = positiveStrand;
                     overlap.CIGAR = cigar;
@@ -1338,7 +1334,7 @@ void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitio
 }
 */
 
-void outputGraph(std::vector<std::vector<float>> &adj,std::vector<int> &clusters, std::string fileOut){
+void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, std::string fileOut){
 
     ofstream out(fileOut);
 

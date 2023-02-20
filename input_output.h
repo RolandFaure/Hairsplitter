@@ -33,7 +33,7 @@ void output_readGroups(std::string readGroupsFile, std::vector <Read> &allreads,
 
 
 //debug functions
-void outputGraph(std::vector<std::vector<float>> &adj , std::vector<int> &clusters, std::string fileOut);
+void outputGraph(std::vector<std::vector<int>> &adj , std::vector<int> &clusters, std::string fileOut);
 void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitions, std::string id);
 void outputTruePar(Partition truePar, std::string id);
 #endif

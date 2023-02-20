@@ -5,6 +5,7 @@
 #include "Partition.h"
 #include "edlib.h"
 #include "robin_hood.h"
+#include "cluster_graph.h"
 
 #include <bindings/cpp/WFAligner.hpp>
 
@@ -112,6 +113,7 @@ std::vector <std::vector <bool>> create_masks(
 
 distancePartition distance(Partition &par1, Column &par2, char ref_base);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
+distancePartition distance(Column& col1, Column& col2);
 float computeChiSquare(distancePartition dis);
 
 std::vector<Partition> select_compatible_partitions(
@@ -133,6 +135,13 @@ std::vector<int> threadHaplotypes_in_interval(
     std::vector<Partition> &listOfFinalPartitions,
     int numberOfReads);
 
+std::vector<int> merge_wrongly_split_haplotypes(
+    std::vector<int> &clusteredReads, 
+    std::vector<Column> &snps, 
+    int chunk, 
+    std::vector<size_t> &suspectPostitions,
+    int sizeOfWindow);
+
 std::vector<int> rescue_reads(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps, 
@@ -142,5 +151,13 @@ std::vector<int> rescue_reads(
 
 bool extend_with_partition_if_compatible(std::vector<int> &alreadyThreadedHaplotypes, Partition &extension, int partitionIndex,
         std::unordered_map <int, std::pair<int,int>> &clusterLimits);//auxilliary function of threadHaplotypes
+
+void create_read_graph(
+    std::vector <bool> &mask,
+    std::vector<Column> &snps, 
+    int chunk, 
+    std::vector<size_t> &suspectPostitions,
+    int sizeOfWindow,
+    std::vector< std::vector<int>> &adjacency_matrix);
 
 #endif

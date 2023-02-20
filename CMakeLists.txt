@@ -20,6 +20,7 @@ set(TARGET_H
     clipp.h
     Variant.h
     phase_variants.h
+    rough_clustering.h
    )
 
 # Local source files here
@@ -35,6 +36,7 @@ set(TARGET_SRC
     cluster_graph.cpp
     Variant.cpp
     phase_variants.cpp
+    rough_clustering.cpp
     )
 
 include(ExternalProject)
@@ -42,7 +44,7 @@ include(ExternalProject)
 ExternalProject_Add(
     WFA
     PREFIX WFA-ext
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib/build
     BUILD_IN_SOURCE true
     LOG_BUILD ON
     CONFIGURE_COMMAND ""

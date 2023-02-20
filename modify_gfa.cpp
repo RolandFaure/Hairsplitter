@@ -261,7 +261,7 @@ void modify_GFA(
                         + interval.second.second[group.first].substr(max(0, overhang-overhangLeft), interval.second.second[group.first].size()+overhangLeft+overhangRight-2*overhang)
                         + allreads[backbone].sequence_.str().substr(interval.first.second+1+overhangRight-overhang, overhang);
 
-                    cout << "toPolisssdcvh: " << toPolish << endl;
+                    // cout << "toPolisssdcvh: " << toPolish << endl;
 
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
