@@ -158,6 +158,13 @@ void create_read_graph(
     int chunk, 
     std::vector<size_t> &suspectPostitions,
     int sizeOfWindow,
+    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
     std::vector< std::vector<int>> &adjacency_matrix);
+
+void list_similarities_and_differences_between_reads(
+    std::vector <bool> &mask,
+    std::vector<Column> &snps, 
+    std::vector<size_t> &suspectPostitions,
+    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
 
 #endif

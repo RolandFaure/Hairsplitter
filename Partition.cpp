@@ -922,7 +922,14 @@ void Partition::new_corrected_partition(std::vector<short> newPartition, std::ve
  */
 void print_snp(Column snp, vector<bool> &mask){
     cout << snp.pos << " ";
+    int maskidx = 0;
     for (short n = 0 ; n < snp.content.size() ; n++){
+        while(maskidx < snp.readIdxs[n]){
+            if (mask[maskidx]){
+                cout << "_";
+            }
+            maskidx++;
+        }
         if (mask[snp.readIdxs[n]]){
             if (snp.content[n] > 126){
                 cout << (unsigned char) (snp.content[n] - 80);
@@ -931,6 +938,7 @@ void print_snp(Column snp, vector<bool> &mask){
                 cout << snp.content[n];
             }
         }
+        maskidx++;
     }
     cout << endl;
 }

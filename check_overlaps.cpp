@@ -12,6 +12,7 @@
 #include <chrono>
 #include <iterator>
 #include <omp.h> //for efficient parallelization
+#include <map>
 
 #include "input_output.h"
 #include "tools.h"
@@ -73,7 +74,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@1@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -848,13 +849,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     float meanError = 0;
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
-    // cout << "partition dnooww: " << partitions.size() << endl;
-    // int n = 0;
-    // for (auto p : partitions){
-    //     cout << "dqdsoi " << n << " ";
-    //     p.print();
-    //     n++;
-    // }
+    cout << "partition dnooww: " << partitions.size() << endl;
+    int n = 0;
+    for (auto p : partitions){
+        cout << "dqdsoi " << n << " ";
+        p.print();
+        n++;
+    }
 
     // exit(1);
 
@@ -920,6 +921,37 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     // }
 
     //now go through windows of width 1000 along the reference and create local partitions
+
+    //list the interesting positions
+    vector<size_t> interestingPositions;
+    for (auto pos : suspectPostitions){
+        cout << "Finding suspicious position (aarc)... " << pos << "\r";
+        for (auto p = 0 ; p < partitions.size() ; p++){
+            distancePartition dis = distance(partitions[p], snps[pos], ref[pos]);
+            if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snps[pos].content.size() 
+                && computeChiSquare(dis) > 10 
+                && ((interestingPositions.size()> 0 && interestingPositions[interestingPositions.size()-1] != pos) || interestingPositions.size() == 0)){
+                // cout << "posssz : ";
+                // print_snp(snps[pos], mask_at_this_position);
+                // if (pos ==  4224){
+                //     cout << "correlationg with " << ref_base << " " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
+                //     partitions[p].print();
+                //     exit(1);
+                // }
+                
+                interestingPositions.push_back(pos);
+                break;
+            }
+        }
+    }
+    vector<vector<pair<int,int>>> sims_and_diffs (numberOfReads, vector<pair<int,int>>(numberOfReads, make_pair(0,0)));
+    list_similarities_and_differences_between_reads(no_mask, snps, interestingPositions, sims_and_diffs);
+
+    // cout << "similrities and differences computed between reads 0 and other" << endl;
+    // for (auto i : sims_and_diffs[0]){
+    //     cout << i.first << " " << i.second << endl;
+    // }
+
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
     int suspectPostitionIdx = 0;
     int sizeOfWindow = 2000;
@@ -1078,12 +1110,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
 
         //select compatible partitions
-        // vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(non_null_partitions, numberOfReads, meanError);
-        // cout << "mcopqodn sefjdoi" << endl;
-        // for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
-        //     cout << "on window " << chunk << " found coimpatdsible partition " << endl;
-        //     listOfCompatiblePartitions[p].print();
-        // }
+        vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(non_null_partitions, numberOfReads, meanError);
+        cout << "mcopqodn sefjdoi" << endl;
+        for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
+            cout << "on window " << chunk << " found coimpatdsible partition " << endl;
+            listOfCompatiblePartitions[p].print();
+        }
 
         // for (auto p : listOfCompatiblePartitions){
         //     auto content = p.getPartition();
@@ -1109,13 +1141,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
 
-        cout << "threaded reads  edfqc"  << endl;
-        for (auto r = 0 ; r < clustReads.size() ; r++){
-            if (clustReads[r] != -2){
-                cout << clustReads[r] << " ";
-            }
-        }
-        cout << endl;
+        // cout << "threaded reads  edfqc"  << endl;
+        // for (auto r = 0 ; r < clustReads.size() ; r++){
+        //     if (clustReads[r] != -2){
+        //         cout << clustReads[r] << " ";
+        //     }
+        // }
+        // cout << endl;
 
 
 
@@ -1125,17 +1157,10 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     non_null_partitions[p].print();
         // }
 
-
-
         vector<vector<int>> adjacency_matrix (mask_at_this_position.size(), vector<int>(mask_at_this_position.size(), 0));
-        create_read_graph(mask_at_this_position, snps, chunk, interestingPositions, sizeOfWindow, adjacency_matrix);
+        create_read_graph(mask_at_this_position, snps, chunk, interestingPositions, sizeOfWindow, sims_and_diffs, adjacency_matrix);
         vector<int> clusteredReads = chinese_whispers(adjacency_matrix);
         // clusteredReads = clustReads;
-
-        // if (chunk == 4){
-        //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
-        //     exit(1);
-        // }
 
         // find all clusters that have a size < 5 and give them a -1 cluster, so they can be rescued later
         unordered_map<int, int> clusterSizes;
@@ -1148,28 +1173,28 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
         for (auto r = 0 ; r < clusteredReads.size() ; r++){
-            if (clusterSizes[clusteredReads[r]] < 5){
+            if (clusterSizes[clusteredReads[r]] < 5 && clusteredReads[r] != -2){
                 clusteredReads[r] = -1;
             }
         }
 
-        cout << "clustereReads : " << endl;
-        for (auto r : clusteredReads){
-            if (r > -1){
-                cout << r <<" ";
-            }
-        }
-        cout << endl;
+        // cout << "clustereReads : " << endl;
+        // for (auto r : clusteredReads){
+        //     if (r > -10){
+        //         cout << r <<" ";
+        //     }
+        // }
+        // cout << endl;
 
         vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, sizeOfWindow);
 
-        cout << "merged haploitypes : " << endl;
-        for (auto h : mergedHaplotypes){
-            if (h != -1){
-                cout << h << " ";
-            }
-        }
-        cout << endl;
+        // cout << "merged haploitypes : " << endl;
+        // for (auto h : mergedHaplotypes){
+        //     if (h != -1){
+        //         cout << h << " ";
+        //     }
+        // }
+        // cout << endl;
 
         //clustered reads represent subsets of reads that have never been separated in no partition
         //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
@@ -1179,16 +1204,21 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         cout << "haploutypes : " << chunk << endl;
         for (auto h : haplotypes){
-            if (h != -1){
-                cout << h << " ";
+            if (h > -1){
+                cout << h;
             }
+            // else{
+            //     cout << "_";
+            // }
         }
         cout << endl;
 
-        if (chunk == 20){
+        if (chunk == 4){
             outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
             exit(1);
         }
+
+        // cout << "already separated qldfjp : " << endl;
 
 
         threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), haplotypes));
@@ -1271,6 +1301,9 @@ vector<Partition> get_solid_partitions(std::string& ref,
             suspectPostitionsHere.push_back(position);
 
             // cout << "iouocxccv " << threshold << " " << position << " ;bases : " << content[0] << " " << content[1] << " " << content[2] << " " << content[3] << " " << content[4] << endl;
+            // cout << "fmqjldqmjl " << endl;
+            // print_snp(snps[position], mask);
+
             char ref_base;
             if (position < ref.size()){
                 ref_base = ref[position];
@@ -1309,6 +1342,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
                 }
                 distancePartition dis = distance(partitions[p], snp, ref_base);
                 auto comparable = dis.n00 + dis.n11 + + dis.n01 + dis.n10;
+
 
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                 if (dis.n01 < 0.1 * (dis.n00+dis.n01) && dis.n10 < 0.1 * (dis.n11+dis.n10) && comparable >= snp.readIdxs.size()/2){
@@ -1451,9 +1485,10 @@ vector<Partition> get_solid_partitions(std::string& ref,
     //     }
     // }
 
+    // cout << "qlkfjdjql" << endl;
     // int n = 0;
     // for (auto p : partitions){
-    //     if (p.number() > 5){
+    //     if (p.number() > 2){
     //         cout << n << " ";
     //         p.print();
     //     }
@@ -1469,13 +1504,13 @@ vector<Partition> get_solid_partitions(std::string& ref,
     }
 
     
-    float threshold =  max(4.0, min(0.01*numberOfSuspectPostion, 0.001*snps.size()));
+    float threshold =  4;
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
 
         // if (partitions[p1].number() > 5){
-        //     cout << "iqdoudofq non informative partition : "  << p1 << " " << snps.size()<< endl;
+        //     cout << "iqdoudofq non informative partition : "  << p1 << " " << snps.size() << " " << partitions[p1].isInformative(true) << endl;
         //     partitions[p1].print();
         // }
         
@@ -1523,6 +1558,8 @@ vector<Partition> get_solid_partitions(std::string& ref,
             }
         }
     }
+
+    cout << "jqjlk num of partitions : " << listOfFinalPartitions.size() << endl;
 
     //select only compatible partitions. In the worst case scenario, trashed partitions will be recovered when masking on the next iteration
     vector<Partition> compatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanError);
@@ -2399,8 +2436,6 @@ vector<Partition> select_compatible_partitions(vector<Partition> &partitions, in
     }
     
     vector<Partition> compatiblePartitions;
-
-    // if (DEBUG){cout << "compatible partitions : " << endl;}
     for (auto p = 0 ; p < partitions.size(); p++){
         if (compatibles[p]){
             compatiblePartitions.push_back(partitions[p]);
@@ -3413,9 +3448,9 @@ std::vector<int> rescue_reads(
     }
 
     //go through the reads and classify them
-    vector <int> haplotypes (clusteredReads.size(), -1);
+    vector <int> haplotypes = clusteredReads;
     for (auto read = 0 ; read < clusteredReads.size() ; read++){
-        if (clusteredReads[read] != -2){
+        if (clusteredReads[read] == -1){
             unordered_map<int, bool> in_this_cluster;
             for (auto group : listOfGroups){
                 in_this_cluster[group] = false;
@@ -3665,95 +3700,43 @@ void create_read_graph(
     int chunk, 
     std::vector<size_t> &suspectPostitions,
     int sizeOfWindow,
+    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
     std::vector< std::vector<int>> &adjacency_matrix){
 
     set<int> listOfGroups;
     int max_cluster = 0;
     unordered_map<int, int> indexOfGroups;
 
-    vector<vector<int>> imcompatibilities (mask.size(), vector<int> (mask.size(), 0));
-    vector<vector<int>> compatibilities (mask.size(), vector<int> (mask.size(), 0));
-
-    for (auto position : suspectPostitions){
-        if (position >= chunk*sizeOfWindow && position < (chunk+1)*sizeOfWindow){
-
-            //what bases occur in which cluster ?
-            unordered_map<unsigned char,int> bases_in_total;
-            for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
-                unsigned char base = snps[position].content[r];
-                bases_in_total[base]++;
-            }
-
-            // cout << "posoiicie ";
-            // print_snp(snps[position], mask);
-
-            int idx1 = 0;
-            for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
-                if (mask[read1]){
-                    while (idx1 < snps[position].readIdxs.size() && snps[position].readIdxs[idx1] < read1){
-                        idx1++;
-                    }
-                    if (idx1 > snps[position].readIdxs.size() || snps[position].readIdxs[idx1] != read1){
-                        cout << "error in read graph creation, code: jjuey" << endl;
-                        exit(1);
-                    }
-                    unsigned char base1 = snps[position].content[idx1];
-
-                    int idx2 = idx1+1;
-                    for (int read2 = read1+1 ; read2 < mask.size() ; read2 ++){
-                        if (mask[read2]){
-                            while (idx2 < snps[position].readIdxs.size() && snps[position].readIdxs[idx2] < read2){
-                                idx2++;
-                            }
-                            unsigned char base2 = snps[position].content[idx2];
-
-                            // if (read1 == 873 && read2 == 2231){
-                            //     cout << "posoiicie ";
-                            //     print_snp(snps[position], mask);
-                            //     cout << "baddese1 " << base1 << " " << bases_in_total[base1] << " base2 " << base2 << " " << bases_in_total[base2] << endl;
-                            // }
-
-                            if (bases_in_total[base1] > 4 && bases_in_total[base2] > 4 && base1 != base2){
-                                imcompatibilities[read1][read2]++;
-                                imcompatibilities[read2][read1]++;
-                            }
-                            else if (bases_in_total[base1] > 4 && bases_in_total[base2] > 4 && base1 == base2){
-                                compatibilities[read1][read2]++;
-                                compatibilities[read2][read1]++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
     for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
         if (mask[read1]){
             vector <float> distance_with_other_reads (mask.size(), 0);
             int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && compatibilities[read1][r] > 0){
-                    distance_with_other_reads[r] = 1 - float(imcompatibilities[read1][r]) / float(compatibilities[read1][r]+imcompatibilities[read1][r]);
-                    if (compatibilities[read1][r] > max_compat){
-                        max_compat = compatibilities[read1][r];
+                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first > 0){
+                    distance_with_other_reads[r] = 1 - float(sims_and_diffs[read1][r].second) / float(sims_and_diffs[read1][r].first+sims_and_diffs[read1][r].second);
+                    if (sims_and_diffs[read1][r].first > max_compat){
+                        max_compat = sims_and_diffs[read1][r].first;
                     }
                 }
             }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && compatibilities[read1][r] < 0.7*max_compat){
+                if (mask[r] && r != read1 && (sims_and_diffs[read1][r].first < 0.7*max_compat || sims_and_diffs[read1][r].first < 10)){
                     distance_with_other_reads[r] = 0;
                 }
             }
 
-            auto smallest = distance_with_other_reads; //sorted copy of distance_with_other_reads
-            sort(smallest.begin(), smallest.end(), std::greater<float>());
-            float threshold = max(smallest[min(4, (int)smallest.size()-1)], float(0.5)); //must agree on at least 80% of the positions
-
-            // if (read1 == 2231){
-            //     cout << "distantce with other reads : " << threshold << " " << endl;
+            vector<pair<int, float>> smallest;
+            for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
+                smallest.push_back(make_pair(r,distance_with_other_reads[r]));
+            }
+            //sort smallest by distance in decreasing order
+            sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
+                return a.second > b.second;
+            });
+            
+            // if (read1 == 1){
+            //     cout << "readss1 : " << read1 << endl;
             //     for (auto r = 0 ; r < distance_with_other_reads.size() ; r ++){
             //         if (mask[r]){
             //             cout << r << " " << distance_with_other_reads[r] << ", ";
@@ -3762,12 +3745,26 @@ void create_read_graph(
             //     cout << endl;
             // }
 
-            for (auto read2 = 0 ; read2 < mask.size() ; read2 ++){
-                if (mask[read2] && distance_with_other_reads[read2] >= threshold){
-                    adjacency_matrix[read1][read2] = 1;
-                    // adjacency_matrix[read2][read1] = 1;
+            int nb_of_neighbors = 0;
+            float distance_threshold = 1;
+            for (auto neighbor : smallest){
+                if (neighbor.second > 0.5 && nb_of_neighbors < 5 && mask[neighbor.first]){
+                    nb_of_neighbors++;
+                    distance_threshold = neighbor.second;
+                    adjacency_matrix[read1][neighbor.first] = 1;
+                }
+                if (sims_and_diffs[read1][neighbor.first].second > 5 && (1-neighbor.second) > 2*(1-distance_threshold)){
+                    // already_separated[read1][neighbor.first] = true;
+                    // already_separated[neighbor.first][read1] = true;
                 }
             }
+
+            // for (auto read2 = 0 ; read2 < mask.size() ; read2 ++){
+            //     if (mask[read2] && distance_with_other_reads[read2] >= threshold){
+            //         adjacency_matrix[read1][read2] = 1;
+            //         // adjacency_matrix[read2][read1] = 1;
+            //     }
+            // }
         }
     }
 
@@ -3778,5 +3775,82 @@ void create_read_graph(
     // cout << endl;
 
 }
+
+void list_similarities_and_differences_between_reads(
+    vector <bool> &mask,
+    std::vector<Column> &snps, 
+    std::vector<size_t> &suspectPostitions,
+    vector<vector<pair<int,int>>> &sims_and_diffs){
+
+    for (auto position : suspectPostitions){
+
+        // if (position <2000){
+        //     cout<< "ldjflqmj" << endl;
+        //     print_snp(snps[position], mask);
+        // }
+
+        //what bases occur in which cluster ?
+        unordered_map<unsigned char,int> bases_in_total;
+        for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+            unsigned char base = snps[position].content[r];
+            bases_in_total[base]++;
+        }
+        //find the second most frequent base
+        unsigned char second_most_frequent_base = 0;
+        int second_most_frequent_base_count = 0;
+        int most_frequent_base_count = 0;
+        for (auto b : bases_in_total){
+            if (b.second > most_frequent_base_count){
+                second_most_frequent_base = b.first;
+                second_most_frequent_base_count = most_frequent_base_count;
+                most_frequent_base_count = b.second;
+            }
+            else if (b.second > second_most_frequent_base_count){
+                second_most_frequent_base = b.first;
+                second_most_frequent_base_count = b.second;
+            }
+        }
+        
+
+        int idx1 = 0;
+        for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
+            if (mask[read1]){
+                while (idx1 < snps[position].readIdxs.size() && snps[position].readIdxs[idx1] < read1){
+                    idx1++;
+                }
+                unsigned char base1 = snps[position].content[idx1];
+
+                int idx2 = idx1+1;
+                for (int read2 = read1+1 ; read2 < mask.size() ; read2 ++){
+                    if (mask[read2]){
+                        while (idx2 < snps[position].readIdxs.size() && snps[position].readIdxs[idx2] < read2){
+                            idx2++;
+                        }
+                        unsigned char base2 = snps[position].content[idx2];
+
+                        // if (bases_in_total[base1] > second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count &&
+                        //     read1 == 2 && read2 == 83){
+                        //     cout << "posodddiicie ";
+                        //     print_snp(snps[position], mask);
+                        //     cout << "baddese1 " << base1 << " " << bases_in_total[base1] << " base2 " << base2 << " " << bases_in_total[base2] << endl;
+                        // }
+
+                        // cout << "qijdioqddsp " << bases_in_total[base1] << " " << second_most_frequent_base_count << " " << bases_in_total[base2] << " " << base1  << " "<< base2 << endl;
+
+                        if (bases_in_total[base1] == second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 != base2){
+                            sims_and_diffs[read1][read2].second++;
+                            sims_and_diffs[read2][read1].second++;
+                        }
+                        else if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 == base2){
+                            sims_and_diffs[read1][read2].first++;
+                            sims_and_diffs[read2][read1].first++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
