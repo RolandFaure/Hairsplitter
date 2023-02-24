@@ -74,7 +74,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@1@0"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -142,10 +142,14 @@ void compute_partition_on_this_contig(
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
     
-    // for (auto i = 0 ; i < par.size() ; i++) {par[i]++; }
-    // cout << "Proposed partition : " << endl;
-    // for (auto i = 0 ; i < par.size() ; i++){cout << par[i];}cout << endl;
-    // cout << endl;
+    // cout << "hereee are the dkdk partitions : " << endl;
+    // for (auto interval : par){
+    //     cout << interval.first.first << " <-> " << interval.first.second << " : " << endl;
+    //     for (auto cluster : interval.second){
+    //         cout << cluster << " ";
+    //     }
+    //     cout << endl;
+    // }
 
     //now compute the consensus for each new contig compute_consensus_in_partitions does not work with 3mers for now
     // compute_consensus_in_partitions(contig, par, allreads, allOverlaps, snps, insertionPositions, partitions);
@@ -337,8 +341,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
     wfa::WFAlignerGapAffine aligner(1,0,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
     // wfa::WFAlignerEdit aligner(wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-    // wfa::WFAlignerGapAffine2Pieces aligner (2,0,2,5,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-    // wfa::WFAlignerGapAffine2Pieces aligner (1, 0, 5, 5, 1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+
     aligner.setHeuristicNone();
 
     vector <bool> zones_of_misalignment (consensus.size(), false); //vector of booleans to keep track of which zones are sometimes terribly misaligned
@@ -358,8 +361,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
             string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
             string re = polishingReads[n].c_str();
 
-
-            // wfa::WFAlignerGapAffine aligner(4,6,2, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+            // wfa::WFAlignerGapAffine aligner(1,0,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
+            // aligner.setHeuristicNone();
             // int marginLeftEnd = std::min(int(cons.size()/4), 1000);
             // int marginRightEnd = std::min(int(re.size()/4), 1000);
             // aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
@@ -718,6 +721,10 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
  */
 string consensus_reads(string &backbone, vector <string> &polishingReads, int overhangLeft, int overhangRight, string &id){
     
+    if (polishingReads.size() == 0){
+        return backbone;
+    }
+
     system("mkdir tmp/ 2> trash.txt");
     std::ofstream outseq("tmp/unpolished_"+id+".fasta");
     outseq << ">seq\n" << backbone;
@@ -849,13 +856,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     float meanError = 0;
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, meanError, numberOfReads);
 
-    cout << "partition dnooww: " << partitions.size() << endl;
-    int n = 0;
-    for (auto p : partitions){
-        cout << "dqdsoi " << n << " ";
-        p.print();
-        n++;
-    }
+    // cout << "partition dnooww: " << partitions.size() << endl;
+    // int n = 0;
+    // for (auto p : partitions){
+    //     cout << "dqdsoi " << n << " ";
+    //     p.print();
+    //     n++;
+    // }
 
     // exit(1);
 
@@ -867,51 +874,44 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     // }
     // exit(0);
 
-    //there is a first list of patitions, now check if there are some sub-partitions that were missed
+    // there is a first list of patitions, now check if there are some sub-partitions that were missed
 
-    int numberOfNewPartitions = partitions.size();
-    vector<vector<bool>> all_masks_ever_tested; //to avoid testing the same mask twice
-    while (numberOfNewPartitions > 0){
-        numberOfNewPartitions = 0;
+    // int numberOfNewPartitions = partitions.size();
+    // vector<vector<bool>> all_masks_ever_tested; //to avoid testing the same mask twice
+    // while (numberOfNewPartitions > 0){
+    //     numberOfNewPartitions = 0;
         
-        // partitions = {partitions[0], partitions[1]};
-        vector<vector<bool>> masks = create_masks(partitions, numberOfReads, all_masks_ever_tested);
-        // cout << "qaeefzqf here are all the masks : " << endl;
-        // for (auto mask : masks){
-        //     for (int i = 0 ; i < numberOfReads ; i+=1){
-        //         cout << mask[i];
-        //     }
-        //     cout << endl;
-        // }
-        // cout << endl << endl << endl;
-        all_masks_ever_tested.insert(all_masks_ever_tested.end(), masks.begin(), masks.end());
-        for (auto mask : masks){
-            float meanErrorHere = 0;
-            vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanErrorHere, numberOfReads);
-            // cout << "mask : reads, hereeee they are:" << endl;
-            // for (int i = 0 ; i < numberOfReads ; i+=1){
-            //     cout << mask[i];
-            // }
-            // cout << endl;
-            // cout << "new partidssdstions : " << newPartitions.size() << endl;
-            // for (auto p : newPartitions){
-            //     p.print();
-            // }
-            // exit(1);
-            numberOfNewPartitions += newPartitions.size();
-            partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
-            // break;
-        }
+    //     // partitions = {partitions[0], partitions[1]};
+    //     vector<vector<bool>> masks = create_masks(partitions, numberOfReads, all_masks_ever_tested);
+    //     // cout << "qaeefzqf here are all the masks : " << endl;
+    //     // for (auto mask : masks){
+    //     //     for (int i = 0 ; i < numberOfReads ; i+=1){
+    //     //         cout << mask[i];
+    //     //     }
+    //     //     cout << endl;
+    //     // }
+    //     // cout << endl << endl << endl;
+    //     all_masks_ever_tested.insert(all_masks_ever_tested.end(), masks.begin(), masks.end());
+    //     for (auto mask : masks){
+    //         float meanErrorHere = 0;
+    //         vector<Partition> newPartitions = get_solid_partitions(ref, snps, mask, suspectPostitions, meanErrorHere, numberOfReads);
+    //         // cout << "mask : reads, hereeee they are:" << endl;
+    //         // for (int i = 0 ; i < numberOfReads ; i+=1){
+    //         //     cout << mask[i];
+    //         // }
+    //         // cout << endl;
+    //         // cout << "new partidssdstions : " << newPartitions.size() << endl;
+    //         // for (auto p : newPartitions){
+    //         //     p.print();
+    //         // }
+    //         // exit(1);
+    //         numberOfNewPartitions += newPartitions.size();
+    //         partitions.insert(partitions.end(), newPartitions.begin(), newPartitions.end());
+    //         // break;
+    //     }    
+    // }
 
-        //print all partitions
-        // cout << "here are allss the partitions : " << endl;
-        // for (auto p : partitions){
-        //     p.print();
-        // }
-                    
-    }
-
-    //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
+    // //now we have the list of final partitions : there may be several, especially if there are more than two haplotypes
 
     // if (DEBUG){
     //     cout << "final dddaaz partitions : " << partitions.size() << endl;
@@ -929,7 +929,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         for (auto p = 0 ; p < partitions.size() ; p++){
             distancePartition dis = distance(partitions[p], snps[pos], ref[pos]);
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snps[pos].content.size() 
-                && computeChiSquare(dis) > 10 
+                && computeChiSquare(dis) > 5 
                 && ((interestingPositions.size()> 0 && interestingPositions[interestingPositions.size()-1] != pos) || interestingPositions.size() == 0)){
                 // cout << "posssz : ";
                 // print_snp(snps[pos], mask_at_this_position);
@@ -944,8 +944,16 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
     }
+    cout << "listing similaritiees and differences between reads ddd ..." << endl;
     vector<vector<pair<int,int>>> sims_and_diffs (numberOfReads, vector<pair<int,int>>(numberOfReads, make_pair(0,0)));
     list_similarities_and_differences_between_reads(no_mask, snps, interestingPositions, sims_and_diffs);
+    cout << "done listing similaritiees and differences between reads ddd ..." << endl;
+
+    cout << "interesting posiaaations : " <<  endl;
+    for (auto pos : interestingPositions){
+        cout << pos << " ";
+    }
+    cout << endl;
 
     // cout << "similrities and differences computed between reads 0 and other" << endl;
     // for (auto i : sims_and_diffs[0]){
@@ -955,15 +963,18 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     vector<pair<pair<int,int>, vector<int>>> threadedReads;
     int suspectPostitionIdx = 0;
     int sizeOfWindow = 2000;
-    for (auto chunk = 0 ; chunk < ref.size()/sizeOfWindow ; chunk++){
+    for (auto chunk = 0 ; chunk < double(ref.size())/sizeOfWindow ; chunk++){
         vector<Partition> localPartitions;
 
         //only consider reads that span the whole length of the window: create a mask
         vector<bool> mask_at_this_position (numberOfReads, false); 
-        if (chunk < ref.size()/sizeOfWindow - 1){
+        if ((chunk+1)*sizeOfWindow < ref.size()){
             for (auto r : snps[(chunk+1)*sizeOfWindow].readIdxs){
                 mask_at_this_position[r] = true;
             }
+        }
+        else{
+            mask_at_this_position = no_mask;
         }
         int index = 0;
         for (auto r = 0 ; r < mask_at_this_position.size(); r++){
@@ -1004,12 +1015,14 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             localPartitions.push_back(new_partition);
         }
 
-        vector<size_t> interestingPositions;
-
         //let's see what partitions are found on the local window
         while(suspectPostitionIdx < suspectPostitions.size() && suspectPostitions[suspectPostitionIdx] < (chunk+1)*sizeOfWindow){
 
             auto pos = suspectPostitions[suspectPostitionIdx];
+            // if (pos < 4000){
+            //     cout << "her edfkju ifnfif 4000 : " << pos << endl;
+            //     print_snp(snps[pos], mask_at_this_position);
+            // }
             //find the closest partition
             for (auto p = 0 ; p < localPartitions.size() ; p++){
                 //compute the distance between the partition and the suspect position
@@ -1022,19 +1035,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                     // }
                     // cout << endl;
                     distancePartition dis = distance(partitions[p], snps[pos], ref_base);
-                    if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snps[pos].content.size() 
-                        && computeChiSquare(dis) > 10 
-                        && ((interestingPositions.size()> 0 && interestingPositions[interestingPositions.size()-1] != pos) || interestingPositions.size() == 0)){
-                        // cout << "posssz : ";
-                        // print_snp(snps[pos], mask_at_this_position);
-                        // if (pos ==  4224){
-                        //     cout << "correlationg with " << ref_base << " " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
-                        //     partitions[p].print();
-                        //     exit(1);
-                        // }
-                        
-                        interestingPositions.push_back(pos);
-                    }
 
                     if (( min(dis.n00,dis.n11) >= 5 && float(dis.n01+dis.n10)/min(dis.n00 , dis.n11) < 0.2 && dis.phased == 1) 
                         || (min(dis.n01,dis.n10) >= 5 && float(dis.n00+dis.n11)/min(dis.n01 , dis.n10) < 0.2 && dis.phased == -1)){
@@ -1111,11 +1111,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         //select compatible partitions
         vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(non_null_partitions, numberOfReads, meanError);
-        cout << "mcopqodn sefjdoi" << endl;
-        for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
-            cout << "on window " << chunk << " found coimpatdsible partition " << endl;
-            listOfCompatiblePartitions[p].print();
-        }
+        // cout << "mcopqodn sefjdoi" << endl;
+        // for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
+        //     cout << "on window " << chunk << " found coimpatdsible partition " << endl;
+        //     listOfCompatiblePartitions[p].print();
+        // }
 
         // for (auto p : listOfCompatiblePartitions){
         //     auto content = p.getPartition();
@@ -1159,8 +1159,50 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         vector<vector<int>> adjacency_matrix (mask_at_this_position.size(), vector<int>(mask_at_this_position.size(), 0));
         create_read_graph(mask_at_this_position, snps, chunk, interestingPositions, sizeOfWindow, sims_and_diffs, adjacency_matrix);
-        vector<int> clusteredReads = chinese_whispers(adjacency_matrix);
-        // clusteredReads = clustReads;
+        vector<int> clustersStart (adjacency_matrix.size(), 0);
+        for (auto r = 0 ; r < adjacency_matrix.size() ; r++){
+            clustersStart[r] = r;
+        }
+        vector<int> clusteredReads = chinese_whispers(adjacency_matrix, clustersStart);
+
+        vector<vector<int>> localClusters = {clusteredReads};
+
+        for (auto position : interestingPositions){
+            if (position >= chunk && position < chunk + sizeOfWindow){
+                // cout << "in dldjk position " << position << " : " << endl;
+                // print_snp(snps[position], mask_at_this_position);
+
+                unordered_map<unsigned char, int> charToIndex;
+                vector<int> clustersStart2 (adjacency_matrix.size(), 0);
+                for (auto r = 0 ; r < adjacency_matrix.size() ; r++){
+                    clustersStart2[r] = r;
+                }
+                for (auto r = 0 ; r < snps[position].content.size() ; r++){
+                    if (mask_at_this_position[snps[position].readIdxs[r]] == true){
+                        if (charToIndex.find(snps[position].content[r]) == charToIndex.end()){
+                            charToIndex[snps[position].content[r]] = snps[position].readIdxs[r];
+                        }
+                        int indexHere = charToIndex[snps[position].content[r]];
+                        clustersStart2[snps[position].readIdxs[r]] = indexHere;
+                    }
+                }
+
+                vector<int> clusteredReads_local = chinese_whispers(adjacency_matrix, clustersStart2); 
+                localClusters.push_back(clusteredReads_local);
+
+                // cout << "clustered reads local : " << endl;
+                // for (auto r = 0 ; r < clusteredReads_local.size() ; r++){
+                //     // if (mask_at_this_position[r] == true){
+                //         cout << clusteredReads_local[r] << " ";
+                //     // }
+                // }
+                cout << endl;
+            }         
+        }
+
+        auto new_clusters = merge_clusterings(localClusters, adjacency_matrix);
+        clusteredReads = new_clusters;
+
 
         // find all clusters that have a size < 5 and give them a -1 cluster, so they can be rescued later
         unordered_map<int, int> clusterSizes;
@@ -1180,7 +1222,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         // cout << "clustereReads : " << endl;
         // for (auto r : clusteredReads){
-        //     if (r > -10){
+        //     if (r > -1){
         //         cout << r <<" ";
         //     }
         // }
@@ -1213,7 +1255,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
         cout << endl;
 
-        if (chunk == 4){
+        if (chunk == 0){
             outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
             exit(1);
         }
@@ -1221,7 +1263,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         // cout << "already separated qldfjp : " << endl;
 
 
-        threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, (chunk+1)*sizeOfWindow-1), haplotypes));
+        threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min((chunk+1)*sizeOfWindow-1, int(ref.size()-1))), haplotypes));
 
     }
     return threadedReads;
@@ -1504,7 +1546,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
     }
 
     
-    float threshold =  4;
+    float threshold = 4;
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
@@ -1559,7 +1601,7 @@ vector<Partition> get_solid_partitions(std::string& ref,
         }
     }
 
-    cout << "jqjlk num of partitions : " << listOfFinalPartitions.size() << endl;
+    // cout << "jqjlk num of partitions : " << listOfFinalPartitions.size() << endl;
 
     //select only compatible partitions. In the worst case scenario, trashed partitions will be recovered when masking on the next iteration
     vector<Partition> compatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanError);
@@ -1582,6 +1624,10 @@ vector<Partition> get_solid_partitions(std::string& ref,
         }
     }
     suspectPostitions = newSuspectPositions;
+
+    if (compatiblePartitions.size() > 0 && compatiblePartitions[0].number() < min(min(15.0, 0.01*suspectPostitions.size()), 0.01*(compatiblePartitions[0].get_right()-compatiblePartitions[0].get_left()))){
+        return vector<Partition>();
+    }
 
     return compatiblePartitions;
     
@@ -2986,7 +3032,8 @@ std::vector<int> merge_wrongly_split_haplotypes(
     vector<vector<bool>> imcompatibilities (listOfGroups.size(), vector<bool> (listOfGroups.size(), false));
 
     if (listOfGroups.size() <= 1){
-        return clusteredReads;
+        vector <int> one_cluster (clusteredReads.size(), 0);
+        return one_cluster;
     }
 
     //vector associating to each read how many times it is excluded from each cluster
@@ -3030,13 +3077,26 @@ std::vector<int> merge_wrongly_split_haplotypes(
             //count the majority base of each cluster at this position
             set <unsigned char> maxbases;
             for (auto cluster : bases_in_each_cluster){
-                int max = nb_bases_in_each_cluster[cluster.first]/2; //at leash half the bases need to agree
+                int secondMax = 0;
+                int max = 0; //at leash 60% the bases need to agree
                 char maxBase = ' ';
                 for (auto base : cluster.second){
                     if (base.second >= max){
                         maxBase = base.first;
+                        secondMax = max;
                         max = base.second;
                     }
+                    else if (base.second > secondMax){
+                        secondMax = base.second;
+                    }
+                }
+                if (secondMax*2 > max || nb_bases_in_each_cluster[cluster.first]*0.5 > max){
+                    maxBase = ' ';
+                    // cout << "secondMax: " << secondMax << " max: " << max << endl;
+                    // cout << "bases_in_each_cluster[cluster.first] :" << endl;
+                    // for (auto base : bases_in_each_cluster[cluster.first]){
+                    //     cout << base.first << " " << base.second << endl;
+                    // }
                 }
                 cluster_to_majority_base[cluster.first] = maxBase;
                 if (maxBase != ' '){
@@ -3047,6 +3107,12 @@ std::vector<int> merge_wrongly_split_haplotypes(
                 continue;
             }
 
+            // if (chunk == 1){
+            //     cout << "chqhiuà " << position << endl;
+            //     vector<bool> no_mask(clusteredReads.size(), true);
+            //     print_snp(snps[position],no_mask );
+            // }
+
             for (auto group1 : listOfGroups){
                 for (auto group2 : listOfGroups){
                     if (cluster_to_majority_base[group1] != ' ' && cluster_to_majority_base[group2] != ' '){
@@ -3054,40 +3120,40 @@ std::vector<int> merge_wrongly_split_haplotypes(
                             imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] = true;
                             imcompatibilities[indexOfGroups[group2]][indexOfGroups[group1]] = true;
 
-                            // if (group1 == 1035 && group2 == 1032){
-                            //     cout << "incompatibility btw " << group1 << " and " << group2  << "at position " << position << endl;
-                            //     cout << cluster_to_majority_base[group1] << " " << cluster_to_majority_base[group2] << endl;
-                            //     cout << "bases in each cluster group1 " << endl;
-                            //     for (auto base : bases_in_each_cluster[group1]){
-                            //         cout << base.first << " " << base.second << endl;
-                            //     }
-                            //     cout << "bases in each cluster group2 " << endl;
-                            //     for (auto base : bases_in_each_cluster[group2]){
-                            //         cout << base.first << " " << base.second << endl;
-                            //     }
-                            //     cout << "eecddxww " << endl;
-                            //     int nr = 0;
-                            //     for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
-                            //         int read = snps[position].readIdxs[r];
-                            //         while (nr < read){
-                            //             if (clusteredReads[nr] >= 0){
-                            //                 cout << " ";
-                            //             }
-                            //             nr += 1;
-                            //         }
-                            //         if (clusteredReads[nr] >= 0){
-                            //             unsigned char c = snps[position].content[r];
-                            //             if (c > 126){
-                            //                 cout << (unsigned char) (c - 80);
-                            //             }
-                            //             else{
-                            //                 cout << (unsigned char) c;
-                            //             }
-                            //         }
-                            //         nr += 1;
-                            //     }
-                            //     cout << endl;
-                            // }
+                            if (group1 == 7 && group2 == 94){
+                                cout << "incompatibility btw " << group1 << " and " << group2  << "at position " << position << endl;
+                                cout << cluster_to_majority_base[group1] << " " << cluster_to_majority_base[group2] << endl;
+                                cout << "bases in each cluster group1 " << endl;
+                                for (auto base : bases_in_each_cluster[group1]){
+                                    cout << base.first << " " << base.second << endl;
+                                }
+                                cout << "bases in each cluster group2 " << endl;
+                                for (auto base : bases_in_each_cluster[group2]){
+                                    cout << base.first << " " << base.second << endl;
+                                }
+                                cout << "eecddxww " << endl;
+                                int nr = 0;
+                                for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+                                    int read = snps[position].readIdxs[r];
+                                    while (nr < read){
+                                        if (clusteredReads[nr] >= 0){
+                                            cout << " ";
+                                        }
+                                        nr += 1;
+                                    }
+                                    if (clusteredReads[nr] >= 0){
+                                        unsigned char c = snps[position].content[r];
+                                        if (c > 126){
+                                            cout << (unsigned char) (c - 80);
+                                        }
+                                        else{
+                                            cout << (unsigned char) c;
+                                        }
+                                    }
+                                    nr += 1;
+                                }
+                                cout << endl;
+                            }
                         }
                     }
                 }
@@ -3110,6 +3176,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
     old_group_to_new_group[-1] = -1;
     old_group_to_new_group[-2] = -2;
     vector <set <int> > new_groups;
+
 
     for (auto group : listOfGroups){
         bool merge = false;
@@ -3137,6 +3204,10 @@ std::vector<int> merge_wrongly_split_haplotypes(
             new_groups.push_back(new_group);
         }
     }
+    // cout << "old_group_to_new_group ddrr :" << endl;
+    // for (auto group : listOfGroups){
+    //     cout << group << " " << old_group_to_new_group[group] << endl;
+    // }
 
     vector <int> new_clustered_reads (clusteredReads.size(), -1);
     for (auto read = 0 ; read < clusteredReads.size() ; read++){
@@ -3720,11 +3791,24 @@ void create_read_graph(
                 }
             }
 
+            // if (read1 == 5){
+            //     cout << "ddqfhhe distance of 133 to other reads: " << endl;
+            //     for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
+            //         if (mask[r] && r != read1){
+            //             cout << r << " " << distance_with_other_reads[r] << endl;
+            //         }
+            //     }
+            //     cout << endl;
+            //     // cout << "sims and diffffsss between 133 and 43 : " << sims_and_diffs[read1][43].first << " " << sims_and_diffs[read1][43].second << " " << distance_with_other_reads[43]<< endl;
+            //     // cout << "sims and diffffsss between 133 and 141 : " << sims_and_diffs[read1][141].first << " " << sims_and_diffs[read1][141].second << " " << distance_with_other_reads[141] << endl;
+            // }
+
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && (sims_and_diffs[read1][r].first < 0.7*max_compat || sims_and_diffs[read1][r].first < 10)){
+                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < 5){
                     distance_with_other_reads[r] = 0;
                 }
             }
+
 
             vector<pair<int, float>> smallest;
             for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
@@ -3775,12 +3859,25 @@ void create_read_graph(
     // cout << endl;
 
 }
-
+/**
+ * @brief Compute all the diverging and converging snp between the reads on suspect positions
+ * 
+ * @param mask 
+ * @param snps 
+ * @param suspectPostitions 
+ * @param sims_and_diffs 
+ */
 void list_similarities_and_differences_between_reads(
     vector <bool> &mask,
     std::vector<Column> &snps, 
     std::vector<size_t> &suspectPostitions,
     vector<vector<pair<int,int>>> &sims_and_diffs){
+
+    set<int> debug_interesting_reads = {-2, -1, 41, 43, 133};
+    std::unordered_map<int, string> debug_strings;
+    for (auto r : debug_interesting_reads){
+        debug_strings[r] = "";
+    }
 
     for (auto position : suspectPostitions){
 
@@ -3796,20 +3893,25 @@ void list_similarities_and_differences_between_reads(
             bases_in_total[base]++;
         }
         //find the second most frequent base
-        unsigned char second_most_frequent_base = 0;
+        unsigned char second_most_frequent_base = ' ';
+        unsigned char most_frequent_base = ' ';
         int second_most_frequent_base_count = 0;
         int most_frequent_base_count = 0;
         for (auto b : bases_in_total){
             if (b.second > most_frequent_base_count){
-                second_most_frequent_base = b.first;
+                second_most_frequent_base = most_frequent_base;
                 second_most_frequent_base_count = most_frequent_base_count;
                 most_frequent_base_count = b.second;
+                most_frequent_base = b.first;
             }
             else if (b.second > second_most_frequent_base_count){
                 second_most_frequent_base = b.first;
                 second_most_frequent_base_count = b.second;
             }
         }
+
+        debug_strings[-2] += second_most_frequent_base;
+        debug_strings[-1] += most_frequent_base;
         
 
         int idx1 = 0;
@@ -3818,6 +3920,22 @@ void list_similarities_and_differences_between_reads(
                 while (idx1 < snps[position].readIdxs.size() && snps[position].readIdxs[idx1] < read1){
                     idx1++;
                 }
+                if (snps[position].readIdxs[idx1] > read1){
+                    if (debug_interesting_reads.find(read1) != debug_interesting_reads.end()){
+                        debug_strings[read1] += " ";
+                    }
+                    continue;
+                }
+                else{
+                    if (debug_interesting_reads.find(read1) != debug_interesting_reads.end()){
+                        if (bases_in_total[snps[position].content[idx1]] >= second_most_frequent_base_count){
+                            debug_strings[read1] += snps[position].content[idx1];
+                        }
+                        else{
+                            debug_strings[read1] += " ";
+                        }
+                    }
+                }
                 unsigned char base1 = snps[position].content[idx1];
 
                 int idx2 = idx1+1;
@@ -3825,6 +3943,9 @@ void list_similarities_and_differences_between_reads(
                     if (mask[read2]){
                         while (idx2 < snps[position].readIdxs.size() && snps[position].readIdxs[idx2] < read2){
                             idx2++;
+                        }
+                        if (snps[position].readIdxs[idx2] > read2){
+                            continue;
                         }
                         unsigned char base2 = snps[position].content[idx2];
 
@@ -3844,12 +3965,66 @@ void list_similarities_and_differences_between_reads(
                         else if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 == base2){
                             sims_and_diffs[read1][read2].first++;
                             sims_and_diffs[read2][read1].first++;
+                            if (base1 == second_most_frequent_base){ //this is very strong signal
+                                sims_and_diffs[read1][read2].first+= 2;
+                                sims_and_diffs[read2][read1].first+= 2;
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    // cout << "eieieii here are the reads on the interesting positions" << endl;
+    // for (auto r : debug_interesting_reads){
+    //     cout << debug_strings[r] << " " << r << endl;
+    // }
+    // cout << "sims and diffs between reads 41, 43, 133" << endl;
+    // cout << "41 43 " << sims_and_diffs[41][43].first << " " << sims_and_diffs[41][43].second << endl;
+    // cout << "41 133 " << sims_and_diffs[41][133].first << " " << sims_and_diffs[41][133].second << endl;
+    // cout << "43 133 " << sims_and_diffs[43][133].first << " " << sims_and_diffs[43][133].second << endl;
+}
+
+std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
+    std::vector< std::vector<int>> &adjacency_matrix){
+
+    vector<double> clusters_aggregated(localClusters[0].size(), 0);
+    for (auto i = 0 ; i < localClusters.size() ; i++){
+        for (auto j = 0 ; j < localClusters[i].size() ; j++){
+            clusters_aggregated[j] += localClusters[i][j]*(std::hash<int>()(i) % 1000);
+        }
+    }
+
+    unordered_map<double, int> clusters_aggregated_map;
+    vector<int> cluster_aggregated_ints;
+    int index = 0;
+    for (auto i = 0 ; i < clusters_aggregated.size() ; i++){
+        if (clusters_aggregated_map.find(clusters_aggregated[i]) == clusters_aggregated_map.end()){
+            clusters_aggregated_map[clusters_aggregated[i]] = index;
+            cluster_aggregated_ints.push_back(index);
+            index++;
+        }
+        else{
+            cluster_aggregated_ints.push_back(clusters_aggregated_map[clusters_aggregated[i]]);
+        }
+    }
+
+    cout << "cluster_aggregated_ints : " << endl;
+    for (auto i = 0 ; i < cluster_aggregated_ints.size() ; i++){
+        cout << cluster_aggregated_ints[i] << " ";
+    }
+    cout << endl;
+
+    auto re_clustered = chinese_whispers(adjacency_matrix, cluster_aggregated_ints);
+
+    cout << "re_clustered : " << endl;
+    for (auto i = 0 ; i < re_clustered.size() ; i++){
+        cout << re_clustered[i] << " ";
+    }
+    cout << endl;
+
+    return re_clustered;
 }
 
 

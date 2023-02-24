@@ -222,6 +222,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
             }
         }
 
+
         if (line[0] == 'L'){
             
             string field;
@@ -238,7 +239,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     }
                     else if (fieldNb == 2){ //here is the sequence
                         if (field == "+"){
-                            link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1])];
+                            link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1]-1)];
                             link.end1 = 1;
                         }
                         else if (field == "-"){
@@ -259,7 +260,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                             link.end2 = 0;
                         }
                         else if (field == "-"){
-                            link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2])];
+                            link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2]-1)];
                             link.end2 = 1;
                         }
                         else{
@@ -277,6 +278,9 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 allLinks.push_back(link);
                 allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
                 allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);
+                // cout << line << endl;
+                // cout << "Link beddtween " << name1 << " " << name2 << endl;
+                // cout << "Link beddtween " << allreads[link.neighbor1].name << " and " << allreads[link.neighbor2].name << endl;
             }
             catch(...){
                 cout << "Problem while reading your GFA file. Please ensure all 'L' lines are below 'S' lines" << endl;
@@ -1042,7 +1046,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 int inter = 0;
                 for (auto interval : partitions[backbone]){
 
-                    if (interval.second.first[n] != -1 && stop < 2){
+                    if (interval.second.first[n] > -1 && stop < 2){
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));
                         if (inter == 0){
@@ -1355,6 +1359,26 @@ void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, 
         }
         
     }
+}
+
+/**
+ * @brief Output graph in simple format (src dest)
+ * 
+ * @param adj 
+ * @param fileOut 
+ */
+void output_simple_graph(std::vector<std::vector<int>> &adj, std::string fileOut){
+    
+        ofstream out(fileOut);
+    
+        for (auto i = 0 ; i < adj.size() ; i++){
+            for (auto j=0 ; j < adj[i].size(); j++){
+                if (adj[i][j] > 0){
+                    out << i << " " << j << "\n";
+                }
+            }
+        }
+        out.close();
 }
 
 

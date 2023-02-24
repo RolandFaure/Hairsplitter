@@ -167,4 +167,7 @@ void list_similarities_and_differences_between_reads(
     std::vector<size_t> &suspectPostitions,
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
 
+std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
+    std::vector< std::vector<int>> &adjacency_matrix);
+
 #endif

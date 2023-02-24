@@ -121,12 +121,14 @@ void modify_GFA(
                         all_contigs_left.emplace(a);
                     }
                     all_contigs_left.erase(-1);
+                    all_contigs_left.erase(-2);
 
                     set<int> all_contigs_right;
                     for (int a : partitions[backbone][n].second.first){
                         all_contigs_right.emplace(a);
                     }
                     all_contigs_right.erase(-1);
+                    all_contigs_right.erase(-2);
 
                     for (auto s : stitchLeft){
                         if (s.second.size() == 0){
@@ -216,7 +218,7 @@ void modify_GFA(
 
                 //taking exactly the right portion of read we need
                 for (int r = 0 ; r < interval.second.first.size(); r++){
-                    if (interval.second.first[r] != -1){
+                    if (interval.second.first[r] > -1){
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
                         int clust = interval.second.first[r];
@@ -242,7 +244,7 @@ void modify_GFA(
                         }
                     }
                 }
-                if (readsPerPart.size() == 0 && interval.second.first.size() > 0 && interval.second.first[0] == -1){
+                if (readsPerPart.size() == 0 && interval.second.first.size() > 0 && interval.second.first[0] <= -1){
                     readsPerPart[-1] = {}; //so that it defaults back to the consensus
                 }
                 // cout << endl;
@@ -336,6 +338,14 @@ void modify_GFA(
 
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
+
+                    if (interval.first.first == 6000 && group.first == 4){
+                        cout << "stiretches: " << endl;
+                        for (auto s : stitches[n][group.first]){
+                            cout << s << " ";
+                        }
+                        cout << endl;
+                    }
         
                     if (n == 0 || stitches[n][group.first].size() == 0){
                         for (int h : hangingLinks){
@@ -459,6 +469,11 @@ void modify_GFA(
                 allreads[backbone].name = "delete_me"; //output_gfa will understand that and delete the contig
             }
 
+            // if (allreads[allreads.size()-1].name.substr(0,9) == "edge_13@0"){
+            //     cout << "qfdklmdjlccjj " << endl;
+            //     exit(1);
+            // }
+
         }
         else{
             local_log_text += "Nothing to do\n\n";
@@ -499,7 +514,7 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
     unordered_map<int,set<int>> stitch;
 
     for (auto r = 0 ; r < par.size() ; r++){
-        if (par[r] != -1 && neighbor[r] != -1 && readLimits[r].first <= position && readLimits[r].second >= position){
+        if (par[r] > -1 && neighbor[r] > -1 && readLimits[r].first <= position && readLimits[r].second >= position){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
                     fit_left[par[r]][neighbor[r]] += 1;
