@@ -78,6 +78,7 @@ private :
     int pos_right; //position of the rightmost position of the partition on the consensus
 };
 
+void print_snp(Column snp);
 void print_snp(Column snp, std::vector<bool> &mask);
 
 

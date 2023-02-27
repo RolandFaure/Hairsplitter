@@ -655,7 +655,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 overlap.sequence2 = sequence2;
                 overlap.position_1_1 = 0;
                 overlap.position_1_2 = length1;
-                overlap.position_2_1 = pos2_1;
+                overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
                 overlap.position_2_2 = pos2_1+length1;
                 overlap.strand = positiveStrand;
                 overlap.CIGAR = cigar;

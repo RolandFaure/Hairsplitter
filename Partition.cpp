@@ -914,6 +914,15 @@ void Partition::new_corrected_partition(std::vector<short> newPartition, std::ve
     lessFrequence = less;
 }
 
+/**
+ * @brief Print a SNP
+ * 
+ * @param snp 
+ */
+void print_snp(Column snp){
+    vector <bool> mask(snp.readIdxs[snp.readIdxs.size()-1]+1, true);
+    print_snp(snp, mask);
+}
 
 /**
  * @brief Print a SNP
@@ -926,7 +935,7 @@ void print_snp(Column snp, vector<bool> &mask){
     for (short n = 0 ; n < snp.content.size() ; n++){
         while(maskidx < snp.readIdxs[n]){
             if (mask[maskidx]){
-                cout << "_";
+                // cout << "_";
             }
             maskidx++;
         }
