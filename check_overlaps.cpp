@@ -74,7 +74,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_34@0@0"){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_39@0@00"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -451,6 +451,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         // }
 
         bool solidAlignment = false;
+        int size_of_deletion = 0; //to avoid excluding homopolymers in long deletions
         
         unsigned char unaligned_pos = '!'+25*6;
         char previous_previous_previous_char = 'A';
@@ -475,7 +476,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     //     snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
                     // }
 
-                    if (true || polishingReads[n][indexTarget] != previous_char){ //to avoid all homopolymers
+                    if (polishingReads[n][indexTarget] != previous_char){ //to avoid all homopolymers errors
                         previous_previous_previous_char = previous_previous_char;
                         previous_previous_char = previous_char;
                         previous_char = polishingReads[n][indexTarget];
@@ -505,6 +506,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                         localDivergence += 1;
                         divergences[l%lengthOfWindow] = true;
                     }
+                    size_of_deletion = 0;
                 }
                 else if (alignment[l] == 'S'){ //soft-clipped bases
                     indexTarget++;
@@ -518,7 +520,9 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     //     snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
                     // }
 
-                    if (true || '-' != previous_char ){ //to avoid all homopolymers
+                    size_of_deletion += 1;
+
+                    if ( '-' != previous_char || size_of_deletion > 10){ //to avoid all homopolymers, except for long deletions
                         previous_previous_previous_char = previous_previous_char;
                         previous_previous_char = previous_char;
                         previous_char = '-';
@@ -567,7 +571,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     //     numberOfInsertionsThere ++;
                     // }
 
-                    if (true || polishingReads[n][indexTarget] != previous_char && indexQuery > 0){ //to avoid all homopolymers
+                    if (polishingReads[n][indexTarget] != previous_char && indexQuery > 0){ //to avoid all homopolymers
                         previous_previous_previous_char = previous_previous_char;
                         previous_previous_char = previous_char;
                         previous_char = polishingReads[n][indexTarget];
@@ -580,18 +584,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     divergences[l%lengthOfWindow] = true;
                 }
 
-                // if (l%100 == 0 && indexQuery < 20000){
-                //     if (double(localDivergence)/lengthOfWindow > 0.4){
-                //         cout << "X";
-                //     }
-                //     else{
-                //         cout << "M";
-                //     }
-                // }
-
-                if (double(localDivergence)/lengthOfWindow < 0.3 && l > lengthOfWindow){
-                    solidAlignment = true;
-                }
+                size_of_deletion = 0;
 
             }
 
@@ -620,7 +613,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     unsigned char previous_previous_char = 'C';
     unsigned char previous_char = 'G';
     for(auto i : consensus){
-        if (i != previous_char || true){
+        if (i != previous_char){
             previous_previous_previous_char = previous_previous_char;
             previous_previous_char = previous_char;
             previous_char = i;
@@ -951,7 +944,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     cout << "listing similaritiees and differences between reads ddd ..." << endl;
     vector<vector<pair<int,int>>> sims_and_diffs (numberOfReads, vector<pair<int,int>>(numberOfReads, make_pair(0,0)));
     list_similarities_and_differences_between_reads(no_mask, snps, interestingPositions, sims_and_diffs);
-    cout << "done listing similaritiees and differences between reads ddd ..." << endl;
 
     // cout << "interesting posiaaations : " <<  endl;
     // for (auto pos : interestingPositions){
@@ -1019,78 +1011,78 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             localPartitions.push_back(new_partition);
         }
 
-        //let's see what partitions are found on the local window
-        while(suspectPostitionIdx < suspectPostitions.size() && suspectPostitions[suspectPostitionIdx] < (chunk+1)*sizeOfWindow){
+        // //let's see what partitions are found on the local window
+        // while(suspectPostitionIdx < suspectPostitions.size() && suspectPostitions[suspectPostitionIdx] < (chunk+1)*sizeOfWindow){
 
-            auto pos = suspectPostitions[suspectPostitionIdx];
-            // if (pos < 4000){
-            //     cout << "her edfkju ifnfif 4000 : " << pos << endl;
-            //     print_snp(snps[pos], mask_at_this_position);
-            // }
-            //find the closest partition
-            for (auto p = 0 ; p < localPartitions.size() ; p++){
-                //compute the distance between the partition and the suspect position
-                if (pos <= partitions[p].get_right() && pos >= partitions[p].get_left()){
-                    char ref_base = ref[pos];
-                    // listOfFinalPartitions[p].print();
-                    //print snps[pos];
-                    // for (auto i : snps[pos].content){
-                    //     cout << i;
-                    // }
-                    // cout << endl;
-                    distancePartition dis = distance(partitions[p], snps[pos], ref_base);
+        //     auto pos = suspectPostitions[suspectPostitionIdx];
+        //     // if (pos < 4000){
+        //     //     cout << "her edfkju ifnfif 4000 : " << pos << endl;
+        //     //     print_snp(snps[pos], mask_at_this_position);
+        //     // }
+        //     //find the closest partition
+        //     for (auto p = 0 ; p < localPartitions.size() ; p++){
+        //         //compute the distance between the partition and the suspect position
+        //         if (pos <= partitions[p].get_right() && pos >= partitions[p].get_left()){
+        //             char ref_base = ref[pos];
+        //             // listOfFinalPartitions[p].print();
+        //             //print snps[pos];
+        //             // for (auto i : snps[pos].content){
+        //             //     cout << i;
+        //             // }
+        //             // cout << endl;
+        //             distancePartition dis = distance(partitions[p], snps[pos], ref_base);
 
-                    if (( min(dis.n00,dis.n11) >= 5 && float(dis.n01+dis.n10)/min(dis.n00 , dis.n11) < 0.2 && dis.phased == 1) 
-                        || (min(dis.n01,dis.n10) >= 5 && float(dis.n00+dis.n11)/min(dis.n01 , dis.n10) < 0.2 && dis.phased == -1)){
-                    // if (dis.solid11 >= 5 && dis.solid00 >= 5
-                    //     && dis.solid10 < min(5.0, 0.2*dis.solid11) 
-                    //     && dis.solid01 < min(5.0, 0.2*dis.solid00)
-                    //     && dis.n01 < 0.4*(dis.n00+dis.n01)){
-                        localPartitions[p].augmentPartition(snps[pos], pos);
-                        // cout << "augmenting ddddpartition " << p << " with position " << pos << endl;
-                        // if (chunk == 4 && p == 4){
-                        //     cout << "on windhhow " << chunk << " found partition " << p << endl;
-                        //     // for (auto r = 0 ; r < localPartitions[p].getReads().size() ; r++){
-                        //     //     if (localPartitions[p].getPartition()[r] == 1 || localPartitions[p].getPartition()[r] == -1){
-                        //     //         cout << localPartitions[p].getReads()[r] << "_" << localPartitions[p].getPartition()[r] << "_" << localPartitions[p].getMore()[r] << "_" << localPartitions[p].getLess()[r] << " ; ";
-                        //     //     }
-                        //     // }
-                        //     // cout << endl;
-                        //     //print snps[pos].readIdx;
-                        //     // for (auto i : snps[pos].readIdxs){
-                        //     //     cout << i << " ";
-                        //     // }
-                        //     // cout << endl;
-                        //     auto index = 0;
-                        //     for (auto i = 0; i < snps[pos].content.size() ; i++){
-                        //         while(index < localPartitions[p].getReads().size() && localPartitions[p].getReads()[index] < snps[pos].readIdxs[i]){
-                        //             index++;
-                        //         }
-                        //         if (localPartitions[p].getReads()[index] == snps[pos].readIdxs[i] && localPartitions[p].getPartition()[index] != -2){
-                        //             cout << snps[pos].content[i];
-                        //         }
-                        //     }
-                        //     cout << endl;
-                        //     cout << "dis.n00 : " << dis.n10 << " " << dis.n01 << " " << dis.n11 << " " << dis.n00 << endl;
-                        //     localPartitions[p].print();
-                        //     // partitions[p].print();
-                        //     // cout << localPartitions[p].getReads()[localPartitions[p].getReads().size()-1] << endl;
-                        //     // while(true){}
-                        //     // if (localPartitions[p].number() > 3){
-                        //     //     exit(0);
-                        //     // }
-                        // }
-                    }
-                }
-            }
-            suspectPostitionIdx += 1;
-        }
+        //             if (( min(dis.n00,dis.n11) >= 5 && float(dis.n01+dis.n10)/min(dis.n00 , dis.n11) < 0.2 && dis.phased == 1) 
+        //                 || (min(dis.n01,dis.n10) >= 5 && float(dis.n00+dis.n11)/min(dis.n01 , dis.n10) < 0.2 && dis.phased == -1)){
+        //             // if (dis.solid11 >= 5 && dis.solid00 >= 5
+        //             //     && dis.solid10 < min(5.0, 0.2*dis.solid11) 
+        //             //     && dis.solid01 < min(5.0, 0.2*dis.solid00)
+        //             //     && dis.n01 < 0.4*(dis.n00+dis.n01)){
+        //                 localPartitions[p].augmentPartition(snps[pos], pos);
+        //                 // cout << "augmenting ddddpartition " << p << " with position " << pos << endl;
+        //                 // if (chunk == 4 && p == 4){
+        //                 //     cout << "on windhhow " << chunk << " found partition " << p << endl;
+        //                 //     // for (auto r = 0 ; r < localPartitions[p].getReads().size() ; r++){
+        //                 //     //     if (localPartitions[p].getPartition()[r] == 1 || localPartitions[p].getPartition()[r] == -1){
+        //                 //     //         cout << localPartitions[p].getReads()[r] << "_" << localPartitions[p].getPartition()[r] << "_" << localPartitions[p].getMore()[r] << "_" << localPartitions[p].getLess()[r] << " ; ";
+        //                 //     //     }
+        //                 //     // }
+        //                 //     // cout << endl;
+        //                 //     //print snps[pos].readIdx;
+        //                 //     // for (auto i : snps[pos].readIdxs){
+        //                 //     //     cout << i << " ";
+        //                 //     // }
+        //                 //     // cout << endl;
+        //                 //     auto index = 0;
+        //                 //     for (auto i = 0; i < snps[pos].content.size() ; i++){
+        //                 //         while(index < localPartitions[p].getReads().size() && localPartitions[p].getReads()[index] < snps[pos].readIdxs[i]){
+        //                 //             index++;
+        //                 //         }
+        //                 //         if (localPartitions[p].getReads()[index] == snps[pos].readIdxs[i] && localPartitions[p].getPartition()[index] != -2){
+        //                 //             cout << snps[pos].content[i];
+        //                 //         }
+        //                 //     }
+        //                 //     cout << endl;
+        //                 //     cout << "dis.n00 : " << dis.n10 << " " << dis.n01 << " " << dis.n11 << " " << dis.n00 << endl;
+        //                 //     localPartitions[p].print();
+        //                 //     // partitions[p].print();
+        //                 //     // cout << localPartitions[p].getReads()[localPartitions[p].getReads().size()-1] << endl;
+        //                 //     // while(true){}
+        //                 //     // if (localPartitions[p].number() > 3){
+        //                 //     //     exit(0);
+        //                 //     // }
+        //                 // }
+        //             }
+        //         }
+        //     }
+        //     suspectPostitionIdx += 1;
+        // }
 
-        //go through the local partitions and strengthen them
-        for (auto p = 0 ; p < localPartitions.size() ; p++){
-            localPartitions[p].strengthen_partition(partitions[p]);
+        // //go through the local partitions and strengthen them
+        // for (auto p = 0 ; p < localPartitions.size() ; p++){
+        //     localPartitions[p].strengthen_partition(partitions[p]);
             
-        }
+        // }
 
         // list and strengthen local partitions that have a numberOfOccurences >= 1
         // if (chunk == 89){
@@ -1106,15 +1098,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         // }
 
         //create non-null-partitions, compased of local partitions that have a number() >= 1
-        vector<Partition> non_null_partitions;
-        for (auto p = 0 ; p < localPartitions.size() ; p++){
-            if (localPartitions[p].number() >= 1){
-                non_null_partitions.push_back(localPartitions[p]);
-            }
-        }
+        // vector<Partition> non_null_partitions;
+        // for (auto p = 0 ; p < localPartitions.size() ; p++){
+        //     if (localPartitions[p].number() >= 1){
+        //         non_null_partitions.push_back(localPartitions[p]);
+        //     }
+        // }
 
         //select compatible partitions
-        vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(non_null_partitions, numberOfReads, meanError);
+        // vector<Partition> listOfCompatiblePartitions = select_compatible_partitions(non_null_partitions, numberOfReads, meanError);
         // cout << "mcopqodn sefjdoi" << endl;
         // for (auto p = 0 ; p < listOfCompatiblePartitions.size() ; p++){
         //     cout << "on window " << chunk << " found coimpatdsible partition " << endl;
@@ -1138,12 +1130,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
 
         // thread partition on this window
-        vector<int> clustReads = threadHaplotypes_in_interval(non_null_partitions, numberOfReads);
-        for (auto r = 0 ; r < numberOfReads ; r++){
-            if (mask_at_this_position[r] == false){
-                clustReads[r] = -2;
-            }
-        }
+        // vector<int> clustReads = threadHaplotypes_in_interval(non_null_partitions, numberOfReads);
+        // for (auto r = 0 ; r < numberOfReads ; r++){
+        //     if (mask_at_this_position[r] == false){
+        //         clustReads[r] = -2;
+        //     }
+        // }
 
         // cout << "threaded reads  edfqc"  << endl;
         // for (auto r = 0 ; r < clustReads.size() ; r++){
@@ -1168,7 +1160,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             clustersStart[r] = r;
         }
         // vector<int> clusteredReads = chinese_whispers(adjacency_matrix, clustersStart);
-
         vector<vector<int>> localClusters = {};
 
         for (auto position : interestingPositions){
@@ -1190,15 +1181,16 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                         clustersStart2[snps[position].readIdxs[r]] = indexHere;
                     }
                 }
-
-                vector<int> clusteredReads_local = chinese_whispers(adjacency_matrix, clustersStart2); 
+                
+                auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
+                vector<int> clusteredReads_local = chinese_whispers(strengthened_adjacency_matrix, clustersStart2); 
                 localClusters.push_back(clusteredReads_local);
 
-                // cout << "clustered reads local : " << endl;
+                // cout << "clustered reads local : " << position << endl;
                 // for (auto r = 0 ; r < clusteredReads_local.size() ; r++){
-                //     // if (mask_at_this_position[r] == true){
+                //     if (mask_at_this_position[r] == true){
                 //         cout << clusteredReads_local[r] << " ";
-                //     // }
+                //     }
                 // }
                 // cout << endl;
             }         
@@ -1206,7 +1198,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         vector<int> new_clusters = merge_clusterings(localClusters, adjacency_matrix);
         vector<int> clusteredReads = new_clusters;
-
 
         // find all clusters that have a size < 5 and give them a -1 cluster, so they can be rescued later
         unordered_map<int, int> clusterSizes;
@@ -1232,15 +1223,15 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
         cout << endl;
 
-        vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, sizeOfWindow);
+        vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
 
-        cout << "merged haploitypes : " << endl;
-        for (auto h : mergedHaplotypes){
-            if (h > -1){
-                cout << h << " ";
-            }
-        }
-        cout << endl;
+        // cout << "merged haploitypes : " << endl;
+        // for (auto h : mergedHaplotypes){
+        //     if (h > -1){
+        //         cout << h << " ";
+        //     }
+        // }
+        // cout << endl;
 
         //clustered reads represent subsets of reads that have never been separated in no partition
         //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
@@ -1263,7 +1254,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        // if (chunk == 41){
+        // if (chunk == 32){
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
         //     exit(1);
         // }
@@ -3021,6 +3012,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
     std::vector<Column> &snps, 
     int chunk, 
     std::vector<size_t> &suspectPostitions,
+    std::vector<std::vector<int>> &adjacencyMatrix,
     int sizeOfWindow){
 
     set<int> listOfGroups;
@@ -3115,7 +3107,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
                 continue;
             }
 
-            // if (chunk == 41){
+            // if (chunk == 14){
             //     cout << "chqhiuà " << position << endl;
             //     vector<bool> no_mask(clusteredReads.size(), true);
             //     print_snp(snps[position],no_mask);
@@ -3179,39 +3171,97 @@ std::vector<int> merge_wrongly_split_haplotypes(
     //     cout << endl;
     // }
 
-    //now that all the incompatibilities are clear, we can merge the clusters
-    unordered_map <int, int> old_group_to_new_group;
-    old_group_to_new_group[-1] = -1;
-    old_group_to_new_group[-2] = -2;
-    vector <set <int> > new_groups;
-
-
-    for (auto group : listOfGroups){
-        bool merge = false;
-
-        for (int ng = 0 ; ng < new_groups.size() ; ng++){
-            set<int> new_group = new_groups[ng];
-            bool merge_with_this_group = true;
-            for (auto old_group : new_group){
-                if (imcompatibilities[indexOfGroups[group]][indexOfGroups[old_group]]){
-                    merge_with_this_group = false;
-                    break;
+    // list all the distances between different clusters
+    std::map < pair<int, int>, double > number_of_links_between_the_two_clusters;
+    unordered_map <int,int> number_of_links_in_each_cluster;
+    for (auto read1 = 0 ; read1 < adjacencyMatrix.size() ; read1++){
+        for (auto read2 = 0 ; read2 < adjacencyMatrix.size() ; read2++){
+            if (adjacencyMatrix[read1][read2]){
+                int cluster1 = clusteredReads[read1];
+                int cluster2 = clusteredReads[read2];
+                if (cluster1 != cluster2){
+                    if (number_of_links_between_the_two_clusters.find(make_pair(cluster1, cluster2)) == number_of_links_between_the_two_clusters.end()){
+                        number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)] = 0;
+                    }
+                    number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)]++;
+                    
                 }
+                if (number_of_links_in_each_cluster.find(cluster1) == number_of_links_in_each_cluster.end()){
+                    number_of_links_in_each_cluster[cluster1] = 0;
+                }
+                number_of_links_in_each_cluster[cluster1]++;
             }
-            if (merge_with_this_group){
-                new_groups[ng].emplace(group);
-                old_group_to_new_group[group] = ng;
-                merge = true;
-                break;
-            }
-        }
-        if (!merge || new_groups.size() == 0){
-            set<int> new_group;
-            new_group.emplace(group);
-            old_group_to_new_group[group] = new_groups.size();
-            new_groups.push_back(new_group);
         }
     }
+    for (auto link : number_of_links_between_the_two_clusters){
+        // cout << "qfiodududu " << link.second << " " << number_of_links_in_each_cluster[link.first.first] << endl;
+        number_of_links_between_the_two_clusters[link.first] = link.second / number_of_links_in_each_cluster[link.first.first];
+    }
+    // pairs of clusters by closeness
+    vector < pair < pair<int, int>, double > > sorted_links;
+    for (auto link : number_of_links_between_the_two_clusters){
+        sorted_links.emplace_back(link);
+    }
+    sort(sorted_links.begin(), sorted_links.end(), [](const pair < pair<int, int>, double > &a, const pair < pair<int, int>, double > &b){
+        return a.second > b.second;
+    });
+
+
+    //now that all the incompatibilities are clear, we can merge the clusters
+    unordered_map <int, int> old_group_to_new_group;
+    for (auto group : listOfGroups){
+        old_group_to_new_group[group] = group;
+    }
+    old_group_to_new_group[-1] = -1;
+    old_group_to_new_group[-2] = -2;
+
+    for (auto pair_of_clusters : sorted_links){
+        if (pair_of_clusters.second > 0.05){
+            int cluster1 = pair_of_clusters.first.first;
+            int cluster2 = pair_of_clusters.first.second;
+
+            if (old_group_to_new_group[cluster1] == old_group_to_new_group[cluster2]){
+                continue;
+            }
+            //check if there are no incompatibilities between the two clusters
+            bool incompatibility = false;
+            for (auto group1 : listOfGroups){
+                if (old_group_to_new_group[group1] == old_group_to_new_group[cluster1]){
+                    for (auto group2 : listOfGroups){
+                        if (old_group_to_new_group[group2] == old_group_to_new_group[cluster2]){
+                            if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]]){
+                                // cout << "incompatiebility btw " << group1 << " and " << group2 << endl;
+                                // cout << "merging " << cluster1 << " and " << cluster2 << " would create an incompatibility" << endl;
+                                incompatibility = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!incompatibility){
+                // cout << "merging " << cluster1 << " and " << cluster2 << endl;
+                for (auto group2 : listOfGroups){
+                    if (old_group_to_new_group[group2] == old_group_to_new_group[cluster2]){
+                        old_group_to_new_group[group2] = old_group_to_new_group[cluster1];
+                    }
+                }
+            }
+        }
+    }
+
+    //re-nomber the clusters
+    unordered_map <int, int> new_group_to_index;
+    int new_group_index = 0;
+    for (auto group : listOfGroups){
+        if (new_group_to_index.find(old_group_to_new_group[group]) == new_group_to_index.end()){
+            new_group_to_index[old_group_to_new_group[group]] = new_group_index;
+            new_group_index++;
+        }
+    }
+    for (auto group : listOfGroups){
+        old_group_to_new_group[group] = new_group_to_index[old_group_to_new_group[group]];
+    }
+
     // cout << "old_group_to_new_group ddrr :" << endl;
     // for (auto group : listOfGroups){
     //     cout << group << " " << old_group_to_new_group[group] << endl;
@@ -4005,6 +4055,11 @@ void list_similarities_and_differences_between_reads(
 
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     std::vector< std::vector<int>> &adjacency_matrix){
+
+    if (localClusters.size() == 0){
+        return vector<int>(adjacency_matrix.size(), 0);
+    }
+
 
     vector<double> clusters_aggregated(localClusters[0].size(), 0);
     for (auto i = 0 ; i < localClusters.size() ; i++){
