@@ -613,7 +613,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 1){ //this is the flag
                     int flag = stoi(field);
-                    if (flag%4 >= 2 || flag%512 >= 256 || flag >= 2048){ //this means that 1) the reads does not map well or 2)3) this is not the main mapping
+                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -674,6 +674,8 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             linenumber++;
         }
     }
+
+    in.close();
 }
 
 /*
@@ -1092,6 +1094,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             }
         }
         else{
+            cout << "coucoicu from edsge : " << allreads[backbone].name << endl;
             for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
                 long int read;
@@ -1108,6 +1111,36 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
                 Path contigpath = make_tuple(start,v, backbone);
                 readPaths[read].push_back(contigpath);
+
+                // cout << "bbb " << allreads[backbone_reads[b]].name << endl;
+                // if ("edge_228@2@0" == allreads[backbone_reads[b]].name.substr(0,12)){
+                //     cout << "on backbone 228 is aligned " << allreads[read].name.substr(0, 23) << endl;
+                // }
+
+                if ("edge_228@2@0" == allreads[backbone_reads[b]].name.substr(0,12) && "@4a4ee37d-ccf2-5835-304" == allreads[read].name.substr(0, 23)){
+                    cout << "found it §§§§!!!!!!" << endl;
+                }
+                if ("edge_228@1@0" == allreads[backbone_reads[b]].name.substr(0,12) && "@4a4ee37d-ccf2-5835-304" == allreads[read].name.substr(0, 23)){
+                    cout << "found it therd §§§§!!!!!!" << endl;
+                }
+            }
+        }
+    }
+
+    for (auto r = 0 ; r < readPaths.size() ; r++){
+        string name = allreads[r].name;
+        // cout << "Read rrze " << name << endl;
+        if ("@4a4ee37d-ccf2-5835-304" == name.substr(0, 23)){
+            cout << "Here are the paths associated to 4a4ee37d-ccf2-5835-304 : " << endl;
+            cout << "There are " << readPaths[r].size() << " paths" << endl;
+            for (auto p = 0 ; p < readPaths[r].size() ; p++){
+                cout << "Path " << p << " : " << endl;
+                cout << "Start : " << get<0>(readPaths[r][p]) << endl;
+                cout << "Contigs : " << endl;
+                for (auto c = 0 ; c < get<1>(readPaths[r][p]).size() ; c++){
+                    cout << get<1>(readPaths[r][p])[c].first << " " << get<1>(readPaths[r][p])[c].second << endl;
+                }
+                cout << "Backbone : " << get<2>(readPaths[r][p]) << endl;
             }
         }
     }
@@ -1199,6 +1232,9 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             }
         }
     }
+
+    cout << "input qoudp t dkdididi " << endl;
+    exit(0); 
 }
 
 /**
@@ -1337,7 +1373,6 @@ void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitio
     out.close();
 }
 */
-
 void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, std::string fileOut){
 
     ofstream out(fileOut);

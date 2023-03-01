@@ -74,7 +74,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_39@0@00"){
+            if (allreads[read].neighbors_.size() > 10 && (allreads[read].name == "edge_228@1@0" || allreads[read].name == "edge_228@2@0") && false){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -508,7 +508,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                     }
                     size_of_deletion = 0;
                 }
-                else if (alignment[l] == 'S'){ //soft-clipped bases
+                else if (alignment[l] == 'S' || alignment[l] == 'H'){
                     indexTarget++;
                     localDivergence += 1;
                     divergences[l%lengthOfWindow] = true;

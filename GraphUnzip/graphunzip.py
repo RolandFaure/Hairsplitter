@@ -15,6 +15,9 @@ from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
 from solve_with_HiC import solve_with_HiC
 from determine_multiplicity import determine_multiplicity
+# from contig_DBG import DBG_long_reads
+import contig_DBG
+from contig_DBG import DBG_long_reads
 #from segment import check_if_all_links_are_sorted
 
 from scipy import sparse
@@ -360,12 +363,12 @@ def main():
         ##Moving to the actual unzipping of the graph
         
         supported_links2 = sparse.lil_matrix((len(names)*2, len(names)*2)) #supported links considering the topography of the graph
-        refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
+        # refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
 
         #As a first step, use only the long reads, if available
         if uselr :
             print("\n*Untangling the graph using long reads*\n")
-            segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
+            segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
             #segments = bridge_with_long_reads2(segments, names, lrFile, reliableCoverage, cn, verbose)
             print("Merging contigs that can be merged...")
             merge_adjacent_contigs(segments)
