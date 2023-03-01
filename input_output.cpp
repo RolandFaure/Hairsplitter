@@ -1029,15 +1029,47 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 long int read;
                 long int end;
                 int start = -1;
+                int nbHS_start = 0;
+                int nbHS_end = 0;
+                string string_nbHS_start = "";
+                //find the first letter in the CIGAR
+                for (int i = 0 ; i < ov.CIGAR.size() ; i++){
+                    if (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0'){
+                        if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S') {
+                            string_nbHS_start = "";
+                        }
+                        break;
+                    }
+                    string_nbHS_start += ov.CIGAR[i];
+                }
+                nbHS_start = 0;
+                if (string_nbHS_start != ""){
+                    nbHS_start = stoi(string_nbHS_start);
+                }
+
+                string string_nbHS_end = "";
+                //find the last letter in the CIGAR
+                for (int i = ov.CIGAR.size()-1 ; i >= 0 ; i--){
+                    if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S' && (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0')){
+                        break;
+                    }
+                    string_nbHS_end = ov.CIGAR[i] + string_nbHS_end;
+                }
+                nbHS_end = 0;
+                if (string_nbHS_end != ""){
+                    //strip last character
+                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
+                    nbHS_end = stoi(string_nbHS_end);
+                }
                 if (ov.sequence1 != backbone){
                     read = ov.sequence1;
-                    start = min(ov.position_1_1, ov.position_1_2);
-                    end = max(ov.position_1_1, ov.position_1_2);
+                    start = min(ov.position_1_1, ov.position_1_2)+nbHS_start;
+                    end = max(ov.position_1_1, ov.position_1_2)-nbHS_end;
                 }
                 else{
                     read = ov.sequence2;
-                    start = min(ov.position_2_1, ov.position_2_2);
-                    end = max(ov.position_2_1, ov.position_2_2);
+                    start = min(ov.position_2_1, ov.position_2_2)+nbHS_start;
+                    end = max(ov.position_2_1, ov.position_2_2)-nbHS_end;
                 }
 
                 //go through all the intervals and see through which version this read passes
@@ -1094,18 +1126,51 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             }
         }
         else{
-            cout << "coucoicu from edsge : " << allreads[backbone].name << endl;
             for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
                 long int read;
                 int start = -1;
+                int nbHS_start = 0;
+                int nbHS_end = 0;
+                string string_nbHS_start = "";
+                //find the first letter in the CIGAR
+                for (int i = 0 ; i < ov.CIGAR.size() ; i++){
+                    if (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0'){
+                        if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S') {
+                            string_nbHS_start = "";
+                        }
+                        break;
+                    }
+                    string_nbHS_start += ov.CIGAR[i];
+                }
+                nbHS_start = 0;
+                if (string_nbHS_start != ""){
+                    nbHS_start = stoi(string_nbHS_start);
+                }
+
+                string string_nbHS_end = "";
+                //find the last letter in the CIGAR
+                for (int i = ov.CIGAR.size()-1 ; i >= 0 ; i--){
+                    if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S' && (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0')){
+                        break;
+                    }
+                    string_nbHS_end = ov.CIGAR[i] + string_nbHS_end;
+                }
+                nbHS_end = 0;
+                if (string_nbHS_end != ""){
+                    //strip last character
+                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
+                    nbHS_end = stoi(string_nbHS_end);
+                }
+
+
                 if (ov.sequence1 != backbone){
                     read = ov.sequence1;
-                    start = min(ov.position_1_1, ov.position_1_2);
+                    start = min(ov.position_1_1, ov.position_1_2)+nbHS_start;
                 }
                 else{
                     read = ov.sequence2;
-                    start = min(ov.position_2_1, ov.position_2_2);
+                    start = min(ov.position_2_1, ov.position_2_2)+nbHS_start;
                 }
                 
                 vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
@@ -1116,38 +1181,12 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 // if ("edge_228@2@0" == allreads[backbone_reads[b]].name.substr(0,12)){
                 //     cout << "on backbone 228 is aligned " << allreads[read].name.substr(0, 23) << endl;
                 // }
-
-                if ("edge_228@2@0" == allreads[backbone_reads[b]].name.substr(0,12) && "@4a4ee37d-ccf2-5835-304" == allreads[read].name.substr(0, 23)){
-                    cout << "found it §§§§!!!!!!" << endl;
-                }
-                if ("edge_228@1@0" == allreads[backbone_reads[b]].name.substr(0,12) && "@4a4ee37d-ccf2-5835-304" == allreads[read].name.substr(0, 23)){
-                    cout << "found it therd §§§§!!!!!!" << endl;
-                }
-            }
-        }
-    }
-
-    for (auto r = 0 ; r < readPaths.size() ; r++){
-        string name = allreads[r].name;
-        // cout << "Read rrze " << name << endl;
-        if ("@4a4ee37d-ccf2-5835-304" == name.substr(0, 23)){
-            cout << "Here are the paths associated to 4a4ee37d-ccf2-5835-304 : " << endl;
-            cout << "There are " << readPaths[r].size() << " paths" << endl;
-            for (auto p = 0 ; p < readPaths[r].size() ; p++){
-                cout << "Path " << p << " : " << endl;
-                cout << "Start : " << get<0>(readPaths[r][p]) << endl;
-                cout << "Contigs : " << endl;
-                for (auto c = 0 ; c < get<1>(readPaths[r][p]).size() ; c++){
-                    cout << get<1>(readPaths[r][p])[c].first << " " << get<1>(readPaths[r][p])[c].second << endl;
-                }
-                cout << "Backbone : " << get<2>(readPaths[r][p]) << endl;
             }
         }
     }
 
     //now merge the paths that were on different contigs
     for (auto r = 0 ; r < readPaths.size() ; r++){
-
 
         if (readPaths[r].size() > 0){
 
@@ -1163,12 +1202,8 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
 
                 if (contig != nextContig){
                     vector<size_t> links;
-                    if (orientation){
-                        links = allreads[contig].get_links_right();
-                    }
-                    else{
-                        links = allreads[contig].get_links_left();
-                    }
+                    links = allreads[contig].get_links_right();
+
 
                     bool merge = false;
                     for (auto li : links){
@@ -1232,9 +1267,6 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             }
         }
     }
-
-    cout << "input qoudp t dkdididi " << endl;
-    exit(0); 
 }
 
 /**
