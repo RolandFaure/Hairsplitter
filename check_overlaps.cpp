@@ -74,7 +74,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && (allreads[read].name == "edge_228@1@0" || allreads[read].name == "edge_228@2@0") && false){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,7) != "edge_2@00" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -644,8 +644,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 82110;
-    int end = 82130;
+    int start = 47728;
+    int end = 47828;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -679,28 +679,18 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     cout << "Here are the aligned reads : " << endl;
     int index = firstRead;
     for (auto neighbor : reads){
-        if (neighbor[0] != ' '){
+        if (neighbor[neighbor.size()-1] != ' '){
             cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name.substr(0,10) << endl;
         }
         index+= step;
     }
-    int n = 0;
-    previous_previous_previous_char = 'A';
-    previous_previous_char = 'C';
-    previous_char = 'G';
-    for(auto i : consensus.substr(start, end-start)){
-        if (i != previous_char){
-            previous_previous_previous_char = previous_previous_char;
-            previous_previous_char = previous_char;
-            previous_char = i;
-        }
-        if (n%prop == 0){
-            cout << newRef[n];
-        }
-        n+=1;
+    int n =start;
+    for(unsigned char i : consensus.substr(start, end-start)){
+        cout << newRef[n];
+        n+=prop;
     } cout << endl;
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-
+    exit(1);
     */
 
     return totalDistance/totalLengthOfAlignment;
@@ -923,6 +913,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     //list the interesting positions
     vector<size_t> interestingPositions;
     for (auto pos : suspectPostitions){
+        // cout << "suspecct possisssiion : " << endl;
+        // print_snp(snps[pos], no_mask);
         for (auto p = 0 ; p < partitions.size() ; p++){
             distancePartition dis = distance(partitions[p], snps[pos], ref[pos]);
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snps[pos].content.size() 
@@ -965,20 +957,26 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //only consider reads that span the whole length of the window: create a mask
         vector<bool> mask_at_this_position (numberOfReads, false); 
         if ((chunk+1)*sizeOfWindow < ref.size()){
+            int n = 0;
             for (auto r : snps[(chunk+1)*sizeOfWindow].readIdxs){
-                mask_at_this_position[r] = true;
+                if (snps[(chunk+1)*sizeOfWindow].content[n] != ' '){
+                    mask_at_this_position[r] = true;
+                }
+                n++;
             }
         }
         else{
             mask_at_this_position = no_mask;
         }
         int index = 0;
-        for (auto r = 0 ; r < mask_at_this_position.size(); r++){
-            while(index < snps[chunk*sizeOfWindow].readIdxs.size() && snps[chunk*sizeOfWindow].readIdxs[index] < r){
-                index++;
-            }
-            if (index >= snps[chunk*sizeOfWindow].readIdxs.size() || snps[chunk*sizeOfWindow].readIdxs[index] != r){
-                mask_at_this_position[r] = false;
+        if (chunk > 0){ //at position exactly 0 there are very few reads, so don't exclude any reads based on that
+            for (auto r = 0 ; r < mask_at_this_position.size(); r++){
+                while(index < snps[chunk*sizeOfWindow].readIdxs.size() && snps[chunk*sizeOfWindow].readIdxs[index] < r){
+                    index++;
+                }
+                if (index >= snps[chunk*sizeOfWindow].readIdxs.size() || snps[chunk*sizeOfWindow].readIdxs[index] != r){
+                    mask_at_this_position[r] = false;
+                }
             }
         }
 
@@ -1162,8 +1160,14 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         // vector<int> clusteredReads = chinese_whispers(adjacency_matrix, clustersStart);
         vector<vector<int>> localClusters = {};
 
+        // cout << "here are all the interesting positions" << endl;
+        // for (auto p : interestingPositions){
+        //     cout << p << " ";
+        // }
+        // cout << endl;
+
         for (auto position : interestingPositions){
-            if (position >= chunk && position < chunk + sizeOfWindow){
+            if (position >= chunk*sizeOfWindow && position < chunk*sizeOfWindow + sizeOfWindow){
                 // cout << "in dldjk position " << position << " : " << endl;
                 // print_snp(snps[position], mask_at_this_position);
 
@@ -1215,13 +1219,13 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
 
-        cout << "clustereReads : " << endl;
-        for (auto r : clusteredReads){
-            if (r > -1){
-                cout << r <<" ";
-            }
-        }
-        cout << endl;
+        // cout << "clustereReads : " << endl;
+        // for (auto r : clusteredReads){
+        //     if (r > -1){
+        //         cout << r <<" ";
+        //     }
+        // }
+        // cout << endl;
 
         vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
 
@@ -1254,7 +1258,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        // if (chunk == 32){
+        // if (chunk == 3){
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
         //     exit(1);
         // }
@@ -3033,6 +3037,11 @@ std::vector<int> merge_wrongly_split_haplotypes(
 
     if (listOfGroups.size() <= 1){
         vector <int> one_cluster (clusteredReads.size(), 0);
+        for (auto r = 0 ; r < clusteredReads.size() ; r++){
+            if (clusteredReads[r] == -2){
+                one_cluster[r] = -2;
+            }
+        }
         return one_cluster;
     }
 
@@ -3856,11 +3865,11 @@ void create_read_graph(
                 }
             }
 
-            // if (read1 == 5){
-            //     cout << "ddqfhhe distance of 133 to other reads: " << endl;
+            // if (read1 == 16){
+            //     cout << "ddqfhhe distance of 16 to other reads: " << endl;
             //     for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
             //         if (mask[r] && r != read1){
-            //             cout << r << " " << distance_with_other_reads[r] << endl;
+            //             cout << r << " " << distance_with_other_reads[r] << " " << float(sims_and_diffs[read1][r].second) << " " << float(sims_and_diffs[read1][r].first) << endl;
             //         }
             //     }
             //     cout << endl;
@@ -3940,7 +3949,12 @@ void list_similarities_and_differences_between_reads(
     std::vector<size_t> &suspectPostitions,
     vector<vector<pair<int,int>>> &sims_and_diffs){
 
-    set<int> debug_interesting_reads = {-2, -1, 41, 43, 133};
+    set<int> debug_interesting_reads = {-2, -1};
+    for (auto r = 0 ; r < mask.size() ; r++){
+        if (mask[r]){
+            debug_interesting_reads.insert(r);
+        }
+    }
     std::unordered_map<int, string> debug_strings;
     for (auto r : debug_interesting_reads){
         debug_strings[r] = "";
@@ -3948,7 +3962,7 @@ void list_similarities_and_differences_between_reads(
 
     for (auto position : suspectPostitions){
 
-        // if (position <2000){
+        // if (position <200000){
         //     cout<< "ldjflqmj" << endl;
         //     print_snp(snps[position], mask);
         // }

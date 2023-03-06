@@ -124,9 +124,9 @@ def read_GAF(gafFile,similarity_threshold, whole_mapping_threshold, lines) : #a 
 
         if ls[5].count('>') + ls[5].count('<') > 1 :
                         
-            if (not 'id:f' in ls[-2]) or (float(ls[-2].split(':')[-1]) > similarity_threshold) :
+            if (not 'id:f' in ls[-2]) or (float(ls[-2].split(':')[-1]) > similarity_threshold) or similarity_threshold == 0 :
                 
-                if (float(ls[3])-float(ls[2]))/float(ls[1]) > whole_mapping_threshold :
+                if (float(ls[3])-float(ls[2]))/float(ls[1]) > whole_mapping_threshold or whole_mapping_threshold == 0 :
     
                     lines += [ls[5]]  
 

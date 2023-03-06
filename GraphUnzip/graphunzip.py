@@ -363,13 +363,13 @@ def main():
         ##Moving to the actual unzipping of the graph
         
         supported_links2 = sparse.lil_matrix((len(names)*2, len(names)*2)) #supported links considering the topography of the graph
-        # refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
+        refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
 
         #As a first step, use only the long reads, if available
         if uselr :
             print("\n*Untangling the graph using long reads*\n")
-            segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
-            #segments = bridge_with_long_reads2(segments, names, lrFile, reliableCoverage, cn, verbose)
+            # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
+            segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
             print("Merging contigs that can be merged...")
             merge_adjacent_contigs(segments)
             print("\n*Done untangling the graph using long reads*\n")
