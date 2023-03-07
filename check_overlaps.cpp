@@ -16,7 +16,6 @@
 
 #include "input_output.h"
 #include "tools.h"
-#include "rough_clustering.h"
 
 using std::string;
 using std::cout;

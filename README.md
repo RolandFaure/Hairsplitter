@@ -26,11 +26,10 @@ conda activate hairsplitter
 
 ### List of dependencies
 
-- [minimap2](https://github.com/lh3/minimap2): this is not absolutely necessary. Another aligner can be used to manually align the reads.
+- [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon)
 - CMake >= 3.8.12, make, gcc >= 11
 - Python3 with numpy and scipy
-- [GraphUnzip](https://github.com/nadegeguiglielmoni/GraphUnzip): this is included in the `Hairsplitter` folder in Hairsplitter/GraphUnzip/graphunzip.py, you do not need to install it separately. It is a python file, thus it will not work if taken out of its folder.
  
 ## Download & Compilation
 
