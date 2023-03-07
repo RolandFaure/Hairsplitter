@@ -7,9 +7,6 @@
 #include "robin_hood.h"
 #include "cluster_graph.h"
 
-#include <bindings/cpp/WFAligner.hpp>
-
-
 #include <vector>
 #include <unordered_map>
 #include <thread>

@@ -16,7 +16,6 @@
 
 #include "input_output.h"
 #include "tools.h"
-#include "rough_clustering.h"
 
 using std::string;
 using std::cout;
@@ -338,15 +337,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     float alignmentTime = 0;
     float MSAtime = 0;
 
-
-    wfa::WFAlignerGapAffine aligner(1,0,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-    // wfa::WFAlignerEdit aligner(wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-
-    aligner.setHeuristicNone();
-
-    vector <bool> zones_of_misalignment (consensus.size(), false); //vector of booleans to keep track of which zones are sometimes terribly misaligned
-    vector<vector<int>> positions_where_reads_misalign (polishingReads.size(), vector<int> (0,0));
-
     for (auto n = 0 ; n < polishingReads.size() ; n++){
 
         if (DEBUG && n%10 == 0){
@@ -357,60 +347,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
         string alignment;
         if (CIGARs.size() != polishingReads.size()){ //compute the exact alignment if it is not already computed
-            //print the name of the neighbor
-            string cons = consensus.substr(positionOfReads[n].first, positionOfReads[n].second-positionOfReads[n].first).c_str();
-            string re = polishingReads[n].c_str();
-
-            // wfa::WFAlignerGapAffine aligner(1,0,1, wfa::WFAligner::Alignment, wfa::WFAligner::MemoryHigh);
-            // aligner.setHeuristicNone();
-            // int marginLeftEnd = std::min(int(cons.size()/4), 1000);
-            // int marginRightEnd = std::min(int(re.size()/4), 1000);
-            // aligner.alignEndsFree(cons,marginLeftEnd,marginLeftEnd, re, marginRightEnd, marginRightEnd); //the ints are the length of gaps that you tolerate for free at the ends of query and sequence
-            aligner.alignEnd2End(cons, re);
-            
-            // if (n==3){
-            //     string seq1 = re;
-            //     string seq2 = cons;
-
-            //     // seq1 = "TACTCTAAGTTGGTCGTCGAACGGTATACCCTCCCTACGTCTCCTCGCCTTTGGACCCAGAAAGTTTCGGGTAGGAACCCAGGCATGCTAAACACTCCCACTCTCGTGATAATCAGACTGTCGTGCATGCCACTGACACGGCATCCTATCAGACTCTATGTACAACTGTCGTACTCTGCCTGTGTACTTGTGAAGTAACCGCCGATTTCAACAAACTTTCCAGTGTTTCCGCCGCCTGACAAATATGTACATTCGCGGCACTAAAGTCTCCATGAGCGCGTGCAGGTGCTGAACAGTCACGCGTACCTTGAGCAAACTGTGCGACCGATGTGAAACTCTTTCTGGGGGCCCACGTACCGTTGCAGAAATCTCGACGAGCAATCGCTCATCACTGCAGTGACTATTTTATTATGGTTGACCTACAGGGATAGTCTGTCTTATTTGGAGCTGATACTATATAGGAATGACAATGAACCCAGCTACCACGGCGTGGGTCTGACCACGGGAGTTTATGGTGTTTGGCGAGGGGACAATAATGTCCTTCTCGTACCATGGGTTTTTGGTCACTGTCTGTAATACCTACACTATCCAAAGTTAGAAGACGCAACCGGTGTCTGGGTTCACGTCTACGCAAAGTTGCAATCGCTACTACCTCTCGTTGCGCGCGGTGGCATTATGTCAACCAAACCATCGTTTAGGGTCACTCGACGCCCGTGTTTACCTCCCCTGCGAAATCCCACCACACAGCACGCCAAGAAGAGTCGTGGCCATGCATGCGTAATCCTTTGATTCAGTCCCCCTTTTTTCGTAAGCAGTTATCTCACCGGGTGCTAGTTAGAAAGGGATGCCTGTGTCACAAATCCACACGCTACGAAGAACAAGAGCAAGTCGGTATTCGCGCTAATGGATGCGTTATATAACGTCTCCGAGGGAAACTCCCGAGATGACCCCACAATACGAAATCGGCAACGGCACCGGGGGATCCTACAACATCGGTTTC";
-            //     // seq2 = "CCATTGTCCTCCTAGAGAATTACACGGCTGTAATCCATTCTATTGAATGGGTAAGCCTGTTGCCCGGCAGTTACATAATAATAATGGTACAAGGCGCTGCTACATCGAGGGCCCCCGCAAATTTGGCAAGTCCACCGTATTTCTATCCTCGCTCTCGTTCATAACAATTGGCAATTCCGCTTAGTCTGATTTACCCCTTACAAAAACTTTTCCCGTTACAAATTTGATAGGCACTGCCCGATACAGAACCGACTGTCGCCTATACCCGGCGTTCGGGCGCAGTACTGGAGGAGCTTCCCGTCATTTCCATATTGGGGTTGATACGCTACTGACGTGGCCAAGCGACATGGGAGACTCATCCCAGGTCCGGCAGCTAACGTACTAAAAAAATATAGGTACTTTTTATAGGCTGGATCGGTACGACTGCATGTATGACTTACGGTGTAAAAGCGTTCGTGTCAATATTCCGTCGGTATTCACTAGCCATTTTTAGATGGATAGTTTCCATAGCGTTATAACCCTAACATCCAATTTGTGCATAAGCGACGTCCCGGTTCGCGCCGTAGAACACATGGTTGTGCAATTGGTGCCAACTGACTCTTTTTCCCTCGGGGTTTAATTAGGTAGTGCCATTTTTTAAACTTGAGACCCTATACTATCACCAATGTCACTTTGCCCACTGTATGCCAACGTCCATCATGATCCGGCACCCTTATATAGCACATGGGGCACTTACGAGCGGTTGACGGAGAGCCCGCATAACGTCTTGCGTGTACGGAGGGCGCGGAGTGATTTTATGACTCTTGACCGCCTTGCGGATAAATCCATTCGATATGAATCGGCCACGTTCGGGTTGTTGATCGTTTTACTTCCGATTCCGAGACCCCTGTAGGCAACCAGTCCTGGACAGGGACCCTCTATTGGTATCCACTCCAGTTGAGTGGGGAACGGCCTCGAGGGGACAGTGGAACGTTAGCCTAATATTTCCCGGTGGTAGGAA";
-
-            //     // cout << "Aligning: " << seq1 << endl;
-            //     // cout << "Against: " << seq2 << endl;
-                
-            //     // EdlibAlignResult result = edlibAlign(seq2.c_str(), seq2.size(), seq1.c_str(), seq1.size(),
-            //     //                         edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, NULL, 0));
-            //     // // cout << "alignment qd q : " << result.editDistance << endl;
-            //     // char* cigar = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
-            //     // string s = cigar;
-            //     // string cigarExpanded = convert_cigar(s);
-            //     // cout << "Edit distance proposed by Edlib : " << result.editDistance << endl;
-            //     // cout << "Cigar of the alignment proposed by edlib : " << cigarExpanded << endl;
-            //     // cout << "Alignment proposed by edlib : " << endl;
-            //     // print_alignment(seq2, seq1, cigarExpanded, 0, cigarExpanded.size());
-            //     // edlibFreeAlignResult(result);
-
-
-            //     aligner.alignEnd2End(seq1, seq2);
-            //     string alignment = aligner.getAlignmentCigar();
-            //     cout << "Edit distance proposed by WFA : " << aligner.getAlignmentScore() << endl;
-            //     cout << "Cigar of the alignment proposed by WFA : " << alignment << endl;
-            //     // cout << "Alignment proposed by WFA : " << endl;
-            //     // print_alignment(seq2, seq1, alignment, 0, aligner.getAlignmentCigar().size());
-
-            //     // cout << "Alignment with edit distance: " << endl;
-            //     // print_alignment(cons, re, cigarExpanded, 0, s2.size());
-            //     // cout << "alignment with gap-affine : " << endl;
-            //     // print_alignment(cons, re, s2, 0, s2.size());
-            //     if (n==3){exit(1);}
-            // }
-
-            alignment = aligner.getAlignmentCigar();
-
-            // if (allreads[allOverlaps[allreads[bbcontig].neighbors_[n]].sequence1].name.substr(0,10) == "@3_ade377e"){
-            //     cout << "yuiiee Aligned using substr: " << positionOfReads[n].first << " " << positionOfReads[n].second << endl; 
-            //     cout << "fljmqqzzzo Alignment: " << alignment << endl;
-            // }
+            cout << "ERROR: CIGARs not well computed" << endl;
+            exit(1);
         }
         else{
             alignment = convert_cigar(CIGARs[n]);
