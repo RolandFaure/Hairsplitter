@@ -44,7 +44,7 @@ include(ExternalProject)
 ExternalProject_Add(
     WFA
     PREFIX WFA-ext
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib/build
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib
     BUILD_IN_SOURCE true
     LOG_BUILD ON
     CONFIGURE_COMMAND ""
