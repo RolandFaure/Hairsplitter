@@ -39,34 +39,35 @@ set(TARGET_SRC
     rough_clustering.cpp
     )
 
-include(ExternalProject)
+# include(ExternalProject)
 
-ExternalProject_Add(
-    WFA
-    PREFIX WFA-ext
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib
-    BUILD_IN_SOURCE true
-    LOG_BUILD ON
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND make
-    INSTALL_COMMAND ""
-)
 
-add_library(wfa2 INTERFACE)
-target_include_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib)
-target_link_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib/lib)
-target_link_libraries(wfa2 INTERFACE wfa wfacpp rt)
+# ExternalProject_Add(
+#     WFA
+#     PREFIX WFA-ext
+#     SOURCE_DIR ${CMAKE_SOURCE_DIR}/WFA2-lib/build
+#     BUILD_IN_SOURCE true
+#     LOG_BUILD ON
+#     CONFIGURE_COMMAND ""
+#     BUILD_COMMAND make
+#     INSTALL_COMMAND ""
+# )
+
+# add_library(wfa2 INTERFACE)
+# target_include_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib)
+# target_link_directories(wfa2 INTERFACE ${CMAKE_SOURCE_DIR}/WFA2-lib/lib)
+# target_link_libraries(wfa2 INTERFACE wfa wfacpp rt)
 
 file(GLOB SOURCES "*.cpp")
 add_executable(Hairsplitter ${SOURCES} edlib/src/edlib.cpp)
-add_dependencies(Hairsplitter WFA)
+# add_dependencies(Hairsplitter WFA)
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-target_link_libraries(Hairsplitter PRIVATE wfa2)#pthread)
+# target_link_libraries(Hairsplitter PRIVATE wfa2)#pthread)
 
 target_include_directories(Hairsplitter PRIVATE edlib/include)
 target_compile_options (Hairsplitter PRIVATE -lm)

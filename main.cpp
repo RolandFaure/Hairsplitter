@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--outputGFA").doc("Output assembly file, same format as input") & value("output assembly", outputFile),
-            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (PAF or SAM format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format)") & value("aligned reads", alnOnRefFile),
             clipp::option("-q", "--output-read-groups").doc("Output read groups (txt format)") & value("output read groups", readGroupsFile),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
 
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
 
-            alnOnRefFile = "tmp/reads_aligned_on_assembly.paf";
+            alnOnRefFile = "tmp/reads_aligned_on_assembly.sam";
 
             //cut the gfa in small contigs to speed up the computation
             string command_cut = "python " + path_cut_gfa + " -a " + refFile + " -l 100000 -o tmp/assembly_cut.gfa > tmp/logcut.txt";
@@ -192,7 +192,6 @@ int main(int argc, char *argv[])
 
             refFile = "tmp/assembly_cut.gfa";
 
-
             string fastaFile = "tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
             auto awk = system(command.c_str());
@@ -201,7 +200,7 @@ int main(int argc, char *argv[])
                 cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                 exit(EXIT_FAILURE);
             }
-            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -x map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
+            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
             cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt" << endl;
             auto res_minimap = system(command.c_str());
             if (res_minimap != 0){
@@ -225,7 +224,9 @@ int main(int argc, char *argv[])
 
         cout << " - Loading alignments of the reads on the contigs from " << alnOnRefFile << "\n";
         if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".paf"){
-            parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
+            cout << "ERROR: please provide a .sam file as input for the alignments of the reads on the contigs." << endl;
+            exit(EXIT_FAILURE);
+            // parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
         }
         else if (alnOnRefFile.substr(alnOnRefFile.size()-4,4) == ".sam"){
             parse_SAM(alnOnRefFile, allOverlaps, allreads, indices);
