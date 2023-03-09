@@ -254,34 +254,26 @@ void modify_GFA(
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
-                    int overhang = 50; //margin we're taking at the ends of the contig to be sure to take exactly the right portion 
+                    int overhang = 50; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
                     
                     int overhangLeft = min(interval.first.first, overhang);
                     int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
-                    string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhang), overhang) 
-                        + interval.second.second[group.first].substr(max(0, overhang-overhangLeft), interval.second.second[group.first].size()+overhangLeft+overhangRight-2*overhang)
-                        + allreads[backbone].sequence_.str().substr(interval.first.second+1+overhangRight-overhang, overhang);
+
+                    string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
+                        + allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1)
+                        + allreads[backbone].sequence_.str().substr(interval.first.second+1, overhangRight);
 
                     // cout << "toPolisssdcvh: " << toPolish << endl;
 
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
-                        // if (interval.first.first <= 50){
-                        //     //remove the first 50 bases of toPolish
-                        //     toPolish = toPolish.substr(50, toPolish.size()-50);
-                        // }
-                        // if (interval.first.second >= allreads[backbone].sequence_.size()-50){
-                        //     //remove the last 50 bases of toPolish
-                        //     toPolish = toPolish.substr(0, toPolish.size()-50);
-                        // }
-
                         if (newcontig == ""){
                             //if the contig is close to one end, tell racon to not polish the first or last bases
-                            newcontig = consensus_reads(toPolish, group.second, overhang-overhangLeft, overhang-overhangRight, thread_id);
+                            newcontig = consensus_reads(toPolish, group.second,thread_id);
                         }
+
 
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
@@ -316,16 +308,6 @@ void modify_GFA(
                         
                         newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
 
-                        //because racon is not very good at polishing the first and last bases of contig, take the consensus as computed before
-                        // if (interval.first.first <= 50){
-                        //     //add back the first 50 bases of newcontig
-                        //     newcontig = interval.second.second[group.first].substr(0, 50) + newcontig;
-                        // }
-                        // if (interval.first.second >= allreads[backbone].sequence_.size()-50){
-                        //     //add back the last 50 bases of newcontig
-                        //     newcontig = newcontig + interval.second.second[group.first].substr(interval.second.second[group.first].size()-50, 50);
-                        // }
-
                         edlibFreeAlignResult(result);                        
                     }
                     else {
@@ -339,13 +321,13 @@ void modify_GFA(
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
 
-                    if (interval.first.first == 6000 && group.first == 4){
-                        cout << "stiretches: " << endl;
-                        for (auto s : stitches[n][group.first]){
-                            cout << s << " ";
-                        }
-                        cout << endl;
-                    }
+                    // if (interval.first.first == 6000 && group.first == 4){
+                    //     cout << "stiretches: " << endl;
+                    //     for (auto s : stitches[n][group.first]){
+                    //         cout << s << " ";
+                    //     }
+                    //     cout << endl;
+                    // }
         
                     if (n == 0 || stitches[n][group.first].size() == 0){
                         for (int h : hangingLinks){

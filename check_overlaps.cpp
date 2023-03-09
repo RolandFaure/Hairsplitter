@@ -73,7 +73,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,7) != "edge_2@00" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,10) != "edge_275@20" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -317,7 +317,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     string consensus;
     if (polish){
         string thread_id = std::to_string(omp_get_thread_num());
-        consensus = consensus_reads(read_str , polishingReads, 0, 0, thread_id);
+        consensus = consensus_reads(read_str , polishingReads, thread_id);
         if (DEBUG){
             cout << "Done polishing the contig" << endl;
         }
@@ -645,7 +645,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @return polished sequence 
  */
-string consensus_reads(string &backbone, vector <string> &polishingReads, int overhangLeft, int overhangRight, string &id){
+string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id){
     
     if (polishingReads.size() == 0){
         return backbone;
@@ -724,13 +724,10 @@ string consensus_reads(string &backbone, vector <string> &polishingReads, int ov
         return backbone;
     }
 
-    //trim the consensus so that the end will be the same as the input backbone
-    consensus = consensus.substr(overhangLeft, consensus.size() - overhangLeft - overhangRight);
-
     //racon tends to drop the ends of the sequence, so attach them back.
     //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
-    auto before_size = min(size_t(300+overhangLeft+overhangRight), backbone.size());
-    auto after_size = min(size_t(200+overhangLeft+overhangRight), consensus.size());
+    auto before_size = min(size_t(300), backbone.size());
+    auto after_size = min(size_t(200), consensus.size());
 
     // Do the alignment for the beginning of the sequence.
     string before_start = backbone.substr(0,before_size);

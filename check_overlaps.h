@@ -66,10 +66,8 @@ float generate_msa(
     std::string &newref);
 
 std::string consensus_reads(
-    std::string &backbone, 
+    std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
-    int overhangLeft,
-    int overhangRight,
     std::string &id);
 
 void compute_consensus_in_partitions(
