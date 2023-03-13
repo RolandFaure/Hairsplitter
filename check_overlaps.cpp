@@ -73,7 +73,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name.substr(0,10) != "edge_275@20" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -1092,7 +1092,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         for (auto r = 0 ; r < adjacency_matrix.size() ; r++){
             clustersStart[r] = r;
         }
-        // vector<int> clusteredReads = chinese_whispers(adjacency_matrix, clustersStart);
+        auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
+
+        vector<vector<int>> allclusters_debug;
+        vector<int> clusteredReads1 = chinese_whispers(adjacency_matrix, clustersStart);
+        allclusters_debug.push_back(clusteredReads1);
         vector<vector<int>> localClusters = {};
 
         // cout << "here are all the interesting positions" << endl;
@@ -1121,17 +1125,22 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                     }
                 }
                 
-                auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
                 vector<int> clusteredReads_local = chinese_whispers(strengthened_adjacency_matrix, clustersStart2); 
                 localClusters.push_back(clusteredReads_local);
 
-                // cout << "clustered reads local : " << position << endl;
-                // for (auto r = 0 ; r < clusteredReads_local.size() ; r++){
-                //     if (mask_at_this_position[r] == true){
-                //         cout << clusteredReads_local[r] << " ";
-                //     }
-                // }
-                // cout << endl;
+                if (chunk == 3){
+
+                    // outputGraph(strengthened_adjacency_matrix, clusteredReads_local, "graphs/local_graph_"+std::to_string(position)+".gdf");
+
+                    // cout << "clustered reads local : " << position << endl;
+                    // for (auto r = 0 ; r < clusteredReads_local.size() ; r++){
+                    //     if (mask_at_this_position[r] == true){
+                    //         cout << clusteredReads_local[r] << " ";
+                    //     }
+                    // }
+                    // cout << endl;
+                    allclusters_debug.push_back(clusteredReads_local);
+                }
             }         
         }
 
@@ -1193,10 +1202,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        // if (chunk == 3){
-        //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix.gdf");
-        //     exit(1);
-        // }
+        if (chunk == 3){
+            allclusters_debug.push_back(haplotypes);
+            outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
+            exit(1);
+        }
 
         // cout << "already separated qldfjp : " << endl;
 

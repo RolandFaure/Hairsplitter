@@ -1519,6 +1519,37 @@ void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, 
     }
 }
 
+void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vector<std::vector<int>> &clusters, std::string fileOut){
+
+    ofstream out(fileOut);
+
+    out << "nodedef>name VARCHAR,label VARCHAR, ";
+    for (auto i = 0 ; i < clusters.size() ; i++){
+        out << "cluster_" << i << " VARCHAR, ";
+    }
+    out << "\n";
+    for (auto i = 0 ; i < adj.size() ; i++){
+        out << i << ", " << i << ", ";
+        for (auto j = 0 ; j < clusters.size() ; j++){
+            out << clusters[j][i] << ", ";
+        }
+        out << "\n";
+    }
+    out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
+    for (auto i = 0 ; i < adj.size() ; i++){
+        // cout << "line " << i << ", length of line i : " << 
+        for (auto j=0 ; j < adj[i].size(); j++){
+            if (adj[i][j] > 0){
+                out << i << ", " << j << ", " << adj[i][j] << "\n";
+            }
+            // else{
+            //     // cout << "Not working on me : " << adj[i][j] << endl;
+            // }
+        }
+        
+    }
+}
+
 /**
  * @brief Output graph in simple format (src dest)
  * 

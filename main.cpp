@@ -55,6 +55,9 @@ void check_dependancies(){
 
     command = "awk --help > tmp/trash.txt 2> tmp/trash.txt";
     auto awk = system(command.c_str());
+    if (awk != 0){
+        cout << "WARNING: awk could not be found on this computer. Make sure to align the reads on the assembly by yourself and then run Hairsplitter with option -a" << endl;
+    }
     
     if (res != 0){
         cout << "MISSING DEPENDANCY: minimap2" << endl;
@@ -82,10 +85,6 @@ void check_dependancies(){
         }
     }
 
-    if (awk != 0){
-        cout << "WARNING: awk could not be found on this computer. Make sure to align the reads on the assembly by yourself and then run Hairsplitter with option -a" << endl;
-    }
-
 
     if (res != 0 || racon != 0 || graphunzip != 0 || python3 != 0){
         exit(EXIT_FAILURE);
@@ -95,9 +94,8 @@ void check_dependancies(){
 int main(int argc, char *argv[])
 {   
 
-    string fastqfile, refFile, outputFile, samFile, vcfFile, readGroupsFile;
+    string fastqfile, refFile, outputFolder, samFile, vcfFile, readGroupsFile;
     string alnOnRefFile = "no_file";
-    string outputGAF = "tmp/outout.gaf";
     string path_minimap = "minimap2";
     string path_miniasm = "miniasm";
     string path_racon = "racon";
@@ -111,12 +109,13 @@ int main(int argc, char *argv[])
     bool polish = false;
     bool dont_simplify = false;
     DEBUG = false;
+    bool force = false;
     auto cli = (
             required("-f", "--fastq").doc("Sequencing reads") & value("raw reads", fastqfile),
             required("-i", "--assembly").doc("Original assembly in GFA or FASTA format") & value("assembly", refFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
-            required("-o", "--outputGFA").doc("Output assembly file, same format as input") & value("output assembly", outputFile),
+            required("-o", "--output").doc("Output directory") & value("output directory", outputFolder),
             clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format)") & value("aligned reads", alnOnRefFile),
             clipp::option("-q", "--output-read-groups").doc("Output read groups (txt format)") & value("output read groups", readGroupsFile),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
@@ -127,6 +126,7 @@ int main(int argc, char *argv[])
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
             clipp::option("--path-to-graphunzip").doc("Path to graphunzip.py (if not in PATH)") & value("path to graphunzip", path_graphunzip),
+            clipp::option("-F", "--force").set(force).doc("Force overwrite of output folder if it exists"),
             clipp::option("-d", "--debug").set(DEBUG)
         );
 
@@ -141,7 +141,14 @@ int main(int argc, char *argv[])
         GRAPHUNZIP = path_graphunzip;
         HAIRSPLITTER = path_path.substr(0, path_path.size()-18);
 
-        system("mkdir tmp/ 2> trash.txt");
+        //strip the last / if it exists in the output folder
+        if (outputFolder[outputFolder.size()-1] == '/'){
+            outputFolder = outputFolder.substr(0, outputFolder.size()-1);
+        }
+
+        string outputGAF = outputFolder+"/tmp/outout.gaf";
+        string outputFile = outputFolder+"/hairsplitter_assembly.gfa";
+
         check_dependancies();
 
         std::vector <Read> allreads; 
@@ -160,9 +167,9 @@ int main(int argc, char *argv[])
             //convert the fasta file to gfa
             cout << "Converting the fasta file to gfa" << endl;
 
-            string command = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' " + refFile + " | awk '{if(substr($1,1,1)==\">\") {printf( \"S\\t\"substr($1,2)\"\\t\")} else {print}}' > tmp/assembly.gfa";
+            string command = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' " + refFile + " | awk '{if(substr($1,1,1)==\">\") {printf( \"S\\t\"substr($1,2)\"\\t\")} else {print}}' > "+outputFolder+"/tmp/assembly.gfa";
             system(command.c_str());
-            refFile = "tmp/assembly.gfa";
+            refFile = outputFolder+"/tmp/assembly.gfa";
             format = "fasta";
         }
         else{
@@ -171,17 +178,25 @@ int main(int argc, char *argv[])
         }
 
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
-        cout << "-- Please note that details on what Hairsplitter does will be jotted down in file hairsplitter_summary.txt --\n";
+        cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
 
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
 
+            string mkdir_out = "mkdir "+outputFolder + " && mkdir "+ outputFolder + "/tmp/";
+            auto mkdir = system(mkdir_out.c_str());
+            if (mkdir != 0 && !force){
+                cout << "Could not run command line " << mkdir_out << endl;
+                cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already." << endl;
+                exit(EXIT_FAILURE);
+            }
+
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
 
-            alnOnRefFile = "tmp/reads_aligned_on_assembly.sam";
+            alnOnRefFile = outputFolder+"/tmp/reads_aligned_on_assembly.sam";
 
             //cut the gfa in small contigs to speed up the computation
-            string command_cut = "python " + path_cut_gfa + " -a " + refFile + " -l 100000 -o tmp/assembly_cut.gfa > tmp/logcut.txt";
+            string command_cut = "python " + path_cut_gfa + " -a " + refFile + " -l 100000 -o "+outputFolder+"/tmp/assembly_cut.gfa > "+outputFolder+"/tmp/logcut.txt";
             auto res_cut = system(command_cut.c_str());
             if (res_cut != 0){
                 cout << "ERROR while running " << command_cut << endl;
@@ -190,9 +205,9 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
-            refFile = "tmp/assembly_cut.gfa";
+            refFile = outputFolder+"/tmp/assembly_cut.gfa";
 
-            string fastaFile = "tmp/assembly.fa";
+            string fastaFile = outputFolder+"/tmp/assembly.fa";
             string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
             auto awk = system(command.c_str());
             if (awk != 0){
@@ -200,12 +215,12 @@ int main(int argc, char *argv[])
                 cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
                 exit(EXIT_FAILURE);
             }
-            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> tmp/logminimap.txt";
-            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on tmp/logminimap.txt" << endl;
+            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> "+outputFolder+"/tmp/logminimap.txt";
+            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on "+outputFolder+"/tmp/logminimap.txt" << endl;
             auto res_minimap = system(command.c_str());
             if (res_minimap != 0){
                 cout << "ERROR while running " << command << endl;
-                cout << "DEPENDANCY ERROR: minimap2 could not run properly, check tmp/logminimap.txt" << endl;
+                cout << "ERROR: minimap2 could not run properly, check "+outputFolder+"/tmp/logminimap.txt" << endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -256,7 +271,7 @@ int main(int argc, char *argv[])
         }
         
         modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
-        string zipped_GFA = "tmp/zipped_gfa.gfa";
+        string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
         //now "unzip" the assembly, improving the contiguity where it can be improved
@@ -265,12 +280,12 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >tmp/logGraphUnzip.txt 2>tmp/trash.txt";
+        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >"+outputFolder+"/tmp/logGraphUnzip.txt 2>"+outputFolder+"/tmp/trash.txt";
         string command = GRAPHUNZIP + com;
-        cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on tmp/logGraphUnzip.txt\n";
+        cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on "+outputFolder+"/tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());
         if (resultGU != 0){
-            cout << "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in tmp/logGraphUnzip.txt" << endl;
+            cout << "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in "+outputFolder+"/tmp/logGraphUnzip.txt" << endl;
             exit(EXIT_FAILURE);
         }
 
@@ -279,9 +294,9 @@ int main(int argc, char *argv[])
         std::ofstream o(output, std::ios_base::app);//appending to the file
         o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
         o.close();
-        command = "cat output.txt supercontigs.txt > output2.txt 2> tmp/trash.txt";
+        command = "cat output.txt supercontigs.txt > output2.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());
-        command =  "mv output2.txt output.txt & rm supercontigs.txt 2> tmp/trash.txt";
+        command =  "mv output2.txt "+outputFolder+"/hairsplitter_summary.txt && rm supercontigs.txt && rm output.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());
         
         if (format == "fasta"){
