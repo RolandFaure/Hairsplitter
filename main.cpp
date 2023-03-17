@@ -75,8 +75,7 @@ void check_dependancies(){
             GRAPHUNZIP = "GraphUnzip";
         }
         else{
-            cout << "MISSING DEPENDANCY: could not run graphunzip. Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed. " 
-            << "I was looking for GraphUnzip as: " << GRAPHUNZIP << endl;
+            cout << "ERROR: could not run graphunzip, looking for it at "+ GRAPHUNZIP +".  Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed. " << endl; 
         }
     }
 
@@ -106,22 +105,21 @@ int main(int argc, char *argv[])
     DEBUG = false;
     bool force = false;
     auto cli = (
-            required("-f", "--fastq").doc("Sequencing reads") & value("raw reads", fastqfile),
-            required("-i", "--assembly").doc("Original assembly in GFA or FASTA format") & value("assembly", refFile),
+            required("-f", "--fastq").doc("Sequencing reads (required)") & value("raw reads", fastqfile),
+            required("-i", "--assembly").doc("Original assembly in GFA or FASTA format (required)") & value("assembly", refFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
-            required("-o", "--output").doc("Output directory") & value("output directory", outputFolder),
-            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format)") & value("aligned reads", alnOnRefFile),
+            required("-o", "--output").doc("Output directory (required)") & value("output directory", outputFolder),
+            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format) (not recommended)") & value("aligned reads", alnOnRefFile),
             clipp::option("-q", "--output-read-groups").doc("Output read groups (txt format)") & value("output read groups", readGroupsFile),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
-            clipp::option("-p", "--polish").set(polish).doc("Use this option if the assembly is not polished"),
-            clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
+            clipp::option("-p", "--polish").set(polish).doc("Use this option if the input assembly is not polished"),
             clipp::option("-s", "--dont_simplify").set(dont_simplify).doc("Don't rename the contigs and don't merge them"),
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
-            clipp::option("--path-to-graphunzip").doc("Path to graphunzip.py (if not in PATH)") & value("path to graphunzip", path_graphunzip),
             clipp::option("-F", "--force").set(force).doc("Force overwrite of output folder if it exists"),
+            clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
             clipp::option("-d", "--debug").set(DEBUG)
         );
 

@@ -98,13 +98,13 @@ std::vector<Partition> select_confident_partitions(
     
 int compatible_partitions(Partition &p1 , Partition &p2);
 
-std::vector<int> merge_wrongly_split_haplotypes(
-    std::vector<int> &clusteredReads, 
-    std::vector<Column> &snps, 
-    int chunk, 
-    std::vector<size_t> &suspectPostitions,
-    std::vector<std::vector<int>> &adjacencyMatrix,
-    int sizeOfWindow);
+// std::vector<int> merge_wrongly_split_haplotypes(
+//     std::vector<int> &clusteredReads, 
+//     std::vector<Column> &snps, 
+//     int chunk, 
+//     std::vector<size_t> &suspectPostitions,
+//     std::vector<std::vector<int>> &adjacencyMatrix,
+//     int sizeOfWindow);
 
 std::vector<int> rescue_reads(
     std::vector<int> &clusteredReads, 

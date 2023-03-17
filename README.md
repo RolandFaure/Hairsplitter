@@ -8,7 +8,7 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 # Why is it useful ?
 
-`Hairsplitter` is mainly useful if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
+`Hairsplitter` is useful if you are assembling a multi-strain metagenome or trying to obtain a phased assembly. A decisive of `Hairsplitter` compared to some other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism  / the number of strains, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
 
 # Installation
 
@@ -30,12 +30,14 @@ conda activate hairsplitter
 - [racon](https://github.com/isovic/racon)
 - CMake >= 3.8.12, make, gcc >= 11
 - Python3 with numpy and scipy
+
+If Minimap2 and Racon are not in the PATH, their location should be specified through the `--path-to-minimap2` and `--path-to-racon` options.
  
 ## Download & Compilation
 
 To download and compile, run
 ```
-git clone --recursive https://github.com/RolandFaure/Hairsplitter.git
+git clone https://github.com/RolandFaure/Hairsplitter.git
 cd Hairsplitter
 mkdir build
 cd build
@@ -49,8 +51,10 @@ make
 
 Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler). To improve/phase your assembly using `Hairsplitter`, run
 ```
-Hairsplitter -f reads.fastq -i assembly.gfa -o new_assembly.gfa
+Hairsplitter -f reads.fastq -i assembly.gfa -o hairsplitter_out/
 ```
+
+In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
 
 ## Options
 
@@ -63,21 +67,21 @@ SYNOPSIS
                                    [--path-to-graphunzip <path to graphunzip>]
 
 OPTIONS
-        -f, --fastq Sequencing reads
+        -f, --fastq Sequencing reads (required)
         -i, --assembly
-                    Original assembly in GFA or FASTA format
+                    Original assembly in GFA or FASTA format (required)
 
-        -o, --outputGFA
-                    Output assembly file, same format as input
+        -o, --output
+                    Output directory (required)
 
         -a, --aln-on-asm
-                    Reads aligned on assembly (PAF or SAM format)
+                    Reads aligned on assembly (SAM format) (not recommended)
+
+        -q, --output-read-groups
+                    Output read groups (txt format)
 
         -p, --polish
-                    Use this option if the assembly is not polished
-
-        -t, --threads
-                    Number of threads
+                    Use this option if the input assembly is not polished
 
         -s, --dont_simplify
                     Don't rename the contigs and don't merge them
@@ -88,15 +92,14 @@ OPTIONS
         --path-to-racon
                     Path to the executable racon (if not in PATH)
 
-        --path-to-graphunzip
-                    Path to graphunzip.py (if not in PATH or in default folder)
-                  
+        -F, --force Force overwrite of output folder if it exists
+        -t, --threads
+                    Number of threads
 ```
 
-# Issues
- Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to support c++17. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
- 
- If HairSplitter crashes with the message `Illegal instruction`, it probably means that the program is run on a different CPU than the one on which it was compiled. This can typically happen if you're running HairSplitter on a computing cluster. To solve the issue, make sure to compile and run HairSplitter on the same CPU (more precisely, you need to compile and run WFA2-lib on the same CPU).
+# Installation issues
+ All the installation issues that we have seen yet stem from the use of too old compilers. g++ _and_ gcc have to support c++17. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+
 
 
 
