@@ -34,8 +34,10 @@ if __name__ == "__main__":
                     
                     ls = line.split("\t")
                     length_of_contigs[ls[1]] = len(ls[2])
-                    for chunk in range (int((np.floor(len(ls[2])-2)/length)+1)): #-2 to avoid creating a contig of length 0 if the size is precisely a multiple of the length
+                    for chunk in range (int(np.floor((len(ls[2])-1)/length)+1)): #-1 to avoid creating a contig of length 0
                         out.write("S\t" + ls[1] + "@" + str(chunk) + "\t" + ls[2][chunk*length:min((chunk+1)*length, len(ls[2])+1)] + "\t" + "\t".join(ls[3:]).strip("\n")+"\n")
+
+                        
                         #link the slice with the previous one
                         if chunk > 0 :
                             out.write("L\t" + ls[1] + "@" + str(chunk-1) + "\t+\t" + ls[1] + "@" + str(chunk) + "\t+\t0M\n")
@@ -45,15 +47,16 @@ if __name__ == "__main__":
                 
         
             for line in L_lines:
-                ls = line.split("\t")
+                ls = line.strip("\n").split("\t")
                 if ls[2] == "+":
-                    out.write("L\t" + ls[1] + "@" + str(int(np.floor(length_of_contigs[ls[1]]/length))) + "\t+\t")
+                    out.write("L\t" + ls[1] + "@" + str(int(np.floor((length_of_contigs[ls[1]]-1)/length))) + "\t+\t")
                 else:
                     out.write("L\t" + ls[1] + "@0\t-\t")
 
                 if ls[4] == "-":
-                    out.write(ls[3] + "@" + str(int(np.floor(length_of_contigs[ls[3]]/length))) + "\t-\t"+ls[5])
+                    out.write(ls[3] + "@" + str(int(np.floor((length_of_contigs[ls[3]]-1)/length))) + "\t-\t"+ls[5])
                 else:
                     out.write(ls[3] + "@0\t+\t"+ls[5])
                 out.write("\n")
+
     out.close()

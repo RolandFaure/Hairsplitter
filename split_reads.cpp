@@ -789,19 +789,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 vector<int> clusteredReads_local = chinese_whispers(strengthened_adjacency_matrix, clustersStart2); 
                 localClusters.push_back(clusteredReads_local);
 
-                if (chunk == 3){
-
-                    // outputGraph(strengthened_adjacency_matrix, clusteredReads_local, "graphs/local_graph_"+std::to_string(position)+".gdf");
-
-                    // cout << "clustered reads local : " << position << endl;
-                    // for (auto r = 0 ; r < clusteredReads_local.size() ; r++){
-                    //     if (mask_at_this_position[r] == true){
-                    //         cout << clusteredReads_local[r] << " ";
-                    //     }
-                    // }
-                    // cout << endl;
-                    allclusters_debug.push_back(clusteredReads_local);
-                }
+                allclusters_debug.push_back(clusteredReads_local);
             }         
         }
 
@@ -832,7 +820,8 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         // }
         // cout << endl;
 
-        vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
+        // vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
+        vector<int> mergedHaplotypes = clusteredReads;
 
         // cout << "merged haploitypes : " << endl;
         // for (auto h : mergedHaplotypes){
@@ -848,26 +837,26 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         vector<int> haplotypes = rescue_reads(mergedHaplotypes, snps, chunk, interestingPositions, sizeOfWindow);
 
-        // cout << "haploutypes : " << chunk << endl;
-        // for (auto h : haplotypes){
-        //     if (h > -1){
-        //         cout << h;
-        //     }
-        //     // else{
-        //     //     cout << "_";
-        //     // }
-        // }
-        // cout << endl;
+        cout << "haploutypes : " << chunk << endl;
+        for (auto h : haplotypes){
+            if (h > -1){
+                cout << h;
+            }
+            // else{
+            //     cout << "_";
+            // }
+        }
+        cout << endl;
 
         // if (chunk == 14){
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        // if (chunk == 3){
-        //     allclusters_debug.push_back(haplotypes);
-        //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
-        //     exit(1);
-        // }
+        if (chunk == 20){
+            allclusters_debug.push_back(haplotypes);
+            outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
+            exit(1);
+        }
 
         // cout << "already separated qldfjp : " << endl;
 
@@ -2711,7 +2700,7 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     vector<double> clusters_aggregated(localClusters[0].size(), 0);
     for (auto i = 0 ; i < localClusters.size() ; i++){
         for (auto j = 0 ; j < localClusters[i].size() ; j++){
-            clusters_aggregated[j] += localClusters[i][j]*(std::hash<int>()(i) % 1000);
+            clusters_aggregated[j] += localClusters[i][j]*std::pow(2,i);
         }
     }
 

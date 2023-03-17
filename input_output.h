@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <vector>
-#include "check_overlaps.h"
+#include "split_reads.h"
 #include "robin_hood.h"
 #include "read.h"
 //#include "Variant.h"

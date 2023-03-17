@@ -239,10 +239,18 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     }
                     else if (fieldNb == 2){ //here is the sequence
                         if (field == "+"){
+                            if (indices.find(name1+"@"+std::to_string(nbofchunks[name1]-1)) == indices.end()){
+                                cout << "Problem in reading the link : " << line << endl;
+                                throw std::invalid_argument( "Problem in file formatting" );
+                            }
                             link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1]-1)];
                             link.end1 = 1;
                         }
                         else if (field == "-"){
+                            if (indices.find(name1+"@0") == indices.end()){
+                                cout << "Problem in reading the link : " << line << endl;
+                                throw std::invalid_argument( "Problem in file formatting" );
+                            }
                             link.neighbor1 = indices[name1+"@0"];
                             link.end1 = 0;
                         }
@@ -256,10 +264,18 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     }
                     else if (fieldNb == 4){ //here is the sequence
                         if (field == "+"){
+                            if (indices.find(name2+"@0") == indices.end()){
+                                cout << "Problem in reading the link : " << line << endl;
+                                throw std::invalid_argument( "Problem in file formatting" );
+                            }
                             link.neighbor2 = indices[name2+"@0"];
                             link.end2 = 0;
                         }
                         else if (field == "-"){
+                            if (indices.find(name2+"@"+std::to_string(nbofchunks[name2]-1)) == indices.end()){
+                                cout << "Problem in reading the link : " << line << endl;
+                                throw std::invalid_argument( "Problem in file formatting" );
+                            }
                             link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2]-1)];
                             link.end2 = 1;
                         }
@@ -283,11 +299,17 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 // cout << "Link beddtween " << allreads[link.neighbor1].name << " and " << allreads[link.neighbor2].name << endl;
             }
             catch(...){
-                cout << "Problem while reading your GFA file. Please ensure all 'L' lines are below 'S' lines" << endl;
+                cout << "Problem while reading GFA file " + fileAssembly + ". Ensure that all the contigs described in 'L' lines are present in 'S' lines." << endl;
                 throw std::invalid_argument("Invalid GFA");
             }
         }
 
+    }
+
+    for (auto l : allLinks){
+        int neighbor1 = l.neighbor1;
+        int neighbor2 = l.neighbor2;
+        //check if the neighbors are in the backbone
     }
 
 }

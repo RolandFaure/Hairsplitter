@@ -1,7 +1,8 @@
 #ifndef MODGFA
 #define MODGFA
 
-#include "check_overlaps.h"
+#include "tools.h"
+#include "split_reads.h"
 #include <unordered_map>
 #include <set>
 

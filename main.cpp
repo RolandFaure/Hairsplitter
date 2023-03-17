@@ -1,4 +1,4 @@
-
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <chrono>
@@ -6,9 +6,10 @@
 
 #include "edlib.h"
 #include "input_output.h"
-#include "check_overlaps.h"
+#include "split_reads.h"
 #include "modify_gfa.h"
 #include "clipp.h" //library to build command line interfaces
+#include "tools.h"
 //#include "phase_variants.h"
 
 using std::cout;
@@ -52,12 +53,6 @@ void check_dependancies(){
     com = " -h > tmp/trash.txt 2> tmp/trash.txt";
     command = GRAPHUNZIP + com;
     auto graphunzip = system(command.c_str());
-
-    command = "awk --help > tmp/trash.txt 2> tmp/trash.txt";
-    auto awk = system(command.c_str());
-    if (awk != 0){
-        cout << "WARNING: awk could not be found on this computer. Make sure to align the reads on the assembly by yourself and then run Hairsplitter with option -a" << endl;
-    }
     
     if (res != 0){
         cout << "MISSING DEPENDANCY: minimap2" << endl;
@@ -167,9 +162,9 @@ int main(int argc, char *argv[])
             //convert the fasta file to gfa
             cout << "Converting the fasta file to gfa" << endl;
 
-            string command = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' " + refFile + " | awk '{if(substr($1,1,1)==\">\") {printf( \"S\\t\"substr($1,2)\"\\t\")} else {print}}' > "+outputFolder+"/tmp/assembly.gfa";
-            system(command.c_str());
-            refFile = outputFolder+"/tmp/assembly.gfa";
+            string newRefFile = outputFolder+"/tmp/assembly.gfa";
+            convert_FASTA_to_GFA(refFile, newRefFile);
+            refFile = newRefFile;
             format = "fasta";
         }
         else{
@@ -180,16 +175,16 @@ int main(int argc, char *argv[])
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
         cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
 
+        string mkdir_out = "mkdir "+outputFolder + " && mkdir "+ outputFolder + "/tmp/";
+        auto mkdir = system(mkdir_out.c_str());
+        if (mkdir != 0 && !force){
+            cout << "Could not run command line " << mkdir_out << endl;
+            cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already, or use option -F." << endl;
+            exit(EXIT_FAILURE);
+        }
+
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
-
-            string mkdir_out = "mkdir "+outputFolder + " && mkdir "+ outputFolder + "/tmp/";
-            auto mkdir = system(mkdir_out.c_str());
-            if (mkdir != 0 && !force){
-                cout << "Could not run command line " << mkdir_out << endl;
-                cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already." << endl;
-                exit(EXIT_FAILURE);
-            }
 
             cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
 
@@ -206,17 +201,12 @@ int main(int argc, char *argv[])
             }
 
             refFile = outputFolder+"/tmp/assembly_cut.gfa";
-
             string fastaFile = outputFolder+"/tmp/assembly.fa";
-            string command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + refFile + " > " + fastaFile;
-            auto awk = system(command.c_str());
-            if (awk != 0){
-                cout << "Error while running " << command << endl;
-                cout << "DEPENDANCY ERROR: Hairsplitter needs awk to run without using option -a. Please install awk or use option -a." << endl;
-                exit(EXIT_FAILURE);
-            }
-            command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> "+outputFolder+"/tmp/logminimap.txt";
-            cout << " - Running minimap with command line:\n     " << command << "\n   The output of minimap2 is dumped on "+outputFolder+"/tmp/logminimap.txt" << endl;
+
+            convert_GFA_to_FASTA(refFile, fastaFile);
+
+            string command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> "+outputFolder+"/tmp/logminimap.txt";
+            cout << " - Running minimap with command line:\n     " << command << "\n   The log of minimap2 can be found at "+outputFolder+"/tmp/logminimap.txt" << endl;
             auto res_minimap = system(command.c_str());
             if (res_minimap != 0){
                 cout << "ERROR while running " << command << endl;
@@ -258,7 +248,7 @@ int main(int argc, char *argv[])
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, string>>  > >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
-        checkOverlaps(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
+        split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
 
         //output GAF, the path of all reads on the new contigs
         // cout << "Outputting GAF" << endl;
@@ -280,7 +270,7 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " >"+outputFolder+"/tmp/logGraphUnzip.txt 2>"+outputFolder+"/tmp/trash.txt";
+        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " 2>"+outputFolder+"/tmp/logGraphUnzip.txt >"+outputFolder+"/tmp/trash.txt";
         string command = GRAPHUNZIP + com;
         cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on "+outputFolder+"/tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());
@@ -289,7 +279,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
 
-        cout << "\n *To see in more details what supercontigs were created with GraphUnziop, check the output.txt*\n";
+        cout << "\n *To see in more details what supercontigs were created with GraphUnzip, check the output.txt*\n";
         string output = "output.txt";
         std::ofstream o(output, std::ios_base::app);//appending to the file
         o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
@@ -301,11 +291,8 @@ int main(int argc, char *argv[])
         
         if (format == "fasta"){
             //convert the output to fasta
-
-            command = "awk '/^S/{print \">\"$2\"\\n\"$3}' " + outputFile + " > " + outputFile + ".fasta";
-            system(command.c_str());
-            command = "mv " + outputFile + ".fasta " + outputFile;
-            system(command.c_str());
+            string fasta_name = outputFile.substr(0, outputFile.size()-4) + ".fasta";
+            convert_GFA_to_FASTA(outputFile, fasta_name);
         }
         
         auto t2 = high_resolution_clock::now();

@@ -8,7 +8,7 @@ project(Hairsplitter)
 
 # Local header files here ONLY
 set(TARGET_H
-    check_overlaps.h
+    split_reads.h
     input_output.h
     modify_gfa.h
     robin_hood.h
@@ -25,7 +25,7 @@ set(TARGET_H
 
 # Local source files here
 set(TARGET_SRC
-    check_overlaps.cpp
+    split_reads.cpp
     edlib/src/edlib.cpp
     input_output.cpp
     modify_gfa.cpp
