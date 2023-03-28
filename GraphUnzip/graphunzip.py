@@ -11,13 +11,16 @@ import input_output as io
 from transform_gfa import gfa_to_fasta
 from finish_untangling import merge_adjacent_contigs
 from finish_untangling import duplicate_contigs
+from finish_untangling import trim_overlaps
 from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
 from solve_with_HiC import solve_with_HiC
 from determine_multiplicity import determine_multiplicity
 # from contig_DBG import DBG_long_reads
-import contig_DBG
-from contig_DBG import DBG_long_reads
+# import contig_DBG
+# from contig_DBG import DBG_long_reads
+from simple_unzip import simple_unzip
+import segment as sg
 #from segment import check_if_all_links_are_sorted
 
 from scipy import sparse
@@ -134,7 +137,7 @@ def parse_args_unzip() :
         "-D",
         "--duplicate",
         action="store_true",
-        help="""Duplicate the contigs that are actually present twice, at the end of the untangling""",
+        help="""Duplicate the contigs that are actually present more than once, at the end of the untangling""",
     )
     # groupBehavior.add_argument(
     #     "-s",
@@ -368,10 +371,17 @@ def main():
         #As a first step, use only the long reads, if available
         if uselr :
             print("\n*Untangling the graph using long reads*\n")
+            merge = True #necessary when using DBG
+            # rename = True
             # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
-            segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
+            # segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
+            segments = simple_unzip(segments, names, lrFile)
             print("Merging contigs that can be merged...")
             merge_adjacent_contigs(segments)
+
+            sg.delete_links_present_twice(segments)
+            
+            segments = trim_overlaps(segments)
             print("\n*Done untangling the graph using long reads*\n")
         
         #As a second step, use Hi-C and/or linked reads 
@@ -379,7 +389,8 @@ def main():
             print("\n*Untangling the graph using Hi-C*\n")
             segments = solve_with_HiC(segments, interactionMatrix, names, confidentCoverage=reliableCoverage, verbose = verbose)
             print("Merging contigs that can be merged...")
-            merge_adjacent_contigs(segments)
+            segments = merge_adjacent_contigs(segments)
+            
             print("\n*Done untangling the graph using Hi-C*\n")
         
         elif tagInteractionMatrix.count_nonzero() > 0 :

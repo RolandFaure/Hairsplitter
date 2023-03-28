@@ -1161,8 +1161,14 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 for (auto interval : partitions[backbone]){
 
                     if (interval.second.first[n] > -1 && stop < 2){
-                        // if (allreads[read].name.substr(0,6) == "@60b8c"){
-                        //     cout << "read " << allreads[read].name << " passes through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
+                        // if (allreads[read].name.substr(0,6) == "@c36dd"){
+                        //     cout << "read " << allreads[read].name << " passes input_output yyu through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
+                        //     for (auto i : interval.second.first){
+                        //         if (i != -2){
+                        //             cout << i << " ";
+                        //         }
+                        //     }
+                        //     cout << endl;
                         // }
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));

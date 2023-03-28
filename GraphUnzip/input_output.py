@@ -345,7 +345,6 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
                     if depth == '':
                         f.write(sequence + '\t'+ extra_tags +"\n")
                     else :
-                        
                         newdepth = str(float(depth.split(':')[-1])/copies[contig])
                         f.write(sequence + '\t' + ":".join(depth.split(':')[:-1]) + ":" + newdepth + '\t' + extra_tags + '\n')
                 else:
@@ -404,7 +403,6 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
 
     # in the case the user prefers having merged contigs as an output
     else : #if merge_adjacent_contigs == True
-        
         #open a file recording which contigs correspond to which supercontigs (with lines such as supercontig_1 contig_A_contig_B_contig_C). Also store that information in a dictionary
         if rename_contigs :
             splitName = exportFile.split('/')[:-1]
@@ -442,14 +440,17 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
                         s = ''.join([complement_dict[base] for base in s])
                     if c > 0 :
                         CIGARlength = np.sum([int(i) for i in re.findall(r'\d+', segment.insideCIGARs[c-1])])
-                        
+                        # print("in input_output.py dqkdmjc ", CIGARlength, " ", segment.insideCIGARs, " ", segment.names)
                         s = s[CIGARlength:]
                     if depth != '' :
                         fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(s)
                     
                     sequence += s
+
+                trimmed_ends = segment.get_trim()
+                sequence = sequence[trimmed_ends[0]:len(sequence)-trimmed_ends[0]-trimmed_ends[1]]
                     
-                if fullDepth == 0:
+                if fullDepth == 0 or len(sequence) == 0:
                     f.write(sequence + "\n")
                 else :
                     newdepth = str(fullDepth/len(sequence))
@@ -540,6 +541,9 @@ def export_to_fasta(listOfSegments, gfaFile, exportFile="results/newAssembly.fas
                 fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(s)
             
             sequence += s
+
+        trimmed_ends = segment.get_trim()
+        sequence = sequence[trimmed_ends[0]:len(sequence)-trimmed_ends[0]-trimmed_ends[1]]
             
         f.write(sequence + "\n")
 

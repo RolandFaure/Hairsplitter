@@ -7,8 +7,8 @@ import random
 #a segment is a supercontig
 class Segment:
 
-    def __init__(self, segNamesOfContig, segOrientationOfContigs, segLengths, segInsideCIGARs = None, segLinks = [[],[]], segOtherEndOfLinks = [[],[]], segCIGARs = [[],[]], lock = False, HiCcoverage = 0, readCoverage = []):
-        
+    def __init__(self, segNamesOfContig, segOrientationOfContigs, segLengths, segInsideCIGARs =None, segLinks = [[],[]], segOtherEndOfLinks = [[],[]], segCIGARs = [[],[]], lock = False, HiCcoverage = 0, readCoverage = []):
+         
         if len(segLinks[0]) != len(segOtherEndOfLinks[0]) or len(segLinks[1]) != len(segOtherEndOfLinks[1]) :
             print('ERROR in the links while initializing a segment')
             return 0
@@ -40,7 +40,7 @@ class Segment:
         else :
             self._depths = [1 for i in range(len(self._lengths))]
             
-        self._copiesOfContigs = [-1]*len(segNamesOfContig) #this is used exclusively while exporting, to indicate which copy of which contig is in the segment (copy 0/ copy 1 / copy 2 ...)
+        self._copiesOfContigs = [-1]*len(segNamesOfContig) #this is used exclusively while exporting, to indicate which copy of which contig is in the segment (copy 0 / copy 1 / copy 2 ...)
         
         #this group of attribute are linked arrays : one should never be modified without the others 
         #They are sorted by ID of the neighbor : important for handling quickly big nodes
@@ -51,12 +51,12 @@ class Segment:
         self._otherEndOfLinks = [[i[1] for i in lists_keyed[0]], [i[1] for i in lists_keyed[1]]] #for each link, indicates the side of the other segment on which the link arrives
         self._CIGARs = [[i[2] for i in lists_keyed[0]], [i[2] for i in lists_keyed[1]]] #for each link, indicates the CIGAR string found in the GFA
         
+        self._trim = [0,0]
+
         self._freezed = [False, False] #do not duplicate from one end if frozen at this end
         self._locked = lock #That is to duplicate a contig only once in each merge_contigs
-        
-        
+          
     # getters
-    
     def get_id(self):
         return self._id
     
@@ -111,6 +111,9 @@ class Segment:
             
         return sumdepth / sumlength
     
+    def get_trim(self):
+        return self._trim
+    
     def full_name(self) :
         return '_'.join([self._namesOfContigs[i]+'-'+str(self._copiesOfContigs[i]) for i in range(len(self._namesOfContigs))])
     
@@ -130,6 +133,13 @@ class Segment:
     
     def set_coverage(self, newCoverage) :
         self._HiCcoverage = newCoverage
+
+    def set_CIGAR(self, end, otherContig, otherEnd, newCIGAR) :
+        for l in range(len(self.links[end])) :
+            if self.links[end][l].ID == otherContig.ID and self.otherEndOfLinks[end][l] == otherEnd :
+                self.CIGARs[end][l] = newCIGAR
+                return 0
+        return -1
     
     def freeze(self, endOfSegment): 
         self._freezed[endOfSegment] = True
@@ -149,6 +159,9 @@ class Segment:
         self._locked = True
         for i in self._links[endOfSegment]:
             i.locked = True
+
+    def set_trim(self, trim) :
+        self._trim = trim
             
     def set_id(self, newID) : #few cases where that is useful
         self._id = newID 
@@ -414,7 +427,6 @@ class Segment:
         newSegment2 = Segment(self._namesOfContigs[axis:], self._orientationOfContigs[axis:], self._lengths[axis:], self._insideCIGARs[axis:], [[], self._links[1]], [[], self._otherEndOfLinks[1]], [[], self._CIGARs[1]], readCoverage = self._depths[axis:])
         
         return newSegment1, newSegment2
-    
      
     #function to be used on small loops only
     def flatten(self, replicas) :

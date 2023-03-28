@@ -210,6 +210,30 @@ void modify_GFA(
             int n = 0;
             for (auto interval : partitions[backbone]){
 
+                if (interval.first.first == 36000){
+                    cout  << "fdiocicui modufy_gfa" << endl;
+                    for (auto i = 0 ; i < interval.second.first.size() ; i++ ){
+                        if (interval.second.first[i] != -2){
+                            cout << interval.second.first[i]  << " ";
+                        }
+                    }
+                    cout << endl;
+                    for (auto i = 0 ; i < partitions[backbone][n-1].second.first.size() ; i++ ){
+                        if (partitions[backbone][n-1].second.first[i] != -2){
+                            cout << partitions[backbone][n-1].second.first[i]  << " ";
+                        }
+                    }
+                    cout << endl;
+                    cout << "and there are the stitches : " << endl;
+                    for (auto s : stitches[n]) {
+                        cout << s.first << " : ";
+                        for (auto bb : s.second){
+                            cout << bb  << ",";
+                        }
+                        cout << endl;
+                    }
+                }
+
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 if (omp_get_thread_num() == 0 && DEBUG){
                     cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
@@ -321,13 +345,6 @@ void modify_GFA(
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
 
-                    // if (interval.first.first == 6000 && group.first == 4){
-                    //     cout << "stiretches: " << endl;
-                    //     for (auto s : stitches[n][group.first]){
-                    //         cout << s << " ";
-                    //     }
-                    //     cout << endl;
-                    // }
         
                     if (n == 0 || stitches[n][group.first].size() == 0){
                         for (int h : hangingLinks){
@@ -528,30 +545,17 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
 
     //now give all associations
     for (auto fit : fit_left){
-        // find the best fit
-        int best_fit = 0;
         for (auto candidate : fit.second){
-            if (candidate.second > best_fit){
-                best_fit = candidate.second;
-            }
-        }
-        for (auto candidate : fit.second){
-            if (candidate.second == best_fit){ //good compatibility
+            if (candidate.second >= 5){ //good compatibility
                 stitch[fit.first].emplace(candidate.first);
             }
         }
     }
 
     for (auto fit : fit_right){
-        //find the best fit
-        int best_fit = 0;
+        //find all the good fits
         for (auto candidate : fit.second){
-            if (candidate.second > best_fit){
-                best_fit = candidate.second;
-            }
-        }
-        for (auto candidate : fit.second){
-            if (candidate.second == best_fit){
+            if (candidate.second >= 5){
                 stitch[candidate.first].emplace(fit.first);
             }
         }

@@ -7,6 +7,7 @@ File dedicated to the algorithm af making bigger contigs, including solving bubb
 """
 
 import numpy as np
+import sys
 #import matplotlib.pyplot as plt
 
 import input_output as io
@@ -135,7 +136,6 @@ def merge_adjacent_contigs(listOfSegments):
             for endOfSegment in range(2):
                 
                 if not alreadyDidThisOne:
-                    
                     if len(segment.links[endOfSegment]) == 1 and len(segment.links[endOfSegment][0].links[segment.otherEndOfLinks[endOfSegment][0]])== 1 :  # then merge
                         alreadyDidThisOne = True
                         if segment.ID != segment.links[endOfSegment][0].ID:
@@ -191,6 +191,87 @@ def duplicate_contigs(segments):
         segments = merge_adjacent_contigs(segments)
 
     return segments
+
+#input: segments
+#output : segments trimmed to reduce the number of overlaps
+def trim_overlaps(segments):
+
+    something_changes = True
+    while something_changes :
+        something_changes = False
+
+        for s in segments :
+            min_overlap_left = 0
+            if len(s.CIGARs[0]) != 0 :
+                #check that there are nothing else than Ms in the CIGAR before trimming
+                only_M = True
+                for cig in s.CIGARs[0] :
+                    for l in cig :
+                        if (l > '9' or l < '0') and l != 'M':
+                            only_M = False
+                if only_M :
+                    min_overlap_left = min([int(i.strip('M')) for i in s.CIGARs[0]])
+            min_overlap_right = 0
+            if len(s.CIGARs[1]) != 0 :
+                only_M = True
+                for cig in s.CIGARs[1] :
+                    for l in cig :
+                        if (l > '9' or l < '0') and l != 'M':
+                            only_M = False
+                if only_M :
+                    min_overlap_right = min([int(i.strip('M')) for i in s.CIGARs[1]])
+
+            max_overlap_left = 0
+            if len(s.CIGARs[0]) != 0 :
+                only_M = True
+                for cig in s.CIGARs[0] :
+                    for l in cig :
+                        if (l > '9' or l < '0') and l != 'M':
+                            only_M = False
+                if only_M :
+                    max_overlap_left = max([int(i.strip('M')) for i in s.CIGARs[0]]+[0])
+            max_overlap_right = 0
+            if len(s.CIGARs[1]) != 0 :
+                only_M = True
+                for cig in s.CIGARs[1] :
+                    for l in cig :
+                        if (l > '9' or l < '0') and l != 'M':
+                            only_M = False
+                if only_M :
+                    max_overlap_right = max([int(i.strip('M')) for i in s.CIGARs[1]]+[0])
+
+            already_trimmed = s.get_trim()
+
+            trim_left = min(min_overlap_left, s.length-max_overlap_right)
+            trim_right = min(min_overlap_right, s.length-max_overlap_left)
+
+
+            s.set_trim([already_trimmed[0]+trim_left, already_trimmed[1]+trim_right])
+
+            if (trim_left > 0 or trim_right > 0) :
+                something_changes = True
+
+            leftCIGARs = [str(int(i.strip('M'))-trim_left)+'M' for i in s.CIGARs[0]]
+            for l in range(len(s.links[0])) :
+                newcigar = leftCIGARs[l]
+                s.links[0][l].set_CIGAR(s.otherEndOfLinks[0][l], s, 0, newcigar)
+                s.set_CIGAR(0, s.links[0][l], s.otherEndOfLinks[0][l], newcigar)
+
+            rightCIGARs = [str(int(i.strip('M'))-trim_right)+'M'for i in s.CIGARs[1]]
+            for l in range(len(s.links[1])) :
+                newcigar = rightCIGARs[l]
+                s.links[1][l].set_CIGAR(s.otherEndOfLinks[1][l], s, 1, newcigar)
+                s.set_CIGAR(1, s.links[1][l], s.otherEndOfLinks[1][l], newcigar)
+
+            # if (trim_left > 0 or trim_right > 0) and s.names == ['edge_165@0@0', 'edge_167@0@0', 'edge_169@0@0'] :
+            #     print("qfdjqsdjlm after changeds : ", s.CIGARs[0], " ", s.CIGARs[1])
+
+            
+
+    return segments
+
+
+
 
 
               

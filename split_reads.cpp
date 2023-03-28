@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "edge_3@0@0" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_111@0@00" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -852,11 +852,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        if (chunk == 20){
-            allclusters_debug.push_back(haplotypes);
-            outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
-            exit(1);
-        }
+        // if (chunk == 20){
+        //     allclusters_debug.push_back(haplotypes);
+        //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
+        //     exit(1);
+        // }
 
         // cout << "already separated qldfjp : " << endl;
 
