@@ -39,8 +39,4 @@ private :
 
 }; 
 
-
-std::string fullnum2str(std::vector<bool> num);
-//
-
 #endif

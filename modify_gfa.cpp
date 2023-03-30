@@ -160,14 +160,15 @@ void modify_GFA(
                     //     }
                     // }
 
-                    // if (partitions[backbone][n].first.first > 41100 && partitions[backbone][n].first.first < 42900 && omp_get_thread_num() == 0){
-                    //     cout << "stitching : ";
-                    //     for (auto s: stitches[n]){
-                    //         cout << s.first << "<->" ;
-                    //         for (auto s2 : s.second) {cout << s2 << ",";}
-                    //         cout << "  ;  ";
-                    //     } 
-                    //     cout << endl;
+                    if (partitions[backbone][n].first.first > 63100 && partitions[backbone][n].first.first < 64900 ){
+                        cout << "stiddvtching : ";
+                        for (auto s: stitches[n]){
+                            cout << s.first << "<->" ;
+                            for (auto s2 : s.second) {cout << s2 << ",";}
+                            cout << "  ;  ";
+                        } 
+                        cout << endl;
+                    }
 
                     //     cout << "here are partitions[backbone][n-1].second.first and partitions[backbone][n].second.first : " << endl;
                     //     for (auto a : partitions[backbone][n-1].second.first){
@@ -210,29 +211,29 @@ void modify_GFA(
             int n = 0;
             for (auto interval : partitions[backbone]){
 
-                if (interval.first.first == 36000){
-                    cout  << "fdiocicui modufy_gfa" << endl;
-                    for (auto i = 0 ; i < interval.second.first.size() ; i++ ){
-                        if (interval.second.first[i] != -2){
-                            cout << interval.second.first[i]  << " ";
-                        }
-                    }
-                    cout << endl;
-                    for (auto i = 0 ; i < partitions[backbone][n-1].second.first.size() ; i++ ){
-                        if (partitions[backbone][n-1].second.first[i] != -2){
-                            cout << partitions[backbone][n-1].second.first[i]  << " ";
-                        }
-                    }
-                    cout << endl;
-                    cout << "and there are the stitches : " << endl;
-                    for (auto s : stitches[n]) {
-                        cout << s.first << " : ";
-                        for (auto bb : s.second){
-                            cout << bb  << ",";
-                        }
-                        cout << endl;
-                    }
-                }
+                // if (interval.first.first == 36000){
+                //     cout  << "fdiocicui modufy_gfa" << endl;
+                //     for (auto i = 0 ; i < interval.second.first.size() ; i++ ){
+                //         if (interval.second.first[i] != -2){
+                //             cout << interval.second.first[i]  << " ";
+                //         }
+                //     }
+                //     cout << endl;
+                //     for (auto i = 0 ; i < partitions[backbone][n-1].second.first.size() ; i++ ){
+                //         if (partitions[backbone][n-1].second.first[i] != -2){
+                //             cout << partitions[backbone][n-1].second.first[i]  << " ";
+                //         }
+                //     }
+                //     cout << endl;
+                //     cout << "and there are the stitches : " << endl;
+                //     for (auto s : stitches[n]) {
+                //         cout << s.first << " : ";
+                //         for (auto bb : s.second){
+                //             cout << bb  << ",";
+                //         }
+                //         cout << endl;
+                //     }
+                // }
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 if (omp_get_thread_num() == 0 && DEBUG){
@@ -513,6 +514,9 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
     unordered_map<int,set<int>> stitch;
 
     for (auto r = 0 ; r < par.size() ; r++){
+        if (par[r] == 1 && position == 64000){
+            cout << "parttiion " << par[r] << " neighbor " << neighbor[r] << endl;
+        }
         if (par[r] > -1 && neighbor[r] > -1 && readLimits[r].first <= position && readLimits[r].second >= position){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
@@ -543,10 +547,20 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
         }
     }
 
+    if (position == 64000){
+        cout << "here isss the fit_left" << endl;
+        for (auto fit : fit_left){
+            cout << fit.first << " : " << endl;
+            for (auto candidate : fit.second){
+                cout << "   " << candidate.first << " : " << candidate.second << endl;
+            }
+        }
+    }
+
     //now give all associations
     for (auto fit : fit_left){
         for (auto candidate : fit.second){
-            if (candidate.second >= 5){ //good compatibility
+            if (candidate.second >= min(5.0, 0.7*cluster_size[fit.first])){ //good compatibility
                 stitch[fit.first].emplace(candidate.first);
             }
         }
@@ -555,7 +569,7 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
     for (auto fit : fit_right){
         //find all the good fits
         for (auto candidate : fit.second){
-            if (candidate.second >= 5){
+            if (candidate.second >= min(5.0, 0.7*cluster_size[candidate.first])){
                 stitch[candidate.first].emplace(fit.first);
             }
         }

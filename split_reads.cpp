@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
             
-            if (allreads[read].neighbors_.size() > 10 && allreads[read].name != "edge_111@0@00" ){
+            if (allreads[read].neighbors_.size() > 10 && allreads[read].name == "ptg000003l@1@0" ){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -138,7 +138,7 @@ void compute_partition_on_this_contig(
     //then separate the MSA
     // string ref = allreads[contig].sequence_.str();
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
-                                                        allreads[contig].neighbors_.size()+1-int(assemble_on_assembly));
+                                                        allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     
     // cout << "hereee are the dkdk partitions : " << endl;
     // for (auto interval : par){
@@ -311,7 +311,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
             }
         }
     }
-    readLimits[bbcontig] = positionOfReads;
 
     string consensus;
     if (polish){
@@ -530,6 +529,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
             // }
             //cout << l << " " << result.alignmentLength <<  "\n";
         }
+
+        positionOfReads[n].second = indexQuery;
         
         // cout << " et voiqsl " << n << endl;
 
@@ -542,7 +543,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
         alignmentTime += duration_cast<milliseconds>(t2-t1).count();
         MSAtime += duration_cast<milliseconds>(t3-t2).count();
-        
+
+        readLimits[bbcontig] = positionOfReads;
     }
 
     string newRef = "";
@@ -626,9 +628,10 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         cout << newRef[n];
         n+=prop;
     } cout << endl;
-    cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     exit(1);
     */
+
+   cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
 
     return totalDistance/totalLengthOfAlignment;
 
@@ -646,7 +649,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
  * @param numberOfReads number of reads of the MSA
  * @return vector<pair<pair<int,int>, vector<int>> >  pairs of coordinates to which are attached a certain partition of reads
  */
-vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, int numberOfReads){
+vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vector<Column> &snps, int numberOfReads, float errorRate){
 
     vector<Partition> partitions; //list of all partitions of the reads, with the number of times each occurs
 
@@ -756,7 +759,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
 
         vector<vector<int>> allclusters_debug;
-        vector<int> clusteredReads1 = chinese_whispers(adjacency_matrix, clustersStart);
+        vector<int> clusteredReads1 = chinese_whispers(strengthened_adjacency_matrix, clustersStart);
         allclusters_debug.push_back(clusteredReads1);
         vector<vector<int>> localClusters = {};
 
@@ -807,7 +810,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             }
         }
         for (auto r = 0 ; r < clusteredReads.size() ; r++){
-            if (clusterSizes[clusteredReads[r]] < 5 && clusteredReads[r] != -2){
+            int minSizeOfCluster = 5;
+            if (errorRate < 0.02){
+                minSizeOfCluster = 3;
+            }
+            if (clusterSizes[clusteredReads[r]] < minSizeOfCluster && clusteredReads[r] != -2){
                 clusteredReads[r] = -1;
             }
         }
@@ -837,6 +844,21 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
         vector<int> haplotypes = rescue_reads(mergedHaplotypes, snps, chunk, interestingPositions, sizeOfWindow);
 
+        //re-number the haplotypes
+        unordered_map<int, int> haplotypeToIndex;
+        haplotypeToIndex[-1] = -1; 
+        haplotypeToIndex[-2] = -2;
+        int index_h = 0;
+        for (auto h : haplotypes){
+            if (haplotypeToIndex.find(h) == haplotypeToIndex.end()){
+                haplotypeToIndex[h] = index_h;
+                index_h += 1;
+            }
+        }
+        for (auto r = 0 ; r < haplotypes.size() ; r++){
+            haplotypes[r] = haplotypeToIndex[haplotypes[r]];
+        }
+
         cout << "haploutypes : " << chunk << endl;
         for (auto h : haplotypes){
             if (h > -1){
@@ -852,11 +874,11 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     outputGraph(adjacency_matrix, clusteredReads, "tmp/adjacency_matrix_14.gdf");
         // }
 
-        // if (chunk == 20){
-        //     allclusters_debug.push_back(haplotypes);
-        //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
-        //     exit(1);
-        // }
+        if (chunk == 31){
+            allclusters_debug.push_back(haplotypes);
+            outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
+            exit(1);
+        }
 
         // cout << "already separated qldfjp : " << endl;
 

@@ -167,7 +167,15 @@ void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file){
  */
 void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
     ifstream fasta(fasta_file);
+    if (!fasta.is_open()){
+        cout << "ERROR : could not open " << fasta_file << endl;
+        exit(1);
+    }
     ofstream gfa(gfa_file);
+    if (!gfa.is_open()){
+        cout << "ERROR : could not open " << gfa_file << endl;
+        exit(1);
+    }
 
     string line;
     int i = 0;

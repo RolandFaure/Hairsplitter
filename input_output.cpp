@@ -635,7 +635,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 1){ //this is the flag
                     int flag = stoi(field);
-                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment
+                    if (flag%8 >= 4 || flag%512 >= 256 || flag>=2048){ //this means that 1) the reads does not map well or 2) this is a secondary alignment 3) is a supplementary alignment
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -716,33 +716,40 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     nbHS_end = tmp;
                 }
 
-                Overlap overlap;
-                overlap.sequence1 = sequence1;
-                overlap.sequence2 = sequence2;
-                overlap.position_1_1 = 0; //not very important anyway, the whole read is used
-                overlap.position_1_2 = length1;
-                overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
-                overlap.position_2_2 = pos2_1+length1;
-                overlap.strand = positiveStrand;
-                overlap.CIGAR = cigar;
-
-                // if (sequence1 == 8641){
-                //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name.substr(0,10) << " on " << allreads[overlap.sequence2].name.substr(0,10) 
-                //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
-                //     cout << cigar.substr(0,30) << endl;
-                //     cout << allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).reverse_complement().str().substr(0,30) << endl;
-                // }
-
-                // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
-
-                allreads[sequence1].add_overlap(allOverlaps.size());
-                if (sequence1 != sequence2){
-                    allreads[sequence2].add_overlap(allOverlaps.size());
+                if (nbHS_start+nbHS_end > 0.2*length1){
+                    allgood = false;
+                    //cout << "inpout outpout qkdldkj c " << line << endl;
                 }
-                // if (sequence1 == 0){
-                //     cout << "DEBUG added edge bnbnb " << endl; 
-                // }
-                allOverlaps.push_back(overlap);
+                else{
+
+                    Overlap overlap;
+                    overlap.sequence1 = sequence1;
+                    overlap.sequence2 = sequence2;
+                    overlap.position_1_1 = 0; //not very important anyway, the whole read is used
+                    overlap.position_1_2 = length1;
+                    overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
+                    overlap.position_2_2 = pos2_1+length1;
+                    overlap.strand = positiveStrand;
+                    overlap.CIGAR = cigar;
+
+                    // if (sequence1 == 8641){
+                    //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name.substr(0,10) << " on " << allreads[overlap.sequence2].name.substr(0,10) 
+                    //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
+                    //     cout << cigar.substr(0,30) << endl;
+                    //     cout << allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).reverse_complement().str().substr(0,30) << endl;
+                    // }
+
+                    // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+
+                    allreads[sequence1].add_overlap(allOverlaps.size());
+                    if (sequence1 != sequence2){
+                        allreads[sequence2].add_overlap(allOverlaps.size());
+                    }
+                    // if (sequence1 == 0){
+                    //     cout << "DEBUG added edge bnbnb " << endl; 
+                    // }
+                    allOverlaps.push_back(overlap);
+                }
             }
             linenumber++;
         }

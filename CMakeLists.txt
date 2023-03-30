@@ -18,9 +18,8 @@ set(TARGET_H
     Partition.h
     cluster_graph.h
     clipp.h
-    Variant.h
     phase_variants.h
-    rough_clustering.h
+    reassemble_unaligned_reads.h
    )
 
 # Local source files here
@@ -34,9 +33,8 @@ set(TARGET_SRC
     tools.cpp
     Partition.cpp
     cluster_graph.cpp
-    Variant.cpp
     phase_variants.cpp
-    rough_clustering.cpp
+    reassemble_unaligned_reads.cpp
     )
 
 # include(ExternalProject)

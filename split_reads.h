@@ -68,7 +68,8 @@ float generate_msa(
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
     std::string& ref, 
     std::vector<Column> &snps,
-    int numberOfReads);
+    int numberOfReads,
+    float errorRate);
 
 std::vector<Partition> get_solid_partitions(
     std::string& ref, 
