@@ -28,7 +28,6 @@ string HAIRSPLITTER;
 string WTDBG2;
 string SAMTOOLS;
 bool DEBUG;
-unsigned long int MAX_SIZE_OF_CONTIGS = 100000000;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
@@ -274,8 +273,8 @@ int main(int argc, char *argv[])
         }
 
         if (WTDBG2 != "no_wtdbg2"){
-            cout << " - Re-assembling unaligned reads\n";
-            reassemble_unaligned_reads(allreads, allOverlaps, fastqfile, backbone_reads, outputFolder, num_threads);
+            cout << " - Re-assembling unaligned reads (to skip this step use option --path-to-wtdbg2 0)\n";
+            reassemble_unaligned_reads(allreads, allOverlaps, fastqfile, backbone_reads, outputFolder, num_threads, indices, allLinks);
         }
 
         cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";

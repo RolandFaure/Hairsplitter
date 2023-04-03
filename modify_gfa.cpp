@@ -160,15 +160,15 @@ void modify_GFA(
                     //     }
                     // }
 
-                    if (partitions[backbone][n].first.first > 63100 && partitions[backbone][n].first.first < 64900 ){
-                        cout << "stiddvtching : ";
-                        for (auto s: stitches[n]){
-                            cout << s.first << "<->" ;
-                            for (auto s2 : s.second) {cout << s2 << ",";}
-                            cout << "  ;  ";
-                        } 
-                        cout << endl;
-                    }
+                    // if (partitions[backbone][n].first.first > 63100 && partitions[backbone][n].first.first < 64900 ){
+                    //     cout << "stiddvtching : ";
+                    //     for (auto s: stitches[n]){
+                    //         cout << s.first << "<->" ;
+                    //         for (auto s2 : s.second) {cout << s2 << ",";}
+                    //         cout << "  ;  ";
+                    //     } 
+                    //     cout << endl;
+                    // }
 
                     //     cout << "here are partitions[backbone][n-1].second.first and partitions[backbone][n].second.first : " << endl;
                     //     for (auto a : partitions[backbone][n-1].second.first){
@@ -514,9 +514,9 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
     unordered_map<int,set<int>> stitch;
 
     for (auto r = 0 ; r < par.size() ; r++){
-        if (par[r] == 1 && position == 64000){
-            cout << "parttiion " << par[r] << " neighbor " << neighbor[r] << endl;
-        }
+        // if (par[r] == 1 && position == 64000){
+        //     cout << "parttiion " << par[r] << " neighbor " << neighbor[r] << endl;
+        // }
         if (par[r] > -1 && neighbor[r] > -1 && readLimits[r].first <= position && readLimits[r].second >= position){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
@@ -547,15 +547,15 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
         }
     }
 
-    if (position == 64000){
-        cout << "here isss the fit_left" << endl;
-        for (auto fit : fit_left){
-            cout << fit.first << " : " << endl;
-            for (auto candidate : fit.second){
-                cout << "   " << candidate.first << " : " << candidate.second << endl;
-            }
-        }
-    }
+    // if (position == 64000){
+    //     cout << "here isss the fit_left" << endl;
+    //     for (auto fit : fit_left){
+    //         cout << fit.first << " : " << endl;
+    //         for (auto candidate : fit.second){
+    //             cout << "   " << candidate.first << " : " << candidate.second << endl;
+    //         }
+    //     }
+    // }
 
     //now give all associations
     for (auto fit : fit_left){

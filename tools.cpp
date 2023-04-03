@@ -315,3 +315,33 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
     return additional_start_seq + consensus + additional_end_seq;
 
 }
+
+/**
+ * @brief renames all the reads of the fasta file adding the prefix
+ * 
+ * @param fasta_file 
+ * @param prefix 
+ */
+void rename_reads(std::string &fasta_file, std::string &prefix){
+    std::ifstream in(fasta_file);
+    std::ofstream out(fasta_file+".tmp");
+    std::string line;
+    int i = 0;
+    while (std::getline(in, line)){
+        if (line[0] == '>'){
+            out << ">"+prefix+std::to_string(i) << std::endl;
+            i++;
+        }
+        else{
+            out << line << std::endl;
+        }
+    }
+    in.close();
+    out.close();
+    std::remove(fasta_file.c_str());
+    std::rename((fasta_file+".tmp").c_str(), fasta_file.c_str());
+}
+
+
+
+
