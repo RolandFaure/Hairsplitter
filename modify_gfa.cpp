@@ -4,6 +4,7 @@
 #include <omp.h>
 #include "input_output.h"
 #include "tools.h"
+#include "reassemble_unaligned_reads.h"
 
 using std::string;
 using std::cout;
@@ -22,6 +23,7 @@ using std::set;
 using std::to_string;
 
 extern bool DEBUG;
+extern string WTDBG2;
 
 /**
  * @brief Modify the input GFA according to the way the reads have been split.
@@ -43,7 +45,9 @@ void modify_GFA(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
     vector<Link> &allLinks,
     unordered_map <int, vector<pair<int,int>>> &readLimits, 
-    int num_threads)
+    int num_threads,
+    string &outFolder, 
+    float errorRate)
     {
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -279,7 +283,7 @@ void modify_GFA(
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
-                    int overhang = 50; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
+                    int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
                     
                     int overhangLeft = min(interval.first.first, overhang);
                     int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
@@ -294,11 +298,17 @@ void modify_GFA(
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        if (newcontig == ""){
-                            //if the contig is close to one end, tell racon to not polish the first or last bases
-                            newcontig = consensus_reads(toPolish, group.second,thread_id);
-                        }
+                        // if (newcontig == "" && errorRate < 0.02 && WTDBG2 != "no_wtdbg2"){ //for HiFi reads and low coverage, wtdbg2 does a better polishing than racon
+                        //     newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder);
+                        // }
 
+                        if (newcontig == ""){
+                            // cout << "In modify gfa, assembly with wtdbg2 failed" << endl;
+                            newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder);
+                            if (newcontig == ""){
+                                continue;
+                            }
+                        }
 
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
@@ -332,7 +342,6 @@ void modify_GFA(
                         }
                         
                         newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
-
                         edlibFreeAlignResult(result);                        
                     }
                     else {
@@ -342,6 +351,12 @@ void modify_GFA(
                     Read r(newcontig);
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
                     r.depth = newdepths[group.first];
+
+                    cout << "dqfoiuc creating contig " << r.name << endl;
+                    if (r.name == "s0.ctg000001l@1_84000_2"){
+                        cout << "oiaooeiiddz" << endl;
+                        exit(1);
+                    }
 
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;

@@ -284,7 +284,9 @@ int main(int argc, char *argv[])
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, string>>  > >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
-        split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
+        string tmpFolder = outputFolder+"/tmp/";
+        float errorRate;
+        split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads, tmpFolder, errorRate);
 
         //output GAF, the path of all reads on the new contigs
         // cout << "Outputting GAF" << endl;
@@ -296,7 +298,7 @@ int main(int argc, char *argv[])
             output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         }
         
-        modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
+        modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
         string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 

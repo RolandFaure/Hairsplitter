@@ -1,4 +1,5 @@
 #include "tools.h"
+#include "reassemble_unaligned_reads.h"
 
 #include <iostream>
 #include <fstream>
@@ -200,18 +201,18 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @return polished sequence 
  */
-string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id){
+string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder){
     
     if (polishingReads.size() == 0){
         return backbone;
     }
 
     system("mkdir tmp/ 2> trash.txt");
-    std::ofstream outseq("tmp/unpolished_"+id+".fasta");
+    std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
     outseq << ">seq\n" << backbone;
     outseq.close();
 
-    std::ofstream polishseqs("tmp/reads_"+id+".fasta");
+    std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
     for (int read =0 ; read < polishingReads.size() ; read++){
         polishseqs << ">read"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
     }
@@ -252,11 +253,11 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
     else{
     */
 
-    string com = " -t 1 -x map-pb tmp/unpolished_"+id+".fasta tmp/reads_"+id+".fasta > tmp/mapped_"+id+".paf 2>tmp/trash.txt";
+    string com = " -t 1 -x map-pb "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 
-    com = " -w 500 -e 1 -t 1 tmp/reads_"+id+".fasta tmp/mapped_"+id+".paf tmp/unpolished_"+id+".fasta > tmp/polished_"+id+".fasta 2>tmp/trash.txt";
+    com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".paf "+ outFolder +"unpolished_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
     system(commandPolish.c_str());
 
@@ -266,7 +267,7 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
     // string commandPolish = CONSENT + com;
     // system(commandPolish.c_str());
 
-    std::ifstream polishedRead("tmp/polished_"+id+".fasta");
+    std::ifstream polishedRead(outFolder +"polished_"+id+".fasta");
     string line;
     string consensus;
     while(getline(polishedRead, line)){
@@ -342,6 +343,120 @@ void rename_reads(std::string &fasta_file, std::string &prefix){
     std::rename((fasta_file+".tmp").c_str(), fasta_file.c_str());
 }
 
+std::string consensus_reads_wtdbg2(
+    std::string const &backbone, 
+    std::vector <std::string> &polishingReads, 
+    std::string &id,
+    std::string &outFolder
+){
+
+    //aligns all the reads on backbone to assemble only the interesting parts
+    if (polishingReads.size() == 0){
+        return backbone;
+    }
+
+    system("mkdir tmp/ 2> trash.txt");
+    std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
+    outseq << ">seq\n" << backbone;
+    outseq.close();
+
+    std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
+    for (int read =0 ; read < polishingReads.size() ; read++){
+        polishseqs << ">"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
+    }
+    polishseqs.close();
+
+    string com = " -t 1 -x map-pb "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+    string commandMap = MINIMAP + com; 
+    system(commandMap.c_str());
+
+    vector<string> clippedReads;
+
+    //parse the paf file and clip all the reads
+    ifstream in(outFolder +"mapped_"+id+".paf");
+    string line;
+    while(getline(in, line)){
+
+        int read_start = 0;
+        int read_end = 0;
+        int contig_start = 0;
+        int contig_end = 0;
+        int contig_length = 0;
+        int read = -1;
+        string orientation = "+";
+
+        short fieldnumber = 0;
+        string field;
+        std::istringstream line2(line);
+        while (getline(line2, field, '\t'))
+        {
+            if (fieldnumber == 0){
+                read = std::atoi(field.c_str());
+            }
+            if (fieldnumber == 2){
+                read_start = std::atoi(field.c_str());
+            }
+            if (fieldnumber == 3){
+                read_end = std::atoi(field.c_str());
+            }
+            if (fieldnumber == 4){
+                orientation = field;
+            }
+            if (fieldnumber == 6){
+                contig_length = std::atoi(field.c_str());
+            }
+            if (fieldnumber == 7){
+                contig_start = std::atoi(field.c_str());
+            }
+            if (fieldnumber == 8){
+                contig_end = std::atoi(field.c_str());
+            }
+            fieldnumber+= 1;
+        }
+
+        int overhangLeft = contig_start;
+        int overhangRight = contig_length - contig_end;
+        if (orientation == "-"){
+            overhangLeft = contig_length - contig_end;
+            overhangRight = contig_start;
+        }
+        int left = max(0,read_start-overhangLeft);
+        int length_of_subread = min(int(polishingReads[read].size())-left, read_end+overhangRight-left);
+        clippedReads.push_back(polishingReads[read].substr(left , length_of_subread));
+    }
+
+    std::string newcontig = "";
+    //create a file containing the reads
+    string fileReads = outFolder+"reads_"+id+".fa";
+    std::ofstream o(fileReads);
+    for (auto r = 0 ; r < clippedReads.size() ; r++){
+        o << ">" << r <<"\n" << clippedReads[r] << "\n";
+    }
+    o.close();
+
+    string unpolished = outFolder +"unpolished_"+id+".fasta";
+    assemble_with_wtdbg2(fileReads, outFolder, unpolished, id);
+    //get the result
+    string resultFile = outFolder+"/wtdbg2_"+id+".fa";
+    std::ifstream assembled(resultFile);
+    if (!assembled){
+        cout << "problem reading files in modify_gfa dlfoc, while trying to read " << resultFile << endl;
+        throw std::invalid_argument( "File could not be read" );
+    }
+    line = "";
+    bool nextLine = false;
+    while(getline(assembled, line)){
+        if (line[0] != '>' && nextLine){
+            newcontig = line; //there should be only one contig, which is what was just assembled
+            break;
+        }
+        else if (line[0] == '>'){
+            nextLine = true;
+        }
+    }
+
+    return newcontig;
+}
 
 
 

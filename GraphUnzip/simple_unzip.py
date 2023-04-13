@@ -110,6 +110,38 @@ def simple_unzip(segments, names, gafFile) :
             co += 1
         pa += 1
 
+    # #delete all the links that are not supported by any read
+    # for segment in segments :
+    #     links_supported = set()
+    #     for p in on_which_paths_is_this_contig[segment] :
+
+    #         contigs = paths[p[0]].get_contigs()
+    #         orientations = paths[p[0]].get_orientations()
+    #         index = p[1]
+
+    #         if index > 0 :
+    #             end = 0
+    #             if orientations[index] == "<" :
+    #                 end = 1
+    #             otherend = 1
+    #             if orientations[index-1] == "<" :
+    #                 otherend = 0
+    #             nbOfLink = sg.find_this_link(contigs[index-1], otherend, segment.links[end], segment.otherEndOfLinks[end])
+    #             links_supported.add((segment, end, contigs[index-1], otherend))
+
+    #         if index < len(contigs) - 1 :
+    #             end = 1
+    #             if orientations[index] == "<" :
+    #                 end = 0
+    #             otherend = 0
+    #             if orientations[index+1] == "<" :
+    #                 otherend = 1
+    #             nbOfLink = sg.find_this_link(contigs[index+1], otherend, segment.links[end], segment.otherEndOfLinks[end])
+    #             links_supported.add((segment, end, contigs[index+1], otherend))
+
+    #     print("Fro icisz segment ", segment.names, " links toward ", [i[2].names for i in links_supported], " are supported")
+
+
 
     toDelete = set()
     go_on = True
@@ -125,7 +157,7 @@ def simple_unzip(segments, names, gafFile) :
                 pairs = {}
                 pair_to_paths = {}
                 for p in on_which_paths_is_this_contig[segment] :
-                    # if segment.names == ['edge_111@0@0_42000_717'] :
+                    # if segment.names == ['s0.ctg000001l@1_42000_0'] :
                     #     print("ciciuddou ", paths[p[0]], " ", p[1], " ", len(path)-1)
                     path = paths[p[0]]
                     if p[1] > 0 and p[1] < len(path)-1 : #we want paths that go through the contigs
@@ -155,11 +187,11 @@ def simple_unzip(segments, names, gafFile) :
                         pairs[pair] += 1
                         pair_to_paths[pair].append(p)
 
-                        # if segment.names == ['edge_111@0@0_42000_717'] :
+                        # if segment.names == ['s0.ctg000001l@1_42000_0'] :
                         #     print("On contig ", segment.names, ", path ", path, " supports the links towards ", segment.links[1-orientations[p[1]]][index_left].names, \
                         #             " and ", segment.links[orientations[p[1]]][index_right].names)
 
-                # if segment.names == ['edge_111@0@0_82000_1350'] :
+                # if segment.names == ['s0.ctg000001l@1_42000_0'] :
                 #     print("Looking at segment ", segment.names, " ", pairs, " ", [(segment.links[0][i[0]].names, segment.links[1][i[1]].names) for i in pairs])
                 #     # print("qldjl present on ", on_which_paths_is_this_contig[segment])
 
@@ -177,8 +209,8 @@ def simple_unzip(segments, names, gafFile) :
                     all_links_left[pair[0]] = True
                     all_links_right[pair[1]] = True
 
-
-                segment_to_duplicate = all([i for i in all_links_right+all_links_left])
+                #segment_to_duplicate = all([i for i in all_links_right+all_links_left])
+                segment_to_duplicate = True #this means that a link that is not supported by a path will be deleted
 
                 if segment_to_duplicate :# and segment.names == ['edge_79@0@0'] :
                     for pair in pairs.keys() :

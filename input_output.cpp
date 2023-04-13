@@ -313,9 +313,6 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
     long int linenumber = 0;
     while(getline(in, line)){
 
-        string field;
-        std::istringstream line2(line);
-
         string name1;
         int pos1_1= -1;
         int pos1_2= -1;
@@ -334,6 +331,8 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         bool allgood = true;
         //now go through the fields of the line
         short fieldnumber = 0;
+        string field;
+        std::istringstream line2(line);
         while (getline(line2, field, '\t'))
         {
             if (fieldnumber == 0){
@@ -612,50 +611,93 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             if (allgood && fieldnumber > 10 && sequence2 != sequence1){
 
                 //do not store the 'H' and 'S' at the ends of the cigar string
-                int nbHS_start = 0;
-                int nbHS_end = 0;
-                string string_nbHS_start = "";
+                int nbH_start = 0;
+                int nbH_end = 0;
+                string string_nbH_start = "";
                 //find the first letter in the CIGAR
-                int firstHS = 0;
+                int firstH = 0;
                 for (int i = 0 ; i < cigar.size() ; i++){
                     if (cigar[i] > '9' || cigar[i] < '0'){
-                        if (cigar[i] != 'H' && cigar[i] != 'S') {
-                            string_nbHS_start = "";
+                        if (cigar[i] != 'H') {
+                            string_nbH_start = "";
                         }
-                        firstHS = i;
+                        firstH = i;
                         break;
                     }
-                    string_nbHS_start += cigar[i];
+                    string_nbH_start += cigar[i];
                 }
-                nbHS_start = 0;
-                if (string_nbHS_start != ""){
-                    nbHS_start = stoi(string_nbHS_start);
+                nbH_start = 0;
+                if (string_nbH_start != ""){
+                    nbH_start = stoi(string_nbH_start);
                 }
 
-                string string_nbHS_end = "";
-                int lastHS = 0;
+                string string_nbH_end = "";
+                int lastH = 0;
                 //find the last letter in the CIGAR
                 for (int i = cigar.size()-1 ; i >= 0 ; i--){
-                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H' && cigar[i] != 'S'){
-                        lastHS = i;
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H'){
+                        lastH = i;
                         break;
                     }
-                    string_nbHS_end = cigar[i] + string_nbHS_end;
+                    string_nbH_end = cigar[i] + string_nbH_end;
                 }
-                nbHS_end = 0;
-                if (string_nbHS_end != ""){
+                nbH_end = 0;
+                if (string_nbH_end != ""){
                     //strip last character
-                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
-                    nbHS_end = stoi(string_nbHS_end);
+                    string_nbH_end = string_nbH_end.substr(0, string_nbH_end.size()-1);
+                    nbH_end = stoi(string_nbH_end);
                 }
 
                 if (!positiveStrand){
-                    auto tmp = nbHS_start;
-                    nbHS_start = nbHS_end;
-                    nbHS_end = tmp;
+                    auto tmp = nbH_start;
+                    nbH_start = nbH_end;
+                    nbH_end = tmp;
                 }
 
-                if (nbHS_start+nbHS_end > 0.2*length1){
+                int nbS_start = 0;
+                int nbS_end = 0;
+                string string_nbS_start = "";
+                //find the first letter in the CIGAR
+                int firstS = 0;
+                for (int i = 0 ; i < cigar.size() ; i++){
+                    if (cigar[i] > '9' || cigar[i] < '0'){
+                        if (cigar[i] != 'S') {
+                            string_nbS_start = "";
+                        }
+                        firstS = i;
+                        break;
+                    }
+                    string_nbS_start += cigar[i];
+                }
+                nbS_start = 0;
+                if (string_nbS_start != ""){
+                    nbS_start = stoi(string_nbS_start);
+                }
+
+                string string_nbS_end = "";
+                int lastS = 0;
+                //find the last letter in the CIGAR
+                for (int i = cigar.size()-1 ; i >= 0 ; i--){
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'S'){
+                        lastS = i;
+                        break;
+                    }
+                    string_nbS_end = cigar[i] + string_nbS_end;
+                }
+                nbS_end = 0;
+                if (string_nbS_end != ""){
+                    //strip last character
+                    string_nbS_end = string_nbS_end.substr(0, string_nbS_end.size()-1);
+                    nbS_end = stoi(string_nbS_end);
+                }
+
+                if (!positiveStrand){
+                    auto tmp = nbS_start;
+                    nbS_start = nbS_end;
+                    nbS_end = tmp;
+                }
+
+                if (nbH_start+nbH_end > 0.2*length1){
                     allgood = false;
                     //cout << "inpout outpout qkdldkj c " << line << endl;
                 }
@@ -664,8 +706,8 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     Overlap overlap;
                     overlap.sequence1 = sequence1;
                     overlap.sequence2 = sequence2;
-                    overlap.position_1_1 = 0; //not very important anyway, the whole read is used
-                    overlap.position_1_2 = length1;
+                    overlap.position_1_1 = nbS_start; //the whole read is used
+                    overlap.position_1_2 = nbS_start + length1;
                     overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
                     overlap.position_2_2 = pos2_1+length1;
                     overlap.strand = positiveStrand;
@@ -1359,9 +1401,9 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
     for (auto r : backbone_reads){
         if (allreads[r].name != "delete_me"){
             Read read = allreads[r];
-            out << "S\t"<< read.name << "\t" << read.sequence_.str() << read.comments;
+            out << "S\t"<< read.name << "\t" << read.sequence_.str();// << read.comments; // the comments may not be compatible with the new contigs
             if (read.depth != -1){
-                out << "\tdp:f:" << std::to_string(read.depth);
+                out << "\tDP:f:" << std::to_string(read.depth);
             }
             out << "\n";
         }

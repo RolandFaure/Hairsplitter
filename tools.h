@@ -23,6 +23,14 @@ void rename_reads(std::string &fasta_file, std::string &prefix);
 std::string consensus_reads(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
-    std::string &id);
+    std::string &id,
+    std::string &outFolder);
+
+std::string consensus_reads_wtdbg2(
+    std::string const &backbone, 
+    std::vector <std::string> &polishingReads, 
+    std::string &id,
+    std::string &outFolder
+);
 
 #endif

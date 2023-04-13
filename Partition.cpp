@@ -83,7 +83,7 @@ Partition::Partition(Column& snp, int pos, vector<bool> &mask, unsigned char ref
 
 //output : whether or not the position is significatively different from "all reads in the same haplotype"
 //one exception possible : "all reads except last one in the same haplotype" -> that's because reads may be aligned on the last one, creating a bias
-bool Partition::isInformative(bool lastReadBiased){
+bool Partition::isInformative(bool lastReadBiased, float meanError){
 
     int suspiciousReads [2] = {0,0}; //an array containing how many reads seriously deviate from the "all 1" or "all -1" theories
 
@@ -113,7 +113,7 @@ bool Partition::isInformative(bool lastReadBiased){
     }
 
     //if I have less than two/10% suspicious reads, then this partition is not informative
-    float minNumberOfReads = max(2.0, 0.1*numberOfReads);
+    float minNumberOfReads = meanError*numberOfReads/2;
     if (suspiciousReads[0] < minNumberOfReads || suspiciousReads[1] < minNumberOfReads){
         return false;
     }

@@ -13,7 +13,7 @@ void reassemble_unaligned_reads(std::vector <Read> &allreads, std::vector <Overl
                     std::vector<unsigned long int> &backbones_reads, std::string outputFolder, int num_threads, 
                     robin_hood::unordered_map<std::string, unsigned long int> &indices, std::vector<Link> &allLinks); 
 
-void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, int num_threads);
+void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std::string &ref, std::string id);
 
 
 

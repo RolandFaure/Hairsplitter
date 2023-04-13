@@ -371,13 +371,13 @@ def main():
         #As a first step, use only the long reads, if available
         if uselr :
             print("\n*Untangling the graph using long reads*\n")
-            merge = True #necessary when using DBG
             # rename = True
             # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
             # segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
             segments = simple_unzip(segments, names, lrFile)
-            print("Merging contigs that can be merged...")
-            merge_adjacent_contigs(segments)
+            if merge :
+                print("Merging contigs that can be merged...")
+                merge_adjacent_contigs(segments)
 
             sg.delete_links_present_twice(segments)
             
