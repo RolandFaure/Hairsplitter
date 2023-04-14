@@ -212,7 +212,7 @@ def simple_unzip(segments, names, gafFile) :
                 #segment_to_duplicate = all([i for i in all_links_right+all_links_left])
                 segment_to_duplicate = True #this means that a link that is not supported by a path will be deleted
 
-                if segment_to_duplicate :# and segment.names == ['edge_79@0@0'] :
+                if segment_to_duplicate and len(pairs) > 0:# and segment.names == ['edge_79@0@0'] :
                     for pair in pairs.keys() :
                         # print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names )
 

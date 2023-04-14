@@ -57,7 +57,8 @@ bool comp (distPart i, distPart j){
 //All reads also have updated backbone_seqs, i.e. the list of backbone reads they are leaning on
 //readLimits contains the border of all reads aligning on each backbone, used later to recompute the coverage
 void split_contigs(std::string fileReads, std::vector <Read> &allreads, std::vector <Overlap> &allOverlaps, 
-        vector<unsigned long int> &backbones_reads, std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, unordered_map<int, string>>  > >> &partitions, 
+        vector<unsigned long int> &backbones_reads, 
+        std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, unordered_map<int, string>>  > >> &partitions, 
         bool assemble_on_assembly, unordered_map <int, vector<pair<int,int>>> &readLimits,
         bool polish, int num_threads, std::string &tmpFolder, float &errorRate){
 
@@ -71,7 +72,7 @@ omp_set_num_threads(num_threads);
         for (long int read : backbones_reads){
 
             cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
-            if (allreads[read].name != "s0.ctg000001l@1" ){
+            if (allreads[read].name == "s1.ctg000002l@6"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -84,6 +85,11 @@ omp_set_num_threads(num_threads);
                     readLimits, polish, tmpFolder, errorRate);
         
             }
+            // else{ //just for debug
+            //     unordered_map<int,string> nothing;
+            //     nothing[0] = allreads[read].sequence_.str();
+            //     partitions[read] = {make_pair( make_pair(0, int(allreads[read].size()-1)) , make_pair(vector<int>(allreads[read].neighbors_.size(), 0), nothing ) )};
+            // }
             index++;
         }
     }
@@ -579,13 +585,14 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
     /*
     //print snps (just for debugging)
+    cout << "Printing SNPs, in split_read: cicizzx" << endl;
     int step = 1; //porportions of reads
     int prop = 1; //proportion of positions
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 84000;
-    int end = 84100;
+    int start = 34000;
+    int end = 34100;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -632,7 +639,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     // exit(1);
     */
-
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -907,7 +913,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     }
         // }
 
-        // if (chunk == 41){
+        // if (chunk == 21){
         //     cout << "split reads cixxosoc outputting graph" << endl;
         //     allclusters_debug.push_back(haplotypes);
         //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
