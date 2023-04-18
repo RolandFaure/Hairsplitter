@@ -295,8 +295,13 @@ int main(int argc, char *argv[])
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
         if (readGroupsFile != ""){
             cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
-            output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         }
+        else{
+            readGroupsFile = tmpFolder + "read_groups.txt";
+        }
+
+        output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
+        
         
         modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
         string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
@@ -308,7 +313,7 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " 2>"+outputFolder+"/tmp/logGraphUnzip.txt >"+outputFolder+"/tmp/trash.txt";
+        string com = " unzip -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " 2>"+outputFolder+"/tmp/logGraphUnzip.txt >"+outputFolder+"/tmp/trash.txt";
         string command = GRAPHUNZIP + com;
         cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on "+outputFolder+"/tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());

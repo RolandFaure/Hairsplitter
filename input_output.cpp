@@ -1330,7 +1330,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
     ofstream out(outputGAF);
     for (auto p = 0 ; p < readPaths.size() ; p++){
         for (Path path : readPaths[p]){
-            if (get<1>(path).size() > 1){
+            if (get<1>(path).size() > 0){
                 //output the path
                 out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
                 for (auto contig : get<1>(path)){
@@ -1411,9 +1411,11 @@ void output_readGroups(std::string readGroupsFile, std::vector <Read> &allreads,
         for (auto p : partitions[r]){
             out << "@POS_ON_CONTIG " << p.first.first << " <-> " << p.first.second << "\n";
             for (auto neighbor = 0 ; neighbor < p.second.first.size() ; neighbor++){
-                Overlap ov = allOverlaps[contig.neighbors_[neighbor]];
-                Read read = allreads[ov.sequence1];
-                out << read.name << "\t" << p.second.first[neighbor] << "\t" << ov.sequence1 << "\n";
+                if (p.second.first[neighbor] != -2){
+                    Overlap ov = allOverlaps[contig.neighbors_[neighbor]];
+                    Read read = allreads[ov.sequence1];
+                    out << read.name << "\t" << p.second.first[neighbor] << "\t" << ov.sequence1 << "\n";
+                }
             }
             out << "\n";
         }

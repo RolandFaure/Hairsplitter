@@ -112,7 +112,7 @@ def interactionMatrix(hiccontactsfile, fragmentList, names, segments, header=Tru
     return interactionMatrix
 
 #input : GAF file (outputted by graphaligner) and parameters telling which line are deemed informative
-#output : list of useful lines extracted (['>12>34<2' , '>77<33' ,... ] for example)
+#output : list of useful lines extracted with the read name ([(read0,'>12>34<2') , (read1,'>77<33') ,... ] for example)
 def read_GAF(gafFile,similarity_threshold, whole_mapping_threshold, lines) : #a function going through the gaf files and inventoring all useful lines
     
     gaf = open(gafFile, 'r')
@@ -128,7 +128,7 @@ def read_GAF(gafFile,similarity_threshold, whole_mapping_threshold, lines) : #a 
                 
                 if (float(ls[3])-float(ls[2]))/float(ls[1]) > whole_mapping_threshold or whole_mapping_threshold == 0 :
     
-                    lines += [ls[5]]  
+                    lines += [(ls[0],ls[5])]  
 
 #input : TSV file (outputted by SPAligner) 
 #output : list of sequences of contigs in GAF-like format (['>12>34<2' , '>77<33' ,... ] for example)
@@ -342,11 +342,13 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
                 if gfaFile != "":
                     sequence, depth, extra_tags = get_contig_GFA(gfaFile, contig, line_offset[contig])
                     #print("Here is the depth I got : ", depth)
+                    if extra_tags != "" :
+                        extra_tags = "\t"+extra_tags
                     if depth == '':
-                        f.write(sequence + '\t'+ extra_tags +"\n")
+                        f.write(sequence + extra_tags +"\n")
                     else :
                         newdepth = str(float(depth.split(':')[-1])/copies[contig])
-                        f.write(sequence + '\t' + ":".join(depth.split(':')[:-1]) + ":" + newdepth + '\t' + extra_tags + '\n')
+                        f.write(sequence + '\t' + ":".join(depth.split(':')[:-1]) + ":" + newdepth +  extra_tags + '\n')
                 else:
                     f.write("*\n")
     
