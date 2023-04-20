@@ -84,7 +84,11 @@ void reassemble_unaligned_reads(std::vector <Read> &allreads, std::vector <Overl
  */
 void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std::string &ref, std::string id){
 
-    string wtdbg2_folder = WTDBG2.substr(0, WTDBG2.find_last_of("/"));
+    auto lastslash = WTDBG2.find_last_of("/");
+    if (lastslash == string::npos){
+        lastslash = 0;
+    }
+    string wtdbg2_folder = WTDBG2.substr(0, lastslash);
 
     auto t0 = high_resolution_clock::now();
     auto t1 = high_resolution_clock::now();

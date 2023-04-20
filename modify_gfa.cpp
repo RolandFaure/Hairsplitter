@@ -352,11 +352,11 @@ void modify_GFA(
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
                     r.depth = newdepths[group.first];
 
-                    cout << "dqfoiuc creating contig " << r.name << endl;
-                    if (r.name == "s0.ctg000001l@1_84000_2"){
-                        cout << "oiaooeiiddz" << endl;
-                        exit(1);
-                    }
+                    // cout << "dqfoiuc creating contig " << r.name << endl;
+                    // if (r.name == "s0.ctg000001l@1_84000_2"){
+                    //     cout << "oiaooeiiddz" << endl;
+                    //     exit(1);
+                    // }
 
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
