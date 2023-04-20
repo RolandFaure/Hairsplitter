@@ -27,8 +27,6 @@ using std::min;
 using std::max;
 using robin_hood::unordered_map;
 
-extern long int MAX_SIZE_OF_CONTIGS;
-
 
 //input : file containing all reads in fastq or fasta format
 //output : all reads stored in allreads
@@ -145,7 +143,7 @@ void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector
     in.close();
 }
 
-//input : file containing an assembly in gfa or fasta format
+//input : file containing an assembly in gfa
 //output : the contigs appended to the end of allreads and marked as backbones
 void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices
     , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks){
@@ -161,8 +159,6 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     string line;
     string nameOfSequence = "";
     string comments = "";
-    //map how many chunks compose each contig
-    robin_hood::unordered_map<std::string, unsigned int> nbofchunks;
 
 
     while(getline(in, line)){
@@ -179,43 +175,22 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 }
                 else if (fieldNb == 2){ //here is the sequence
 
-                    //create contigs no longer than 100000bp to keep memory usage low
-                    nbofchunks[nameOfSequence] = field.size()/MAX_SIZE_OF_CONTIGS + 1;
-                    for (chunk = 0 ; chunk < field.size() ; chunk += MAX_SIZE_OF_CONTIGS){
-                        Read r(field.substr(chunk, MAX_SIZE_OF_CONTIGS));
-                        r.name = nameOfSequence+"@"+std::to_string(chunk/MAX_SIZE_OF_CONTIGS);
-                        backbone_reads.push_back(sequenceID);
-                        allreads.push_back(r);
+                    Read r(field);
+                    r.name = nameOfSequence;
+                    backbone_reads.push_back(sequenceID);
+                    allreads.push_back(r);
 
-                        //link the minimap name to the index in allreads
-                        indices[r.name] = sequenceID;
-                        sequenceID++;
-
-                        //link this chunk to the previous one
-                        if (chunk > 0){
-                            Link link;
-                            link.neighbor1 = sequenceID-2;
-                            link.neighbor2 = sequenceID-1;
-                            link.end1 = 1;
-                            link.end2 = 0;
-                            link.CIGAR = "0M";
-                            allLinks.push_back(link);
-                            allreads[link.neighbor1].add_link(allLinks.size()-1, link.end1);
-                            allreads[link.neighbor2].add_link(allLinks.size()-1, link.end2);
-                        }
-                    }
+                    //link the minimap name to the index in allreads
+                    indices[r.name] = sequenceID;
+                    sequenceID++;
                 }
                 else if (field.substr(0,2) == "dp" || field.substr(0,2) == "DP"){
                     auto depth = std::atoi(field.substr(5, field.size()-5).c_str());
                     //set the depth of all contigs that were created from this sequence
-                    for (unsigned int i = 0 ; i < chunk/MAX_SIZE_OF_CONTIGS ; i++){
-                        allreads[backbone_reads.back()-i].depth = depth;
-                    }
+                    allreads[backbone_reads.back()].depth = depth;
                 }
                 else if (fieldNb > 2){
-                    for (unsigned int i = 0 ; i < chunk/MAX_SIZE_OF_CONTIGS ; i++){
-                        allreads[backbone_reads.back()-i].comments += "\t"+field;
-                    }
+                    allreads[backbone_reads.back()].comments += "\t"+field;
                 }
 
                 fieldNb += 1;
@@ -239,19 +214,19 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     }
                     else if (fieldNb == 2){ //here is the sequence
                         if (field == "+"){
-                            if (indices.find(name1+"@"+std::to_string(nbofchunks[name1]-1)) == indices.end()){
+                            if (indices.find(name1) == indices.end()){
                                 cout << "Problem in reading the link : " << line << endl;
                                 throw std::invalid_argument( "Problem in file formatting" );
                             }
-                            link.neighbor1 = indices[name1+"@"+std::to_string(nbofchunks[name1]-1)];
+                            link.neighbor1 = indices[name1];
                             link.end1 = 1;
                         }
                         else if (field == "-"){
-                            if (indices.find(name1+"@0") == indices.end()){
+                            if (indices.find(name1) == indices.end()){
                                 cout << "Problem in reading the link : " << line << endl;
                                 throw std::invalid_argument( "Problem in file formatting" );
                             }
-                            link.neighbor1 = indices[name1+"@0"];
+                            link.neighbor1 = indices[name1];
                             link.end1 = 0;
                         }
                         else{
@@ -264,19 +239,19 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                     }
                     else if (fieldNb == 4){ //here is the sequence
                         if (field == "+"){
-                            if (indices.find(name2+"@0") == indices.end()){
+                            if (indices.find(name2) == indices.end()){
                                 cout << "Problem in reading the link : " << line << endl;
                                 throw std::invalid_argument( "Problem in file formatting" );
                             }
-                            link.neighbor2 = indices[name2+"@0"];
+                            link.neighbor2 = indices[name2];
                             link.end2 = 0;
                         }
                         else if (field == "-"){
-                            if (indices.find(name2+"@"+std::to_string(nbofchunks[name2]-1)) == indices.end()){
+                            if (indices.find(name2) == indices.end()){
                                 cout << "Problem in reading the link : " << line << endl;
                                 throw std::invalid_argument( "Problem in file formatting" );
                             }
-                            link.neighbor2 = indices[name2+"@"+std::to_string(nbofchunks[name2]-1)];
+                            link.neighbor2 = indices[name2];
                             link.end2 = 1;
                         }
                         else{
@@ -338,9 +313,6 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
     long int linenumber = 0;
     while(getline(in, line)){
 
-        string field;
-        std::istringstream line2(line);
-
         string name1;
         int pos1_1= -1;
         int pos1_2= -1;
@@ -359,6 +331,8 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
         bool allgood = true;
         //now go through the fields of the line
         short fieldnumber = 0;
+        string field;
+        std::istringstream line2(line);
         while (getline(line2, field, '\t'))
         {
             if (fieldnumber == 0){
@@ -482,70 +456,34 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
                 // }
 
                 //now add the overlap to all the concerned chunks of the contigs
-                int chunk1_1 = pos2_1 / MAX_SIZE_OF_CONTIGS;
-                int chunk1_2 = pos2_2 / MAX_SIZE_OF_CONTIGS;
-                int positionPartialMapping = pos1_1;
-                for (int chunk = chunk1_1; chunk <= chunk1_2; chunk++){
-                    Overlap overlap;
-                    overlap.sequence1 = indices[name1];
-                    overlap.sequence2 = indices[name2+"@"+std::to_string(chunk)];
-                    if (chunk == chunk1_1){
-                        overlap.position_2_1 = pos2_1 - chunk*MAX_SIZE_OF_CONTIGS;
+                Overlap overlap;
+                overlap.sequence1 = indices[name1];
+                overlap.sequence2 = indices[name2];
+                overlap.position_2_1 = pos2_1;
+                overlap.position_2_2 = pos2_2;
+                
+                overlap.position_1_1 = pos1_1;
+                overlap.position_1_2 = pos1_2;
+
+                overlap.strand = positiveStrand;
+                overlap.CIGAR = cigar;
+                overlap.diff = diff;
+
+                allreads[overlap.sequence1].add_overlap(allOverlaps.size());
+                allreads[overlap.sequence2].add_overlap(allOverlaps.size());
+                allOverlaps.push_back(overlap);
+
+                //describe the overlap
+                // cout << "Overlap between " << allreads[overlap.sequence1].name << " and " << allreads[overlap.sequence2].name << " with positions " << overlap.position_1_1 << " " <<
+                //  overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << endl;
+
+                //now take care of backboneReads: two overlapping reads cannot both be backbone
+                if (backbonesReads[overlap.sequence1] && backbonesReads[overlap.sequence2] && pos1_2-pos1_1 > 0.5*min(length1, length2)){
+                    if (allreads[overlap.sequence1].sequence_.size() < allreads[overlap.sequence2].sequence_.size()){
+                        backbonesReads[overlap.sequence1] = false;
                     }
                     else{
-                        overlap.position_2_1 = 0;
-                    }
-                    if (chunk == chunk1_2){
-                        overlap.position_2_2 = pos2_2 - chunk*MAX_SIZE_OF_CONTIGS;
-                    }
-                    else{
-                        overlap.position_2_2 = MAX_SIZE_OF_CONTIGS-1;
-                    }
-                    
-                    if (positiveStrand == true){
-                        if (chunk == chunk1_1){
-                            overlap.position_1_1 = pos1_1;
-                            overlap.position_1_2 = std::min(long(pos1_2), pos1_1 + MAX_SIZE_OF_CONTIGS - pos2_1%MAX_SIZE_OF_CONTIGS);
-                        }
-                        else{
-                            overlap.position_1_1 = positionPartialMapping;
-                            overlap.position_1_2 = std::min(long(pos1_2), positionPartialMapping + MAX_SIZE_OF_CONTIGS);
-                        }
-                        positionPartialMapping = overlap.position_1_2;
-                    }
-                    else{
-                        if (chunk == chunk1_1){
-                            overlap.position_1_1 = std::max(long(pos1_1), pos1_2 - MAX_SIZE_OF_CONTIGS + pos2_1%MAX_SIZE_OF_CONTIGS);
-                            overlap.position_1_2 = pos1_2;
-                        }
-                        else{
-                            overlap.position_1_2 = positionPartialMapping;
-                            overlap.position_1_1 = std::max(long(pos1_1), positionPartialMapping - MAX_SIZE_OF_CONTIGS);
-                        }
-                        positionPartialMapping = overlap.position_1_1;
-                    }
-
-
-                    overlap.strand = positiveStrand;
-                    overlap.CIGAR = cigar;
-                    overlap.diff = diff;
-
-                    allreads[overlap.sequence1].add_overlap(allOverlaps.size());
-                    allreads[overlap.sequence2].add_overlap(allOverlaps.size());
-                    allOverlaps.push_back(overlap);
-
-                    //describe the overlap
-                    // cout << "Overlap between " << allreads[overlap.sequence1].name << " and " << allreads[overlap.sequence2].name << " with positions " << overlap.position_1_1 << " " <<
-                    //  overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << endl;
-
-                    //now take care of backboneReads: two overlapping reads cannot both be backbone
-                    if (backbonesReads[overlap.sequence1] && backbonesReads[overlap.sequence2] && pos1_2-pos1_1 > 0.5*min(length1, length2)){
-                        if (allreads[overlap.sequence1].sequence_.size() < allreads[overlap.sequence2].sequence_.size()){
-                            backbonesReads[overlap.sequence1] = false;
-                        }
-                        else{
-                            backbonesReads[overlap.sequence2] = false;
-                        }
+                        backbonesReads[overlap.sequence2] = false;
                     }
                 }
             }
@@ -610,6 +548,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             string name2;
             int pos2_1= -1;
             bool positiveStrand = true;
+            int flag;
 
             string cigar;
 
@@ -634,8 +573,8 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     }
                 }
                 else if (fieldnumber == 1){ //this is the flag
-                    int flag = stoi(field);
-                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment
+                    flag = stoi(field);
+                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment 3) flag>2048 is a supplementary alignment but can just be the follow-up of the first alignment
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -644,7 +583,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 2){
                     try{
-                        sequence2 = indices[field+"@0"];
+                        sequence2 = indices[field];
                         std::istringstream line3(field);
                         string unit;
                         while(getline(line3, unit, ' ')){
@@ -673,76 +612,125 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             if (allgood && fieldnumber > 10 && sequence2 != sequence1){
 
                 //do not store the 'H' and 'S' at the ends of the cigar string
-                int nbHS_start = 0;
-                int nbHS_end = 0;
-                string string_nbHS_start = "";
+                int nbH_start = 0;
+                int nbH_end = 0;
+                string string_nbH_start = "";
                 //find the first letter in the CIGAR
-                int firstHS = 0;
+                int firstH = 0;
                 for (int i = 0 ; i < cigar.size() ; i++){
                     if (cigar[i] > '9' || cigar[i] < '0'){
-                        if (cigar[i] != 'H' && cigar[i] != 'S') {
-                            string_nbHS_start = "";
+                        if (cigar[i] != 'H') {
+                            string_nbH_start = "";
                         }
-                        firstHS = i;
+                        firstH = i;
                         break;
                     }
-                    string_nbHS_start += cigar[i];
+                    string_nbH_start += cigar[i];
                 }
-                nbHS_start = 0;
-                if (string_nbHS_start != ""){
-                    nbHS_start = stoi(string_nbHS_start);
+                nbH_start = 0;
+                if (string_nbH_start != ""){
+                    nbH_start = stoi(string_nbH_start);
                 }
 
-                string string_nbHS_end = "";
-                int lastHS = 0;
+                string string_nbH_end = "";
+                int lastH = 0;
                 //find the last letter in the CIGAR
                 for (int i = cigar.size()-1 ; i >= 0 ; i--){
-                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H' && cigar[i] != 'S'){
-                        lastHS = i;
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H'){
+                        lastH = i;
                         break;
                     }
-                    string_nbHS_end = cigar[i] + string_nbHS_end;
+                    string_nbH_end = cigar[i] + string_nbH_end;
                 }
-                nbHS_end = 0;
-                if (string_nbHS_end != ""){
+                nbH_end = 0;
+                if (string_nbH_end != ""){
                     //strip last character
-                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
-                    nbHS_end = stoi(string_nbHS_end);
+                    string_nbH_end = string_nbH_end.substr(0, string_nbH_end.size()-1);
+                    nbH_end = stoi(string_nbH_end);
                 }
 
                 if (!positiveStrand){
-                    auto tmp = nbHS_start;
-                    nbHS_start = nbHS_end;
-                    nbHS_end = tmp;
+                    auto tmp = nbH_start;
+                    nbH_start = nbH_end;
+                    nbH_end = tmp;
                 }
 
-                Overlap overlap;
-                overlap.sequence1 = sequence1;
-                overlap.sequence2 = sequence2;
-                overlap.position_1_1 = 0; //not very important anyway, the whole read is used
-                overlap.position_1_2 = length1;
-                overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
-                overlap.position_2_2 = pos2_1+length1;
-                overlap.strand = positiveStrand;
-                overlap.CIGAR = cigar;
-
-                // if (sequence1 == 8641){
-                //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name.substr(0,10) << " on " << allreads[overlap.sequence2].name.substr(0,10) 
-                //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
-                //     cout << cigar.substr(0,30) << endl;
-                //     cout << allreads[overlap.sequence1].sequence_.subseq(overlap.position_1_1, overlap.position_1_2-overlap.position_1_1).reverse_complement().str().substr(0,30) << endl;
-                // }
-
-                // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
-
-                allreads[sequence1].add_overlap(allOverlaps.size());
-                if (sequence1 != sequence2){
-                    allreads[sequence2].add_overlap(allOverlaps.size());
+                int nbS_start = 0;
+                int nbS_end = 0;
+                string string_nbS_start = "";
+                //find the first letter in the CIGAR
+                int firstS = 0;
+                for (int i = 0 ; i < cigar.size() ; i++){
+                    if (cigar[i] > '9' || cigar[i] < '0'){
+                        if (cigar[i] != 'S') {
+                            string_nbS_start = "";
+                        }
+                        firstS = i;
+                        break;
+                    }
+                    string_nbS_start += cigar[i];
                 }
-                // if (sequence1 == 0){
-                //     cout << "DEBUG added edge bnbnb " << endl; 
-                // }
-                allOverlaps.push_back(overlap);
+                nbS_start = 0;
+                if (string_nbS_start != ""){
+                    nbS_start = stoi(string_nbS_start);
+                }
+
+                string string_nbS_end = "";
+                int lastS = 0;
+                //find the last letter in the CIGAR
+                for (int i = cigar.size()-1 ; i >= 0 ; i--){
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'S'){
+                        lastS = i;
+                        break;
+                    }
+                    string_nbS_end = cigar[i] + string_nbS_end;
+                }
+                nbS_end = 0;
+                if (string_nbS_end != ""){
+                    //strip last character
+                    string_nbS_end = string_nbS_end.substr(0, string_nbS_end.size()-1);
+                    nbS_end = stoi(string_nbS_end);
+                }
+
+                if (!positiveStrand){
+                    auto tmp = nbS_start;
+                    nbS_start = nbS_end;
+                    nbS_end = tmp;
+                }
+
+                if (nbH_start+nbH_end > 0.2*length1 && flag < 2048){ //flag>=2048 means it is a supplementary alignment, H can generally be changed in S
+                    allgood = false;
+                    //cout << "inpout outpout qkdldkj c " << line << endl;
+                }
+                else{
+
+                    Overlap overlap;
+                    overlap.sequence1 = sequence1;
+                    overlap.sequence2 = sequence2;
+                    overlap.position_1_1 = nbS_start + nbH_start; //the whole read is used
+                    overlap.position_1_2 = nbS_start + nbH_start + length1;
+                    overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
+                    overlap.position_2_2 = pos2_1+length1;
+                    overlap.strand = positiveStrand;
+                    overlap.CIGAR = cigar;
+
+                    // if (allreads[sequence1].name.substr(0,19) == ">SRR14289618.827569"){
+                    //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name << " on " << allreads[overlap.sequence2].name
+                    //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
+                    //     cout << cigar.substr(0,30) << endl;
+                    // }
+
+                    // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+
+                    allreads[sequence1].add_overlap(allOverlaps.size());
+                    if (sequence1 != sequence2){
+                        allreads[sequence2].add_overlap(allOverlaps.size());
+                    }
+                    // if (sequence1 == 0){
+                    //     cout << "DEBUG added edge bnbnb " << endl; 
+                    // }
+                    allOverlaps.push_back(overlap);
+                }
             }
             linenumber++;
         }
@@ -1102,54 +1090,16 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 long int read;
                 long int end;
                 int start = -1;
-                int nbHS_start = 0;
-                int nbHS_end = 0;
-                string string_nbHS_start = "";
-                //find the first letter in the CIGAR
-                for (int i = 0 ; i < ov.CIGAR.size() ; i++){
-                    if (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0'){
-                        if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S') {
-                            string_nbHS_start = "";
-                        }
-                        break;
-                    }
-                    string_nbHS_start += ov.CIGAR[i];
-                }
-                nbHS_start = 0;
-                if (string_nbHS_start != ""){
-                    nbHS_start = stoi(string_nbHS_start);
-                }
-
-                string string_nbHS_end = "";
-                //find the last letter in the CIGAR
-                for (int i = ov.CIGAR.size()-1 ; i >= 0 ; i--){
-                    if ((ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0') && ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S'){
-                        break;
-                    }
-                    string_nbHS_end = ov.CIGAR[i] + string_nbHS_end;
-                }
-                nbHS_end = 0;
-                if (string_nbHS_end != ""){
-                    //strip last character
-                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
-                    nbHS_end = stoi(string_nbHS_end);
-                }
-
-                if (!ov.strand){
-                    auto tmp = nbHS_start;
-                    nbHS_start = nbHS_end;
-                    nbHS_end = tmp;
-                }
 
                 if (ov.sequence1 != backbone){
                     read = ov.sequence1;
-                    start = min(ov.position_1_1, ov.position_1_2)+nbHS_start;
-                    end = max(ov.position_1_1, ov.position_1_2)-nbHS_end;
+                    start = ov.position_1_1;
+                    end = ov.position_1_2;
                 }
                 else{
                     read = ov.sequence2;
-                    start = min(ov.position_2_1, ov.position_2_2)+nbHS_start;
-                    end = max(ov.position_2_1, ov.position_2_2)-nbHS_end;
+                    start = min(ov.position_2_1, ov.position_2_2);
+                    end = max(ov.position_2_1, ov.position_2_2);
                 }
 
                 //go through all the intervals and see through which version this read passes
@@ -1161,8 +1111,14 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 for (auto interval : partitions[backbone]){
 
                     if (interval.second.first[n] > -1 && stop < 2){
-                        // if (allreads[read].name.substr(0,6) == "@60b8c"){
-                        //     cout << "read " << allreads[read].name << " passes through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
+                        // if (allreads[read].name.substr(0,6) == "@c36dd"){
+                        //     cout << "read " << allreads[read].name << " passes input_output yyu through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
+                        //     for (auto i : interval.second.first){
+                        //         if (i != -2){
+                        //             cout << i << " ";
+                        //         }
+                        //     }
+                        //     cout << endl;
                         // }
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));
@@ -1220,66 +1176,50 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
                 long int read;
                 int start = -1;
-                int nbHS_start = 0;
-                int nbHS_end = 0;
-                string string_nbHS_start = "";
-                //find the first letter in the CIGAR
-                for (int i = 0 ; i < ov.CIGAR.size() ; i++){
-                    if (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0'){
-                        if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S') {
-                            string_nbHS_start = "";
-                        }
-                        break;
-                    }
-                    string_nbHS_start += ov.CIGAR[i];
-                }
-                nbHS_start = 0;
-                if (string_nbHS_start != ""){
-                    nbHS_start = stoi(string_nbHS_start);
-                }
+                int end = -1;
 
-                string string_nbHS_end = "";
-                //find the last letter in the CIGAR
-                for (int i = ov.CIGAR.size()-1 ; i >= 0 ; i--){
-                    if (ov.CIGAR[i] != 'H' && ov.CIGAR[i] != 'S' && (ov.CIGAR[i] > '9' || ov.CIGAR[i] < '0')){
-                        break;
-                    }
-                    string_nbHS_end = ov.CIGAR[i] + string_nbHS_end;
-                }
-                nbHS_end = 0;
-                if (string_nbHS_end != ""){
-                    //strip last character
-                    string_nbHS_end = string_nbHS_end.substr(0, string_nbHS_end.size()-1);
-                    nbHS_end = stoi(string_nbHS_end);
-                }
-
-                if (!ov.strand){
-                    auto tmp = nbHS_start;
-                    nbHS_start = nbHS_end;
-                    nbHS_end = tmp;
-                }
-
+                bool lasthere = false;
+                bool firsthere = false;
                 if (ov.sequence1 != backbone){
                     read = ov.sequence1;
-                    start = min(ov.position_1_1, ov.position_1_2)+nbHS_start;
+                    start = ov.position_1_1;
+                    end = ov.position_1_2;
                 }
                 else{
                     read = ov.sequence2;
-                    start = min(ov.position_2_1, ov.position_2_2)+nbHS_start;
+                    start = ov.position_2_1;
+                    end = ov.position_2_2;
                 }
 
+                if (start > 100){
+                    firsthere = true;
+                }
+                if (end < allreads[read].size()-100){
+                    lasthere = true;
+                }
                 
                 vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
+                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
+                    v.push_back(make_pair("&", ov.strand));
+                }
+                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
+                    v.push_back(make_pair("+", ov.strand));
+                }
+                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
+                    v.push_back(make_pair("-", ov.strand));
+                }
                 Path contigpath = make_tuple(start,v, backbone);
                 readPaths[read].push_back(contigpath);
 
                 // cout << "bbb " << allreads[backbone_reads[b]].name << endl;
-                // if ("edge_2@3@0" == allreads[backbone_reads[b]].name.substr(0,12)){
-                //     cout << "on backbone 228 is aligned " << allreads[read].name.substr(0, 23) << endl;
+                // if ("s1.ctg000002l@7" == allreads[backbone_reads[b]].name && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
+                //     cout << "on backbone 228 is aligned " << allreads[read].name.substr(0, 19) << endl;
+                //     exit(1);
                 // }
             }
         }
     }
+
 
     //now merge the paths that were on different contigs
     for (auto r = 0 ; r < readPaths.size() ; r++){
@@ -1287,6 +1227,22 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
         if (readPaths[r].size() > 0){
 
             std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
+            
+            // if (allreads[r].name.substr(0,19) == ">SRR14289618.827569"){
+
+            //     cout << "on backbone 228 is feed aligned " << allreads[r].name.substr(0, 19) << endl;
+            //     for (auto p = 0 ; p < readPaths[r].size() ; p++){
+            //         Path path = readPaths[r][p];
+            //         cout << "path " << p << " : ";
+            //         auto contigs = get<1>(path);
+            //         for (auto c : contigs){
+            //             cout << c.first << " ";
+            //         }
+            //         cout << ", beginning on read : " << get<0>(path) << endl;
+            //     }
+            //     // exit(1);
+            // }
+
             vector<Path> mergedPaths;
             Path currentPath = readPaths[r][0];
             //check if each path can be merged with next path
@@ -1297,6 +1253,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 long int nextContig = get<2> (readPaths[r][p+1]);
 
                 if (contig != nextContig){
+
                     vector<size_t> links;
                     if (orientation){
                         links = allreads[contig].get_links_right();
@@ -1345,6 +1302,15 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                         mergedPaths.push_back(currentPath);
                         currentPath = readPaths[r][p+1];
                     }
+
+                }
+                else{
+                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+                    }
+                    mergedPaths.push_back(currentPath);
+                    currentPath = readPaths[r][p+1];
                 }
             }
             //if & in name, delete it
@@ -1354,6 +1320,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
             }
 
             mergedPaths.push_back(currentPath);
+
             readPaths[r] = mergedPaths;
         }
 
@@ -1363,7 +1330,7 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
     ofstream out(outputGAF);
     for (auto p = 0 ; p < readPaths.size() ; p++){
         for (Path path : readPaths[p]){
-            if (get<1>(path).size() > 1){
+            if (get<1>(path).size() > 0){
                 //output the path
                 out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
                 for (auto contig : get<1>(path)){
@@ -1407,9 +1374,9 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
     for (auto r : backbone_reads){
         if (allreads[r].name != "delete_me"){
             Read read = allreads[r];
-            out << "S\t"<< read.name << "\t" << read.sequence_.str() << read.comments;
+            out << "S\t"<< read.name << "\t" << read.sequence_.str();// << read.comments; // the comments may not be compatible with the new contigs
             if (read.depth != -1){
-                out << "\tdp:f:" << std::to_string(read.depth);
+                out << "\tDP:f:" << std::to_string(read.depth);
             }
             out << "\n";
         }
@@ -1444,9 +1411,11 @@ void output_readGroups(std::string readGroupsFile, std::vector <Read> &allreads,
         for (auto p : partitions[r]){
             out << "@POS_ON_CONTIG " << p.first.first << " <-> " << p.first.second << "\n";
             for (auto neighbor = 0 ; neighbor < p.second.first.size() ; neighbor++){
-                Overlap ov = allOverlaps[contig.neighbors_[neighbor]];
-                Read read = allreads[ov.sequence1];
-                out << read.name << "\t" << p.second.first[neighbor] << "\t" << ov.sequence1 << "\n";
+                if (p.second.first[neighbor] != -2){
+                    Overlap ov = allOverlaps[contig.neighbors_[neighbor]];
+                    Read read = allreads[ov.sequence1];
+                    out << read.name << "\t" << p.second.first[neighbor] << "\t" << ov.sequence1 << "\n";
+                }
             }
             out << "\n";
         }

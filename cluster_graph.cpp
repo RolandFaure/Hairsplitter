@@ -46,14 +46,28 @@ std::vector<std::vector<int>> strengthen_adjacency_matrix(std::vector<std::vecto
 
 }
 
+/**
+ * @brief 
+ * 
+ * @param adjacency_matrix Graph
+ * @param initialClusters Starting point of the clustering
+ * @return std::vector<int> 
+ */
+// std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &initialClusters){
+//     vector<bool> mask(adjacency_matrix.size(), true);
+//     return chinese_whispers(adjacency_matrix, initialClusters, mask);
+// }
+
 
 /**
  * @brief Implement the chinese whispers clustering algorithm on adjacency matrix
  * 
- * @param adjacency_list 
+ * @param adjacency_list Graph
+ * @param initialClusters Starting point of the clustering
+ * @param mask Masked reads
  * @return std::vector<int> 
  */
-std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &initialClusters){
+std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
 
     //at the beginning, all nodes are in their own cluster
     // std::vector<int> clusters(adjacency_matrix.size());
@@ -78,17 +92,20 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
         std::shuffle(order.begin(), order.end(), g);
     
         for (int i : order){
-            //find the most frequent neighbor            
+            //find the most frequent neighbor
+            if (!mask[i]){
+                continue;
+            }          
             vector<int> neighbors (adjacency_matrix.size(), 0);
             for (int j = 0; j < adjacency_matrix[i].size(); j++){
                 if (adjacency_matrix[i][j] >= 1){
                     neighbors[clusters[j]]+= adjacency_matrix[i][j];
                 }
             }
+            neighbors[-1] = 0; //the cluster -1 is not allowed, but nodes with cluster -1 can change to another cluster
 
             int max_index = 0;
             int max_value = 0;
-            //with a probability of 0.9, choose the most frequent neighbor
             for (int j = 0; j < neighbors.size(); j++){
                 if (neighbors[j] > max_value){
                     max_value = neighbors[j];
@@ -103,6 +120,13 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
             }
         }
 
+    }
+
+    //put -2 for masked reads
+    for (int i = 0; i < mask.size(); i++){
+        if (!mask[i]){
+            clusters[i] = -2;
+        }
     }
 
     //return the clusters

@@ -20,7 +20,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx=12.0.0 gcc=12.0.0 python=3.10.4 scipy numpy 
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx gcc python scipy numpy 
 conda activate hairsplitter
 ```
 

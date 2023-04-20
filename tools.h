@@ -18,9 +18,19 @@ int compute_edit_distance(std::string &cigar, std::string &ref, std::string &rea
 void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file);
 void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file);
 
+void rename_reads(std::string &fasta_file, std::string &prefix);
+
 std::string consensus_reads(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
-    std::string &id);
+    std::string &id,
+    std::string &outFolder);
+
+std::string consensus_reads_wtdbg2(
+    std::string const &backbone, 
+    std::vector <std::string> &polishingReads, 
+    std::string &id,
+    std::string &outFolder
+);
 
 #endif

@@ -4,6 +4,7 @@
 #include <omp.h>
 #include "input_output.h"
 #include "tools.h"
+#include "reassemble_unaligned_reads.h"
 
 using std::string;
 using std::cout;
@@ -22,6 +23,7 @@ using std::set;
 using std::to_string;
 
 extern bool DEBUG;
+extern string WTDBG2;
 
 /**
  * @brief Modify the input GFA according to the way the reads have been split.
@@ -43,7 +45,9 @@ void modify_GFA(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
     vector<Link> &allLinks,
     unordered_map <int, vector<pair<int,int>>> &readLimits, 
-    int num_threads)
+    int num_threads,
+    string &outFolder, 
+    float errorRate)
     {
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -160,14 +164,15 @@ void modify_GFA(
                     //     }
                     // }
 
-                    // if (partitions[backbone][n].first.first > 41100 && partitions[backbone][n].first.first < 42900 && omp_get_thread_num() == 0){
-                    //     cout << "stitching : ";
+                    // if (partitions[backbone][n].first.first > 63100 && partitions[backbone][n].first.first < 64900 ){
+                    //     cout << "stiddvtching : ";
                     //     for (auto s: stitches[n]){
                     //         cout << s.first << "<->" ;
                     //         for (auto s2 : s.second) {cout << s2 << ",";}
                     //         cout << "  ;  ";
                     //     } 
                     //     cout << endl;
+                    // }
 
                     //     cout << "here are partitions[backbone][n-1].second.first and partitions[backbone][n].second.first : " << endl;
                     //     for (auto a : partitions[backbone][n-1].second.first){
@@ -209,6 +214,30 @@ void modify_GFA(
 
             int n = 0;
             for (auto interval : partitions[backbone]){
+
+                // if (interval.first.first == 36000){
+                //     cout  << "fdiocicui modufy_gfa" << endl;
+                //     for (auto i = 0 ; i < interval.second.first.size() ; i++ ){
+                //         if (interval.second.first[i] != -2){
+                //             cout << interval.second.first[i]  << " ";
+                //         }
+                //     }
+                //     cout << endl;
+                //     for (auto i = 0 ; i < partitions[backbone][n-1].second.first.size() ; i++ ){
+                //         if (partitions[backbone][n-1].second.first[i] != -2){
+                //             cout << partitions[backbone][n-1].second.first[i]  << " ";
+                //         }
+                //     }
+                //     cout << endl;
+                //     cout << "and there are the stitches : " << endl;
+                //     for (auto s : stitches[n]) {
+                //         cout << s.first << " : ";
+                //         for (auto bb : s.second){
+                //             cout << bb  << ",";
+                //         }
+                //         cout << endl;
+                //     }
+                // }
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 if (omp_get_thread_num() == 0 && DEBUG){
@@ -254,7 +283,7 @@ void modify_GFA(
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
-                    int overhang = 50; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
+                    int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
                     
                     int overhangLeft = min(interval.first.first, overhang);
                     int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
@@ -269,11 +298,17 @@ void modify_GFA(
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        if (newcontig == ""){
-                            //if the contig is close to one end, tell racon to not polish the first or last bases
-                            newcontig = consensus_reads(toPolish, group.second,thread_id);
-                        }
+                        // if (newcontig == "" && errorRate < 0.02 && WTDBG2 != "no_wtdbg2"){ //for HiFi reads and low coverage, wtdbg2 does a better polishing than racon
+                        //     newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder);
+                        // }
 
+                        if (newcontig == ""){
+                            // cout << "In modify gfa, assembly with wtdbg2 failed" << endl;
+                            newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder);
+                            if (newcontig == ""){
+                                continue;
+                            }
+                        }
 
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
                                     newcontig.c_str(), newcontig.size(),
@@ -307,7 +342,6 @@ void modify_GFA(
                         }
                         
                         newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
-
                         edlibFreeAlignResult(result);                        
                     }
                     else {
@@ -318,16 +352,15 @@ void modify_GFA(
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
                     r.depth = newdepths[group.first];
 
+                    // cout << "dqfoiuc creating contig " << r.name << endl;
+                    // if (r.name == "s0.ctg000001l@1_84000_2"){
+                    //     cout << "oiaooeiiddz" << endl;
+                    //     exit(1);
+                    // }
+
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
 
-                    // if (interval.first.first == 6000 && group.first == 4){
-                    //     cout << "stiretches: " << endl;
-                    //     for (auto s : stitches[n][group.first]){
-                    //         cout << s << " ";
-                    //     }
-                    //     cout << endl;
-                    // }
         
                     if (n == 0 || stitches[n][group.first].size() == 0){
                         for (int h : hangingLinks){
@@ -496,6 +529,9 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
     unordered_map<int,set<int>> stitch;
 
     for (auto r = 0 ; r < par.size() ; r++){
+        // if (par[r] == 1 && position == 64000){
+        //     cout << "parttiion " << par[r] << " neighbor " << neighbor[r] << endl;
+        // }
         if (par[r] > -1 && neighbor[r] > -1 && readLimits[r].first <= position && readLimits[r].second >= position){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
@@ -526,32 +562,29 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
         }
     }
 
+    // if (position == 64000){
+    //     cout << "here isss the fit_left" << endl;
+    //     for (auto fit : fit_left){
+    //         cout << fit.first << " : " << endl;
+    //         for (auto candidate : fit.second){
+    //             cout << "   " << candidate.first << " : " << candidate.second << endl;
+    //         }
+    //     }
+    // }
+
     //now give all associations
     for (auto fit : fit_left){
-        // find the best fit
-        int best_fit = 0;
         for (auto candidate : fit.second){
-            if (candidate.second > best_fit){
-                best_fit = candidate.second;
-            }
-        }
-        for (auto candidate : fit.second){
-            if (candidate.second == best_fit){ //good compatibility
+            if (candidate.second >= min(5.0, 0.7*cluster_size[fit.first])){ //good compatibility
                 stitch[fit.first].emplace(candidate.first);
             }
         }
     }
 
     for (auto fit : fit_right){
-        //find the best fit
-        int best_fit = 0;
+        //find all the good fits
         for (auto candidate : fit.second){
-            if (candidate.second > best_fit){
-                best_fit = candidate.second;
-            }
-        }
-        for (auto candidate : fit.second){
-            if (candidate.second == best_fit){
+            if (candidate.second >= min(5.0, 0.7*cluster_size[candidate.first])){
                 stitch[candidate.first].emplace(fit.first);
             }
         }

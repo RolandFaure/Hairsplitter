@@ -39,7 +39,9 @@ void split_contigs(
     bool assemble_on_assembly,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
     bool polish, 
-    int num_threads);
+    int num_threads,
+    std::string &tmpFolder,
+    float &errorRate);
 
 void compute_partition_on_this_contig(
     std::string fileReads, 
@@ -49,7 +51,9 @@ void compute_partition_on_this_contig(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, 
     bool assemble_on_assembly,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-    bool polish);
+    bool polish,
+    std::string &tmpFolder,
+    float &errorRate);
 
 float generate_msa(
     long int bbcontig, 
@@ -63,12 +67,14 @@ float generate_msa(
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, 
     std::vector<bool>& misalignedReads, 
     bool polish,
-    std::string &newref);
+    std::string &newref,
+    std::string &tmpFolder);
 
 std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
     std::string& ref, 
     std::vector<Column> &snps,
-    int numberOfReads);
+    int numberOfReads,
+    float errorRate);
 
 std::vector<Partition> get_solid_partitions(
     std::string& ref, 
@@ -106,12 +112,12 @@ int compatible_partitions(Partition &p1 , Partition &p2);
 //     std::vector<std::vector<int>> &adjacencyMatrix,
 //     int sizeOfWindow);
 
-std::vector<int> rescue_reads(
-    std::vector<int> &clusteredReads, 
-    std::vector<Column> &snps, 
-    int chunk, 
-    std::vector<size_t> &suspectPostitions,
-    int sizeOfWindow);
+// std::vector<int> rescue_reads(
+//     std::vector<int> &clusteredReads, 
+//     std::vector<Column> &snps, 
+//     int chunk, 
+//     std::vector<size_t> &suspectPostitions,
+//     int sizeOfWindow);
 
 void create_read_graph(
     std::vector <bool> &mask,
@@ -120,7 +126,8 @@ void create_read_graph(
     std::vector<size_t> &suspectPostitions,
     int sizeOfWindow,
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
-    std::vector< std::vector<int>> &adjacency_matrix);
+    std::vector< std::vector<int>> &adjacency_matrix,
+    float &errorRate);
 
 void list_similarities_and_differences_between_reads(
     std::vector <bool> &mask,
@@ -129,6 +136,6 @@ void list_similarities_and_differences_between_reads(
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
 
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
-    std::vector< std::vector<int>> &adjacency_matrix);
+    std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask);
 
 #endif

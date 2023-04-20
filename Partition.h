@@ -42,7 +42,7 @@ public :
     void mergePartition(Partition &p, short phased); 
     void mergePartition(Partition &p); 
 
-    bool isInformative(bool lastReadBiased);
+    bool isInformative(bool lastReadBiased, float meanError);
     int number();
     float numberOf0();
 

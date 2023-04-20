@@ -8,6 +8,7 @@
 #include "input_output.h"
 #include "split_reads.h"
 #include "modify_gfa.h"
+#include "reassemble_unaligned_reads.h"
 #include "clipp.h" //library to build command line interfaces
 #include "tools.h"
 //#include "phase_variants.h"
@@ -24,8 +25,9 @@ string MINIMAP;
 string RACON;
 string GRAPHUNZIP;
 string HAIRSPLITTER;
+string WTDBG2;
+string SAMTOOLS;
 bool DEBUG;
-unsigned long int MAX_SIZE_OF_CONTIGS = 100000000;
 
 //../../code/build/OverlapCheck -a alignments.paf -i alignments_on_polished.paf -r assembly_polished.fasta -o alignments_filtered.paf -f nanopore_medium.fq 
 
@@ -57,6 +59,23 @@ void check_dependancies(){
     if (res != 0){
         cout << "MISSING DEPENDANCY: minimap2" << endl;
     }
+
+    com = " --version > tmp/trash.txt 2> tmp/trash.txt";
+    command = WTDBG2 + com;
+    auto wtdbg2 = system(command.c_str());
+    if (wtdbg2 != 0){
+        cout << "MISSING DEPENDANCY: wtdbg2. Proceeding without re-assembling unaligned reads. (was trying command line " << command << ")" << endl;
+        WTDBG2 = "no_wtdbg2";
+    }
+
+    com = " --version > tmp/trash.txt 2> tmp/trash.txt";
+    command = SAMTOOLS + com;
+    auto samtools = system(command.c_str());
+    if (samtools != 0){
+        cout << "MISSING DEPENDANCY: samtools. Proceeding without re-assembling unaligned reads. (was trying command line " << command << ")" << endl;
+        WTDBG2 = "no_wtdbg2";
+    }
+
     // if (miniasm != 0){
     //     cout << "MISSING DEPENDANCY: miniasm" << endl;
     // }
@@ -93,6 +112,8 @@ int main(int argc, char *argv[])
     string path_minimap = "minimap2";
     string path_miniasm = "miniasm";
     string path_racon = "racon";
+    string path_wtdbg2 = "wtdbg2";
+    string path_samtools = "samtools";
 
     //try linking to the local copy of GraphUnzip that comes with HairSplitter
     string path_path = argv[0];
@@ -102,6 +123,7 @@ int main(int argc, char *argv[])
     int num_threads = 1;
     bool polish = false;
     bool dont_simplify = false;
+    bool version = false;
     DEBUG = false;
     bool force = false;
     auto cli = (
@@ -118,8 +140,11 @@ int main(int argc, char *argv[])
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
+
+            clipp::option("--path-to-wtdbg2").doc("Path to wtdbg2 (if not in PATH)") & value("path to wtdbg2 (invalid path to disable assembly of unaligned reads)", path_wtdbg2),
+            clipp::option("--path-to-samtools").doc("Path to samtools (if not in PATH)") & value("path to samtools", path_samtools),
             clipp::option("-F", "--force").set(force).doc("Force overwrite of output folder if it exists"),
-            clipp::option("-t", "--threads").doc("Number of threads") & value("threads", num_threads),
+            clipp::option("-v", "--version").set(version),
             clipp::option("-d", "--debug").set(DEBUG)
         );
 
@@ -129,10 +154,17 @@ int main(int argc, char *argv[])
     }
     else {
 
+        if (version){
+            cout << "HairSplitter version 1.1.0" << endl;
+            exit(EXIT_SUCCESS);
+        }
+
         MINIMAP = path_minimap;
         RACON = path_racon;
         GRAPHUNZIP = path_graphunzip;
+        WTDBG2 = path_wtdbg2;
         HAIRSPLITTER = path_path.substr(0, path_path.size()-18);
+        SAMTOOLS = path_samtools;
 
         //strip the last / if it exists in the output folder
         if (outputFolder[outputFolder.size()-1] == '/'){
@@ -141,6 +173,14 @@ int main(int argc, char *argv[])
 
         string outputGAF = outputFolder+"/tmp/outout.gaf";
         string outputFile = outputFolder+"/hairsplitter_assembly.gfa";
+
+        string mkdir_out = "mkdir "+ outputFolder + " && mkdir "+ outputFolder + "/tmp/";
+        auto mkdir = system(mkdir_out.c_str());
+        if (mkdir != 0 && !force){
+            cout << "Could not run command line " << mkdir_out << endl;
+            cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already, or use option -F." << endl;
+            exit(EXIT_FAILURE);
+        }
 
         check_dependancies();
 
@@ -172,14 +212,6 @@ int main(int argc, char *argv[])
 
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
         cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
-
-        string mkdir_out = "mkdir "+outputFolder + " && mkdir "+ outputFolder + "/tmp/";
-        auto mkdir = system(mkdir_out.c_str());
-        if (mkdir != 0 && !force){
-            cout << "Could not run command line " << mkdir_out << endl;
-            cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already, or use option -F." << endl;
-            exit(EXIT_FAILURE);
-        }
 
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
@@ -237,7 +269,12 @@ int main(int argc, char *argv[])
         else{
             cout << "ERROR: the file containing the alignments on the assembly should be either .paf or .sam" << endl;
             exit(EXIT_FAILURE);
-        }       
+        }
+
+        if (WTDBG2 != "no_wtdbg2"){
+            cout << " - Re-assembling unaligned reads (to skip this step use option --path-to-wtdbg2 0)\n";
+            reassemble_unaligned_reads(allreads, allOverlaps, fastqfile, backbone_reads, outputFolder, num_threads, indices, allLinks);
+        }
 
         cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
         cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
@@ -246,7 +283,9 @@ int main(int argc, char *argv[])
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, string>>  > >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
-        split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads);
+        string tmpFolder = outputFolder+"/tmp/";
+        float errorRate;
+        split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads, tmpFolder, errorRate);
 
         //output GAF, the path of all reads on the new contigs
         // cout << "Outputting GAF" << endl;
@@ -255,10 +294,15 @@ int main(int argc, char *argv[])
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
         if (readGroupsFile != ""){
             cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
-            output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         }
+        else{
+            readGroupsFile = tmpFolder + "read_groups.txt";
+        }
+
+        output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
         
-        modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads);
+        
+        modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
         string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
@@ -268,7 +312,7 @@ int main(int argc, char *argv[])
         if (dont_simplify){
             simply = " --dont_merge -r";
         }
-        string com = " unzip -r -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " 2>"+outputFolder+"/tmp/logGraphUnzip.txt >"+outputFolder+"/tmp/trash.txt";
+        string com = " unzip -l " + outputGAF + " -g " + zipped_GFA + simply + " -o " + outputFile + " 2>"+outputFolder+"/tmp/logGraphUnzip.txt >"+outputFolder+"/tmp/trash.txt";
         string command = GRAPHUNZIP + com;
         cout << " - Running GraphUnzip with command line:\n     " << command << "\n   The output of GraphUnzip is dumped on "+outputFolder+"/tmp/logGraphUnzip.txt\n";
         int resultGU = system(command.c_str());
