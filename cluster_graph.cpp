@@ -3,6 +3,7 @@
 #include <random>
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 using std::vector;
 using std::unordered_map;
@@ -11,6 +12,7 @@ using std::max;
 using std::min;
 using std::cout;
 using std::endl;
+using std::set;
 
 /**
  * @brief Strengthen the adjacency matrix by adding edges between nodes that are connected by a path of length 2
@@ -78,6 +80,13 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
 
     //keep track of the number of changes in the clustering
     int changes = 3;
+    int number_of_iterations = 0;
+    vector<int> countOfClusters (initialClusters.size(), 0);
+    for (auto i : initialClusters){
+        if (i >= 0){
+            countOfClusters[i] += 1;
+        }
+    }
     //iterate until less than 2 changes are made  
     while (changes > 2){
 
@@ -113,14 +122,28 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
                 }
             }
 
-            //if the most frequent neighbor is not the current node, change the cluster
-            if (clusters[i] != max_index && max_value > 0){
+            //choose the new cluster among the clusters that have more than one third of the links 
+            if (max_value > 0){
+                if (clusters[i] != max_index){
+                    countOfClusters[clusters[i]]--;
+                    countOfClusters[max_index]++;
+                    changes++;
+                }
                 clusters[i] = max_index;
-                changes++;
             }
         }
 
+        // cout << "dopudqsop number oc changes " << changes << " ";
+        // for (auto j = 0 ; j < clusters.size() ; j++){
+        //     if (mask[j]){
+        //         cout << clusters[j] << " ";
+        //     }
+        // }
+        // cout << endl;
+        number_of_iterations += 1;
     }
+
+    // cout << "done clustddeering" << endl;
 
     //put -2 for masked reads
     for (int i = 0; i < mask.size(); i++){
@@ -133,6 +156,104 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
     return clusters;
 }
 
+/**
+ * @brief Merge close clusters by disrupting clusters and applying chinese whispers
+ * 
+ * @param adjacency_list Graph
+ * @param clusters initial clusters
+ * @param mask Masked reads
+ * @return std::vector<int> merged clusters
+ */
+void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &clusters, std::vector<bool> &mask){
+
+    std::set<int> setOfTestedClusters;
+    vector<int> initialCountOfClusters (clusters.size(), 0);
+    for (auto i : clusters){
+        if (i >= 0){
+            initialCountOfClusters[i] += 1;
+        }
+    }
+
+    for (auto node = 0 ; node < clusters.size() ; node++){
+        if (setOfTestedClusters.find(clusters[node])==setOfTestedClusters.end() && clusters[node] >= 0){
+            int clusterToTest = clusters[node];
+
+            //go through the graph and convert nodes that have less than 2/3 links to the cluster
+            auto newclusters = clusters;
+            int changes = 3;
+            auto countOfClusters = initialCountOfClusters;
+            auto number_of_iterations = 0;
+            //iterate until less than 2 changes are made  
+            while (changes > 0 && number_of_iterations < 10){
+
+                changes = 0;
+                //iterate over all nodes in a random order
+                // for (int i = 0; i < adjacency_matrix.size(); i++){
+                // generate a random order
+                vector<int> order(adjacency_matrix.size());
+                std::iota(order.begin(), order.end(), 0);
+                std::random_device rd;
+                std::mt19937 g(rd());
+                std::shuffle(order.begin(), order.end(), g);
+            
+                for (int i : order){
+                    //find the most frequent neighbor
+                    if (!mask[i] || newclusters[i] != clusterToTest){
+                        continue;
+                    }          
+                    vector<int> neighbors (adjacency_matrix.size(), 0);
+                    for (int j = 0; j < adjacency_matrix[i].size(); j++){
+                        if (adjacency_matrix[i][j] >= 1){
+                            neighbors[newclusters[j]]+= adjacency_matrix[i][j];
+                        }
+                    }
+                    neighbors[-1] = 0; //the cluster -1 is not allowed, but nodes with cluster -1 can change to another cluster
+
+                    int max_index = 0;
+                    int max_value = 0;
+                    int second_index = 0;
+                    int second_value = 0;
+                    for (int j = 0; j < neighbors.size(); j++){
+                        if (neighbors[j] > max_value){
+                            second_value = max_value;
+                            second_index = max_index;
+                            max_value = neighbors[j];
+                            max_index = j;
+                        }
+                        else if (neighbors[j] > second_value){
+                            second_value = neighbors[j];
+                            second_index = j;
+                        }
+                    }
+
+                    //choose the new cluster among the clusters that have more than one third of the links 
+                    if (max_value > 0 && max_index != clusterToTest){
+                        countOfClusters[newclusters[i]]--;
+                        countOfClusters[max_index]++;
+                        changes++;
+                        newclusters[i] = max_index;
+                    }
+                    else if (max_value > 0 && max_value <= 2*second_value) {
+                        //then this node is weak, change the value
+                        // cout << "max and second values : " << max_value << " " << second_value << " " << max_index << " " << second_index << endl;
+                        countOfClusters[newclusters[i]]--;
+                        countOfClusters[second_index]++;
+                        newclusters[i] = second_index;
+                        changes++;
+                    }
+
+                }
+                number_of_iterations++;
+            }
+
+            setOfTestedClusters.emplace(clusterToTest);
+            if (countOfClusters[clusterToTest] == 0){ //the cluster was weak, it must be suppressed
+                clusters = newclusters;
+                initialCountOfClusters = countOfClusters;
+            }
+        }
+    }
+}
 
 
 

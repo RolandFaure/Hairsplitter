@@ -409,7 +409,7 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
         if rename_contigs :
             splitName = exportFile.split('/')[:-1]
             if len(splitName) > 0 :
-                fcontigs = open('/'.join(splitName)+'supercontigs.txt', 'w') 
+                fcontigs = open('/'.join(splitName)+'/supercontigs.txt', 'w') 
             else :
                 fcontigs = open('supercontigs.txt', 'w') 
 
