@@ -139,6 +139,9 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         if (pos < pos_left || pos_left == -1) {pos_left = pos;}
         if (pos > pos_right) {pos_right = pos;}
     }
+    if (supplementaryPartition.readIdxs.size() == 0){
+        return;
+    }
 
     //determine the two most frequent bases in supplementaryPartition.content. There can be any character in supplementaryPartition.content
     vector<int> content (256, 0);//one item for each possible character
@@ -173,8 +176,11 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     int n2 = 0;
     int swapped = 0;
     for (auto read : readIdx){
-        while (supplementaryPartition.readIdxs[n2] < read){
+        while (n2 < supplementaryPartition.readIdxs.size() && supplementaryPartition.readIdxs[n2] < read){
             n2++;
+        }
+        if (n2 >= supplementaryPartition.readIdxs.size()){
+            break;
         }
         if (supplementaryPartition.readIdxs[n2] == read){
             if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == 1){

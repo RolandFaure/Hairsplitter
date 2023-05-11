@@ -568,7 +568,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
 
                     }
                     catch(...){
-                        cout << "There is a sequence in the PAF I did not find in the fasta: " << field << endl;
+                        cout << "There is a sequence in the SAM I did not find in the fasta: " << field << endl;
                         allgood = false;
                     }
                 }
@@ -610,6 +610,15 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             }
 
             if (allgood && fieldnumber > 10 && sequence2 != sequence1){
+
+                int length_alignment = 0;
+                string alignment = convert_cigar(cigar);
+                for (auto a : alignment){
+                    if (a == 'M' || a == 'D' || a == '=' || a == 'X'){
+                        length_alignment++;
+                    }
+                }
+                auto pos2_2 = pos2_1 + length_alignment;
 
                 //do not store the 'H' and 'S' at the ends of the cigar string
                 int nbH_start = 0;
@@ -698,7 +707,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     nbS_end = tmp;
                 }
 
-                if (nbH_start+nbH_end > 0.2*length1 && flag < 2048){ //flag>=2048 means it is a supplementary alignment, H can generally be changed in S
+                if (nbH_start+nbH_end > 0.2*length1 && flag < 2048){ //flag>=2048 means it is a supplementary alignment, in which case H can generally be changed in S. S alignments can be tolerated, if the read does not align elsewhere )
                     allgood = false;
                     //cout << "inpout outpout qkdldkj c " << line << endl;
                 }
@@ -1510,7 +1519,7 @@ void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, 
     }
 }
 
-void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vector<std::vector<int>> &clusters, std::string fileOut){
+void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vector<std::vector<int>> &clusters, std::vector<bool> &mask, std::string fileOut){
 
     ofstream out(fileOut);
 
@@ -1520,11 +1529,13 @@ void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vec
     }
     out << "\n";
     for (auto i = 0 ; i < adj.size() ; i++){
-        out << i << ", " << i << ", ";
-        for (auto j = 0 ; j < clusters.size() ; j++){
-            out << clusters[j][i] << ", ";
+        if (mask[i]){
+            out << i << ", " << i << ", ";
+            for (auto j = 0 ; j < clusters.size() ; j++){
+                out << clusters[j][i] << ", ";
+            }
+            out << "\n";
         }
-        out << "\n";
     }
     out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
     for (auto i = 0 ; i < adj.size() ; i++){

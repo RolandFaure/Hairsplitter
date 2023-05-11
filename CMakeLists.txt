@@ -68,6 +68,7 @@ endif()
 # target_link_libraries(Hairsplitter PRIVATE wfa2)#pthread)
 
 target_include_directories(Hairsplitter PRIVATE edlib/include)
+target_compile_options (Hairsplitter PRIVATE -g)
 target_compile_options (Hairsplitter PRIVATE -lm)
 target_compile_options (Hairsplitter PRIVATE -fopenmp)
 target_compile_options (Hairsplitter PRIVATE -std=c++17)

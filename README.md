@@ -8,7 +8,8 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 # Why is it useful ?
 
-`Hairsplitter` is mainly useful if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
+`Hairsplitter` can be used to refine a metagenomic assembly. Assemblers commonly collapse closely related strains as on single genome. HairSplitter can recover the lost strains.
+`HairSplitter` is also useful for single-organism assembly, especially if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
 
 # Installation
 
@@ -18,7 +19,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 ### Quick conda dependancies
 
-You can create a conda environment with all dependencies installed by typing: 
+You can create and activate a conda environment with all dependencies installed by typing: 
 ```
 conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx gcc python scipy numpy 
 conda activate hairsplitter
@@ -28,7 +29,7 @@ conda activate hairsplitter
 
 - [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon)
-- CMake >= 3.8.12, make, gcc >= 11
+- CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
  
 ## Download & Compilation
@@ -47,7 +48,7 @@ make
 
 ## Quick start
 
-Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler). To improve/phase your assembly using `Hairsplitter`, run
+Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase your assembly using `Hairsplitter`, run
 ```
 Hairsplitter -f reads.fastq -i assembly.gfa -o new_assembly.gfa
 ```
@@ -94,9 +95,7 @@ OPTIONS
 ```
 
 # Issues
- Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to support c++17. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
- 
- If HairSplitter crashes with the message `Illegal instruction`, it probably means that the program is run on a different CPU than the one on which it was compiled. This can typically happen if you're running HairSplitter on a computing cluster. To solve the issue, make sure to compile and run HairSplitter on the same CPU (more precisely, you need to compile and run WFA2-lib on the same CPU).
+ Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to be relatively recent. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
 
 
 

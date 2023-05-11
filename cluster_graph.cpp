@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <set>
+#include <assert.h>
 
 using std::vector;
 using std::unordered_map;
@@ -71,6 +72,7 @@ std::vector<std::vector<int>> strengthen_adjacency_matrix(std::vector<std::vecto
  */
 std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
 
+
     //at the beginning, all nodes are in their own cluster
     // std::vector<int> clusters(adjacency_matrix.size());
     // for (int i = 0; i < adjacency_matrix.size(); i++){
@@ -81,14 +83,9 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
     //keep track of the number of changes in the clustering
     int changes = 3;
     int number_of_iterations = 0;
-    vector<int> countOfClusters (initialClusters.size(), 0);
-    for (auto i : initialClusters){
-        if (i >= 0){
-            countOfClusters[i] += 1;
-        }
-    }
+
     //iterate until less than 2 changes are made  
-    while (changes > 2){
+    while (changes > 2 && number_of_iterations < 15){
 
         changes = 0;
         //iterate over all nodes in a random order
@@ -107,11 +104,10 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
             }          
             vector<int> neighbors (adjacency_matrix.size(), 0);
             for (int j = 0; j < adjacency_matrix[i].size(); j++){
-                if (adjacency_matrix[i][j] >= 1){
+                if (adjacency_matrix[i][j] >= 1 && clusters[j] >= 0){
                     neighbors[clusters[j]]+= adjacency_matrix[i][j];
                 }
             }
-            neighbors[-1] = 0; //the cluster -1 is not allowed, but nodes with cluster -1 can change to another cluster
 
             int max_index = 0;
             int max_value = 0;
@@ -125,8 +121,6 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
             //choose the new cluster among the clusters that have more than one third of the links 
             if (max_value > 0){
                 if (clusters[i] != max_index){
-                    countOfClusters[clusters[i]]--;
-                    countOfClusters[max_index]++;
                     changes++;
                 }
                 clusters[i] = max_index;
@@ -169,7 +163,7 @@ void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix,
     std::set<int> setOfTestedClusters;
     vector<int> initialCountOfClusters (clusters.size(), 0);
     for (auto i : clusters){
-        if (i >= 0){
+        if (i >= 0 && i < initialCountOfClusters.size()){
             initialCountOfClusters[i] += 1;
         }
     }
@@ -203,11 +197,10 @@ void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix,
                     }          
                     vector<int> neighbors (adjacency_matrix.size(), 0);
                     for (int j = 0; j < adjacency_matrix[i].size(); j++){
-                        if (adjacency_matrix[i][j] >= 1){
+                        if (adjacency_matrix[i][j] >= 1 && newclusters[j] >= 0){
                             neighbors[newclusters[j]]+= adjacency_matrix[i][j];
                         }
                     }
-                    neighbors[-1] = 0; //the cluster -1 is not allowed, but nodes with cluster -1 can change to another cluster
 
                     int max_index = 0;
                     int max_value = 0;
@@ -236,6 +229,8 @@ void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix,
                     else if (max_value > 0 && max_value <= 2*second_value) {
                         //then this node is weak, change the value
                         // cout << "max and second values : " << max_value << " " << second_value << " " << max_index << " " << second_index << endl;
+                        // assert(newclusters[i] < countOfClusters.size() && "ERROR in cluster_graph.cpp, error code 569987");
+                        // assert(newclusters[i] >= 0 && "ERROR in cluster_graph.cpp, error code 569987");
                         countOfClusters[newclusters[i]]--;
                         countOfClusters[second_index]++;
                         newclusters[i] = second_index;
