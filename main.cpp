@@ -295,12 +295,12 @@ int main(int argc, char *argv[])
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
 
-        string readGroupsFile = tmpFolder + "read_groups.txt";
+        string readGroupsFile = outputFolder + "read_groups.txt";
         cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
 
         output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
-        
-        
+
+        cout << " - Polishing all the newly created contigs " << readGroupsFile << "\n";
         modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
         string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
@@ -325,7 +325,7 @@ int main(int argc, char *argv[])
         std::ofstream o(output, std::ios_base::app);//appending to the file
         o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
         o.close();
-        command = "cat output.txt supercontigs.txt > output2.txt 2> "+outputFolder+"/tmp/trash.txt";
+        command = "cat output.txt "+outputFolder+"/supercontigs.txt > output2.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());
         command =  "mv output2.txt "+outputFolder+"/hairsplitter_summary.txt && rm supercontigs.txt output.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());

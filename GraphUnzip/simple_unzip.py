@@ -92,12 +92,18 @@ class Path :
         # if trim_beginning > 0 :
         #     print("Now trimming coiJ DS ", self)
 
+#function to unzip the graph without making any assumptions
+#input: the graph and the gaf file
+#output: an unzipped graph
 def simple_unzip(segments, names, gafFile) :
 
     lines = []
     print("Reading the gaf file...")
     read_GAF(gafFile, 0, 0, lines)
     print("Finished going through the gaf file.")
+
+    #get rid of the links that are not in the gaf file
+    segments = remove_unsupported_links(segments, names, lines)
 
     on_which_paths_is_this_contig = {}
     for s in segments :
@@ -128,7 +134,6 @@ def simple_unzip(segments, names, gafFile) :
     #trim all the paths :
     for p in paths : 
         p.trim()
-        print("cncnakjh : " , p)
 
     print("All the paths are indexed: hccue")
 
@@ -247,7 +252,7 @@ def simple_unzip(segments, names, gafFile) :
                         best_pair_for_each_right_link[p[1]] = (pairs[p], p)
 
                 for p in pairs.keys() :
-                    if pairs[p] >= 3 : #either the pair is strong, or it is the only option
+                    if pairs[p] >= 3 : #keep the pair if it is strong, or if it is the only option
                         new_pairs[p] = pairs[p]
                 for pair in best_pair_for_each_left_link :
                     if pair[0] > 0 :
@@ -311,4 +316,92 @@ def simple_unzip(segments, names, gafFile) :
         else :
             delIdx += 1
 
+    segments = detach_tips(segments)
+
     return segments
+
+#function that removes the links that are not supported by any path
+#input : a list of segments and of paths
+#output : the same list of segments, but with the links that are not supported by any path removed
+def remove_unsupported_links(segments, names, lines):
+
+    #inventory of the links in the lines
+    links = set()
+    for line in lines :
+        cont = re.split('[><]' , line[1])
+        orientations = "".join(re.findall("[<>]", line[1]))
+        del cont[0] #because the first element is always ''
+        contigs = [segments[names[i]] for i in cont] 
+
+        for i in range(len(contigs)-1) :
+            links.add((contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1])))
+            links.add((contigs[i+1], "><".index(orientations[i+1]), contigs[i], "<>".index(orientations[i])))
+
+    #remove the links that are not supported by any path
+    toRemove = set()
+    for segment in segments :
+        for end in range(2) :
+            for n, neighbor in enumerate(segment.links[end]) :
+                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
+                    toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
+
+    for segment, end, neighbor, otherEnd in toRemove :
+        sg.delete_link(segment, end, neighbor, otherEnd, warning=False)
+
+    return segments
+
+#function that detach short tips
+#input : a list of segments
+#output : the same list of segments, but with the short tips detached
+def detach_tips(segments):
+                                              
+    #detach short dead ends
+    changes = True
+    max_tip_length = 20000
+    while changes :
+        changes = False
+        for s, seg in enumerate(segments):
+            
+            for end in range(2) :
+
+                if len(seg.links[end]) > 1 : #one of the branch may be a short dead end    
+                    extended_lengths = [extended_length(seg.links[end][i], seg.otherEndOfLinks[end][i], max_tip_length*5, 100) for i in range(len(seg.links[end]))]
+                    max_length = max(extended_lengths)
+                    toDelete = set()
+                    for n in range(len(seg.links[end])) :
+                        if 5*extended_lengths[n] < max_length and max_length > 10000 :
+                            toDelete.add((seg, end, seg.links[end][n], seg.otherEndOfLinks[end][n]))
+                    for seg, end, neighbor, otherEnd in toDelete :
+                        sg.delete_link(seg, end, neighbor, otherEnd, warning=False)
+                        changes = True  
+
+    return segments
+                 
+
+#a function returning the longest path you can get with neighbors of neighbors of neighbors of... (up to threshold) 
+def extended_length(segment, end, thresholdLength, thresholdContigs) :
+    
+    #print("Extended length called with threshold ", thresholdLength, " on segment , ", sg.names)
+    
+    if thresholdContigs == 0 or thresholdLength <= 0 :
+        return segment.length
+    
+    #start by looking down the longest contig, it will be fastest
+    longestContig = [i for i in range(len(segment.links[1-end]))]
+    longestContig.sort(key= lambda x : segment.links[1-end][x].length, reverse = True)
+    
+    #print("Longest contigs : ", longestContig, [segment.links[1-end][i].length for i in longestContig])
+    
+    maxLength = 0
+    for n in longestContig :
+        neighbor = segment.links[1-end][n]
+        l = extended_length(neighbor, segment.otherEndOfLinks[1-end][n], thresholdLength-segment.length, thresholdContigs-1)
+        if l > maxLength :
+            maxLength = l
+        
+    return maxLength + segment.length
+
+
+
+
+

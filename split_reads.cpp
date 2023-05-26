@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
         for (long int read : backbones_reads){
 
             cout << "Looking at contig number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
-            if (allreads[read].name != "edge_21@00"){
+            if (allreads[read].name != "edge_1@100"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -163,7 +163,6 @@ void compute_partition_on_this_contig(
 
     //then separate the MSA
     // string ref = allreads[contig].sequence_.str();
-    
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     
@@ -384,6 +383,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         // cout << alignment << " ";
         //cout << alignment.size() << " " << std::count(alignment.begin(), alignment.end(), 'I') << " " << std::count(alignment.begin(), alignment.end(), 'D') << "\n";
 
+        totalLengthOfAlignment += alignment.size();
         // mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
 
         // if (n == 10) {break;}
@@ -406,7 +406,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         //     cout << "beginning of query : " << indexQuery << " " << polishingReads[n].substr(indexQuery,100) << endl;
         // }
         //cout the alignment
-        // cout << "alignment yycuc : " << alignment << endl;
+        // cout << "alignment : " << alignment << endl;
         // cout << "ccxoaa ";
         // for (auto de = 0 ; de < min(indexQuery,20000) ; de+= 100){
         //     cout << " ";
@@ -469,7 +469,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
                         divergences[l%lengthOfWindow] = true;
                     }
                     size_of_deletion = 0;
-                    totalLengthOfAlignment++;
                 }
                 else if (alignment[l] == 'S' || alignment[l] == 'H'){
                     indexTarget++;
@@ -512,7 +511,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
 
                     localDivergence += 1;
                     divergences[l%lengthOfWindow] = true;
-                    totalLengthOfAlignment++;
                 }
                 else if (alignment[l] == 'I'){ 
                     // if (numberOfInsertionsHere[indexQuery] <= maxNumberOfInsertions && indexQuery > positionOfReads[n].first) {
@@ -593,12 +591,12 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     //print snps (just for debugging)
     cout << "Printing SNPs, in split_read: cicizzx" << endl;
     int step = 1; //porportions of reads
-    int prop = 100; //proportion of positions
+    int prop = 1; //proportion of positions
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 0;
-    int end = 10000;
+    int start = 34000;
+    int end = 34100;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -632,7 +630,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     cout << "Here are the aligned reads : " << endl;
     int index = firstRead;
     for (auto neighbor : reads){
-        if (neighbor[neighbor.size()-1] != ' ' || true){
+        if (neighbor[neighbor.size()-1] != ' '){
             cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name << endl;
         }
         index+= step;
@@ -645,7 +643,6 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     // exit(1);
     */
-
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -859,9 +856,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 index_h += 1;
             }
         }
-        if (index_h == 0){ //means there is only one haplotype
-            haplotypeToIndex[-1] = 0; 
-        }
         for (auto r = 0 ; r < haplotypes.size() ; r++){
             haplotypes[r] = haplotypeToIndex[haplotypes[r]];
         }
@@ -871,7 +865,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         cout << "haploutypes : " << chunk << endl;
         int n = 0;
         for (auto h : haplotypes){
-            if (h > -2){
+            if (h > -1){
                 // cout << n << ":" <<h << " ";
                 cout << h;
             }
@@ -930,7 +924,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     }
         // }
 
-        // if (chunk == 8){
+        // if (chunk == 2){
         //     cout << "split reads cixxosoc outputting graph" << endl;
         //     allclusters_debug.push_back(mergedHaplotypes);
         //     allclusters_debug.push_back(haplotypes);
@@ -2574,14 +2568,8 @@ void create_read_graph(
                 }
             }
 
-            for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < min(max(5.0,0.7*max_compat), 30000.0) ){
-                    distance_with_other_reads[r] = 0;
-                }
-            }
-
-            // if (read1 == 24001){
-            //     cout << "ddqfhhe distance of 24001 22 to other reads: " << max_compat << endl;
+            // if (read1 == 16 || true){
+            //     cout << "ddqfhhe distance of 16 to other reads: " << endl;
             //     for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
             //         if (mask[r] && r != read1){
             //             cout << r << " " << distance_with_other_reads[r] << " " << float(sims_and_diffs[read1][r].second) << " " << float(sims_and_diffs[read1][r].first) << endl;
@@ -2591,6 +2579,12 @@ void create_read_graph(
             //     // cout << "sims and diffffsss between 133 and 43 : " << sims_and_diffs[read1][43].first << " " << sims_and_diffs[read1][43].second << " " << distance_with_other_reads[43]<< endl;
             //     // cout << "sims and diffffsss between 133 and 141 : " << sims_and_diffs[read1][141].first << " " << sims_and_diffs[read1][141].second << " " << distance_with_other_reads[141] << endl;
             // }
+
+            for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
+                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < max(5.0,0.7*max_compat) ){
+                    distance_with_other_reads[r] = 0;
+                }
+            }
 
 
             vector<pair<int, float>> smallest;
@@ -2612,21 +2606,16 @@ void create_read_graph(
             //     cout << endl;
             // }
 
-
             int nb_of_neighbors = 0;
             float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
             float distance_threshold_above_which_two_reads_should_be_linked= 1;
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
             }
-            // if (read1 == 24001){
-            //     cout << "Thresholds for the links : " << distance_threshold_below_which_two_reads_are_considered_different << " " 
-            //         << distance_threshold_above_which_two_reads_should_be_linked << endl;
-            // }
 
             for (auto neighbor : smallest){
                 if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
-                    && (nb_of_neighbors < 5 || neighbor.second > distance_threshold_above_which_two_reads_should_be_linked)
+                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second > distance_threshold_above_which_two_reads_should_be_linked)
                     && mask[neighbor.first]){
                     nb_of_neighbors++;
                     
@@ -2808,14 +2797,6 @@ void list_similarities_and_differences_between_reads(
     // }
 }
 
-/**
- * @brief Merge the clustering coming from multiple bipartitions
- * 
- * @param localClusters All the biparitions
- * @param adjacency_matrix 
- * @param mask 
- * @return std::vector<int> Merged clustering
- */
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask){
 
