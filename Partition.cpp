@@ -139,6 +139,9 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
         if (pos < pos_left || pos_left == -1) {pos_left = pos;}
         if (pos > pos_right) {pos_right = pos;}
     }
+    if (supplementaryPartition.readIdxs.size() == 0){
+        return;
+    }
 
     //determine the two most frequent bases in supplementaryPartition.content. There can be any character in supplementaryPartition.content
     vector<int> content (256, 0);//one item for each possible character
@@ -173,8 +176,11 @@ void Partition::augmentPartition(Column& supplementaryPartition, int pos){
     int n2 = 0;
     int swapped = 0;
     for (auto read : readIdx){
-        while (supplementaryPartition.readIdxs[n2] < read){
+        while (n2 < supplementaryPartition.readIdxs.size() && supplementaryPartition.readIdxs[n2] < read){
             n2++;
+        }
+        if (n2 >= supplementaryPartition.readIdxs.size()){
+            break;
         }
         if (supplementaryPartition.readIdxs[n2] == read){
             if (supplementaryPartition.content[n2] == mostFrequent && mostFrequentBases[n1] == 1){
@@ -304,7 +310,7 @@ void Partition::mergePartition(Partition &p, short phased){
     int n1 = 0;
     int n2 = 0;
     while (n1 < readIdx.size() && n2 < idx2.size() ){
-        while (readIdx[n1] < idx2[n2] && n1 < readIdx.size()){ //reads present only on the first partition
+        while (n1 < readIdx.size() && readIdx[n1] < idx2[n2]){ //reads present only on the first partition
             newIdx.push_back(readIdx[n1]);
             newMostFrequent.push_back(mostFrequentBases[n1]);
             newMoreFrequence.push_back(moreFrequence[n1]);
@@ -312,7 +318,7 @@ void Partition::mergePartition(Partition &p, short phased){
             n1++;
         }
 
-        while (readIdx[n1] > idx2[n2] && n2 < idx2.size()){ // reads present only on the second partition
+        while (n2 < idx2.size() && readIdx[n1] > idx2[n2]){ // reads present only on the second partition
             newIdx.push_back(idx2[n2]);
             newMostFrequent.push_back(other[n2]*phased);
             newMoreFrequence.push_back(moreOther[n2]);

@@ -71,13 +71,13 @@ omp_set_num_threads(num_threads);
 #pragma omp for
         for (long int read : backbones_reads){
 
-            cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
-            if (allreads[read].name != "s1.ctg000002l@6-1"){
+            cout << "Looking at contig number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
+            if (allreads[read].name != "edge_1@100"){
 
                 if (DEBUG){
                     #pragma omp critical
                     {
-                        cout << "Looking at backbone read number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << "\n";
+                        cout << "Looking at contig number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << "\n";
                     }
                 }
                 
@@ -141,6 +141,10 @@ void compute_partition_on_this_contig(
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, 
         partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, ref3mers, tmpFolder);
     errorRate = meanDistance;
+
+    if (DEBUG){
+        cout << "The mapping error rate to the reference is : " << errorRate << endl;
+    }
 
     int minimumNumberOfReasdPerHaplotype = std::min(5, std::max(3, (int)meanDistance*100));
     if (allreads[contig].neighbors_.size() < minimumNumberOfReasdPerHaplotype){
@@ -758,6 +762,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             clustersStart[r] = r;
         }
         auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
+        strengthened_adjacency_matrix = adjacency_matrix;
 
         vector<vector<int>> allclusters_debug;
         vector<int> clusteredReads1 = chinese_whispers(strengthened_adjacency_matrix, clustersStart, mask_at_this_position);
@@ -793,6 +798,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
                 vector<int> clusteredReads_local = chinese_whispers(strengthened_adjacency_matrix, clustersStart2, mask_at_this_position); 
                 localClusters.push_back(clusteredReads_local);
                 
+                allclusters_debug.push_back(clustersStart2);
                 allclusters_debug.push_back(clusteredReads_local);
             }         
         }
@@ -812,7 +818,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         }
         for (auto r = 0 ; r < clusteredReads.size() ; r++){
 
-            float minSizeOfCluster = min(float(5.0),max(float(3.0), errorRate*100)); //with HiFi reads, we can find clusters of size 2
+            float minSizeOfCluster = min(float(5.0),max(float(3.0), errorRate*100)); //with HiFi reads, we can find clusters of size 3
 
             if (clusterSizes[clusteredReads[r]] < minSizeOfCluster && clusteredReads[r] != -2){
                 clusteredReads[r] = -1;
@@ -851,6 +857,9 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //re-number the haplotypes
         unordered_map<int, int> haplotypeToIndex;
         haplotypeToIndex[-1] = -1; 
+        if (partitions.size() == 0){
+            haplotypeToIndex[-1] = 0; 
+        }
         haplotypeToIndex[-2] = -2;
         int index_h = 0;
         for (auto h : haplotypes){
@@ -863,16 +872,20 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
             haplotypes[r] = haplotypeToIndex[haplotypes[r]];
         }
 
-        // cout << "haploutypes : " << chunk << endl;
-        // for (auto h : haplotypes){
-        //     if (h > -1){
-        //         cout << h;
-        //     }
-        //     // else{
-        //     //     cout << "_";
-        //     // }
-        // }
-        // cout << endl;
+        merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position);
+        cout << "haploutypes : " << chunk << endl;
+        int n = 0;
+        for (auto h : haplotypes){
+            if (h > -1){
+                // cout << n << ":" <<h << " ";
+                cout << h;
+            }
+            // else{
+            //     cout << " ";
+            // }
+            n += 1;
+        }
+        cout << endl;
 
         // if (chunk == 14){
         //     int step = 1; //porportions of reads
@@ -922,10 +935,12 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
         //     }
         // }
 
-        // if (chunk == 21){
+        // if (chunk == 2){
         //     cout << "split reads cixxosoc outputting graph" << endl;
+        //     allclusters_debug.push_back(mergedHaplotypes);
         //     allclusters_debug.push_back(haplotypes);
-        //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, "graphs/cluster_final.gdf");
+        //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, mask_at_this_position, "graphs/cluster_final.gdf");
+        //     outputGraph_several_clusterings(strengthened_adjacency_matrix, allclusters_debug, mask_at_this_position, "graphs/cluster_final_strengthened.gdf");
         //     exit(1);
         // }
 
@@ -2558,14 +2573,15 @@ void create_read_graph(
             int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
                 if (mask[r] && r != read1 && sims_and_diffs[read1][r].first > 0){
-                    distance_with_other_reads[r] = 1 - float(sims_and_diffs[read1][r].second) / float(sims_and_diffs[read1][r].first+sims_and_diffs[read1][r].second);
+                    float diffs = max(0,sims_and_diffs[read1][r].second-1); //-1 to make sure that 1 difference does not make such a difference 
+                    distance_with_other_reads[r] = 1 - diffs / float(sims_and_diffs[read1][r].first+sims_and_diffs[read1][r].second);
                     if (sims_and_diffs[read1][r].first > max_compat){
                         max_compat = sims_and_diffs[read1][r].first;
                     }
                 }
             }
 
-            // if (read1 == 16){
+            // if (read1 == 16 || true){
             //     cout << "ddqfhhe distance of 16 to other reads: " << endl;
             //     for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
             //         if (mask[r] && r != read1){
@@ -2605,10 +2621,15 @@ void create_read_graph(
 
             int nb_of_neighbors = 0;
             float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
-
+            float distance_threshold_above_which_two_reads_should_be_linked= 1;
+            if (smallest.size() > 1){
+                distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
+            }
 
             for (auto neighbor : smallest){
-                if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different && (nb_of_neighbors < 5 || neighbor.second == 1) && mask[neighbor.first]){
+                if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
+                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second > distance_threshold_above_which_two_reads_should_be_linked)
+                    && mask[neighbor.first]){
                     nb_of_neighbors++;
                     
                     adjacency_matrix[read1][neighbor.first] = 1;
@@ -2670,6 +2691,9 @@ void list_similarities_and_differences_between_reads(
         unordered_map<unsigned char,int> bases_in_total;
         for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
             unsigned char base = snps[position].content[r];
+            if (bases_in_total.find(base) == bases_in_total.end()){
+                bases_in_total[base] = 0;
+            }
             bases_in_total[base]++;
         }
         //find the second most frequent base
@@ -2709,7 +2733,16 @@ void list_similarities_and_differences_between_reads(
                 else{
                     if (debug_interesting_reads.find(read1) != debug_interesting_reads.end()){
                         if (bases_in_total[snps[position].content[idx1]] >= second_most_frequent_base_count){
-                            debug_strings[read1] += snps[position].content[idx1];
+                            // debug_strings[read1] += snps[position].content[idx1];
+                            if (snps[position].content[idx1] == most_frequent_base){
+                                debug_strings[read1] += snps[position].content[idx1];
+                            }
+                            else if (snps[position].content[idx1] == second_most_frequent_base){
+                                debug_strings[read1] += snps[position].content[idx1];
+                            }
+                            else{
+                                debug_strings[read1] += " ";
+                            }
                         }
                         else{
                             debug_strings[read1] += " ";
@@ -2724,7 +2757,7 @@ void list_similarities_and_differences_between_reads(
                         while (idx2 < snps[position].readIdxs.size() && snps[position].readIdxs[idx2] < read2){
                             idx2++;
                         }
-                        if (snps[position].readIdxs[idx2] > read2){
+                        if (idx2 >= snps[position].readIdxs.size() || snps[position].readIdxs[idx2] > read2){
                             continue;
                         }
                         unsigned char base2 = snps[position].content[idx2];
@@ -2737,7 +2770,7 @@ void list_similarities_and_differences_between_reads(
 
                         // cout << "qijdioqddsp " << bases_in_total[base1] << " " << second_most_frequent_base_count << " " << bases_in_total[base2] << " " << base1  << " "<< base2 << endl;
 
-                        if (bases_in_total[base1] == second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 != base2){
+                        if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 != base2){
                             sims_and_diffs[read1][read2].second++;
                             sims_and_diffs[read2][read1].second++;
                         }
@@ -2755,14 +2788,26 @@ void list_similarities_and_differences_between_reads(
         }
     }
 
-    // cout << "eieieii here are the reads on the interesting positions" << endl;
-    // for (auto r : debug_interesting_reads){
-    //     cout << debug_strings[r] << " " << r << endl;
+    // if (sims_and_diffs.size() > 10787){
+    //     cout << "eieieii here are the reads on the interesting positions" << endl;
+    //     string s1;
+    //     string s2;
+    //     for (int pos = 0 ; pos < debug_strings[73].size() ; pos+= 1){
+    //         if ( debug_strings[73][pos] != ' ' &&  debug_strings[10787][pos] != ' '){
+    //             s1 += debug_strings[73][pos];
+    //             s2 += debug_strings[10787][pos];
+    //         }
+    //     }
+    //     // for (auto r : debug_interesting_reads){
+    //         cout << s1 << " " << 73 << endl;
+    //         // cout << debug_strings[100] << " " << 10787 << endl;
+    //         cout << s2 << " " << 10787 << endl;
+    //     // }
+    //     cout << "sims and diffs between reads 41, 43, 133" << endl;
+    //     cout << "41 43 " << sims_and_diffs[10787][73].first << " " << sims_and_diffs[10787][73].second << endl;
+    //     cout << "41 100 " << sims_and_diffs[100][73].first << " " << sims_and_diffs[100][73].second << endl;
+    //     // cout << "43 133 " << sims_and_diffs[43][133].first << " " << sims_and_diffs[43][133].second << endl;
     // }
-    // cout << "sims and diffs between reads 41, 43, 133" << endl;
-    // cout << "41 43 " << sims_and_diffs[41][43].first << " " << sims_and_diffs[41][43].second << endl;
-    // cout << "41 133 " << sims_and_diffs[41][133].first << " " << sims_and_diffs[41][133].second << endl;
-    // cout << "43 133 " << sims_and_diffs[43][133].first << " " << sims_and_diffs[43][133].second << endl;
 }
 
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,

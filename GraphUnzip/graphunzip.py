@@ -338,8 +338,7 @@ def main():
                 print("ERROR: could not access ", lrFile)
                 sys.exit(1)   
             uselr = True
-            
-                
+                  
         if interactionFileT != "Empty":
             
             if not os.path.exists(interactionFileT) :

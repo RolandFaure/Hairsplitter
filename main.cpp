@@ -107,12 +107,12 @@ void check_dependancies(){
 int main(int argc, char *argv[])
 {   
 
-    string fastqfile, refFile, outputFolder, samFile, vcfFile, readGroupsFile;
+    string fastqfile, refFile, outputFolder, samFile, vcfFile;
     string alnOnRefFile = "no_file";
     string path_minimap = "minimap2";
     string path_miniasm = "miniasm";
     string path_racon = "racon";
-    string path_wtdbg2 = "wtdbg2";
+    string path_wtdbg2 = "no_wtdbg2";
     string path_samtools = "samtools";
 
     //try linking to the local copy of GraphUnzip that comes with HairSplitter
@@ -123,6 +123,7 @@ int main(int argc, char *argv[])
     int num_threads = 1;
     bool polish = false;
     bool dont_simplify = false;
+    bool output_read_groups = false;
     bool version = false;
     DEBUG = false;
     bool force = false;
@@ -131,17 +132,16 @@ int main(int argc, char *argv[])
             required("-i", "--assembly").doc("Original assembly in GFA or FASTA format (required)") & value("assembly", refFile),
             // option("-s", "--sam") & opt_value("reads aligned on a reference", samFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
-            required("-o", "--output").doc("Output directory (required)") & value("output directory", outputFolder),
-            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format) (not recommended)") & value("aligned reads", alnOnRefFile),
-            clipp::option("-q", "--output-read-groups").doc("Output read groups (txt format)") & value("output read groups", readGroupsFile),
+            required("-o", "--output").doc("Output directory") & value("output directory", outputFolder),
+            clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-q", "--output-read-groups").set(output_read_groups).doc("Output read groups (txt format)"),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-p", "--polish").set(polish).doc("Use this option if the input assembly is not polished"),
             clipp::option("-s", "--dont_simplify").set(dont_simplify).doc("Don't rename the contigs and don't merge them"),
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
-
-            clipp::option("--path-to-wtdbg2").doc("Path to wtdbg2 (if not in PATH)") & value("path to wtdbg2 (invalid path to disable assembly of unaligned reads)", path_wtdbg2),
+            clipp::option("--path-to-wtdbg2").doc("Path to wtdbg2 (if not in PATH)") & value("path to wtdbg2 executable (empty path to disable assembly of unaligned reads)", path_wtdbg2),
             clipp::option("--path-to-samtools").doc("Path to samtools (if not in PATH)") & value("path to samtools", path_samtools),
             clipp::option("-F", "--force").set(force).doc("Force overwrite of output folder if it exists"),
             clipp::option("-v", "--version").set(version),
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
         cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
         cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
         cout << "  - See if the reads disagreeing seem always to be the same ones\n  - If they are always the same ones, they probably come from another haplotype, so separate!\n\n";
-        cout << " *To see in more details what contigs have been separated, check the output.txt*\n";
+        cout << " *To see in more details what contigs have been separated, check out the hairsplitter_summary.txt in the output folder*\n";
 
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, std::unordered_map<int, string>>  > >> partitions;
         std::unordered_map <int, vector<pair<int,int>>> readLimits;
@@ -292,16 +292,13 @@ int main(int argc, char *argv[])
         output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
-        if (readGroupsFile != ""){
-            cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
-        }
-        else{
-            readGroupsFile = tmpFolder + "read_groups.txt";
-        }
+
+        string readGroupsFile = outputFolder + "read_groups.txt";
+        cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
 
         output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
-        
-        
+
+        cout << " - Polishing all the newly created contigs " << readGroupsFile << "\n";
         modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
         string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
@@ -321,21 +318,19 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
 
-        cout << "\n *To see in more details what supercontigs were created with GraphUnzip, check the output.txt*\n";
+        cout << "\n *To see in more details what supercontigs were created with GraphUnzip, check the hairsplitter_summary.txt*\n";
         string output = "output.txt";
         std::ofstream o(output, std::ios_base::app);//appending to the file
         o << "\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n";
         o.close();
-        command = "cat output.txt supercontigs.txt > output2.txt 2> "+outputFolder+"/tmp/trash.txt";
+        command = "cat output.txt "+outputFolder+"/supercontigs.txt > output2.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());
-        command =  "mv output2.txt "+outputFolder+"/hairsplitter_summary.txt && rm supercontigs.txt && rm output.txt 2> "+outputFolder+"/tmp/trash.txt";
+        command =  "mv output2.txt "+outputFolder+"/hairsplitter_summary.txt && rm supercontigs.txt output.txt 2> "+outputFolder+"/tmp/trash.txt";
         system(command.c_str());
         
-        if (format == "fasta"){
-            //convert the output to fasta
-            string fasta_name = outputFile.substr(0, outputFile.size()-4) + ".fasta";
-            convert_GFA_to_FASTA(outputFile, fasta_name);
-        }
+        //convert the output to fasta
+        string fasta_name = outputFile.substr(0, outputFile.size()-4) + ".fasta";
+        convert_GFA_to_FASTA(outputFile, fasta_name);
         
         auto t2 = high_resolution_clock::now();
 
