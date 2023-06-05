@@ -76,6 +76,15 @@ std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads(
     int numberOfReads,
     float errorRate);
 
+std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads_ILP(
+    long int contig,
+    std::vector<Read> &allreads,
+    std::vector<Overlap> &allOverlaps,
+    std::string& ref, 
+    std::vector<Column> &snps,
+    int numberOfReads,
+    float errorRate);  
+
 std::vector<Partition> get_solid_partitions(
     std::string& ref, 
     std::vector<Column> &snps,

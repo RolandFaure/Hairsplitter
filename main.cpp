@@ -154,8 +154,9 @@ int main(int argc, char *argv[])
     }
     else {
 
+        cout << "HairSplitter version 1.1.1 (26/05/2023)" << endl;
+
         if (version){
-            cout << "HairSplitter version 1.1.0" << endl;
             exit(EXIT_SUCCESS);
         }
 
@@ -293,7 +294,7 @@ int main(int argc, char *argv[])
         
         cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
 
-        string readGroupsFile = outputFolder + "read_groups.txt";
+        string readGroupsFile = outputFolder + "/read_groups.txt";
         cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
 
         output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);

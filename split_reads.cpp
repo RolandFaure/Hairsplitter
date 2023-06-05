@@ -72,7 +72,7 @@ omp_set_num_threads(num_threads);
         for (long int read : backbones_reads){
 
             cout << "Looking at contig number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
-            if (allreads[read].name != "edge_1@100"){
+            if (allreads[read].name != "edge_3@00"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -163,6 +163,8 @@ void compute_partition_on_this_contig(
 
     //then separate the MSA
     // string ref = allreads[contig].sequence_.str();
+    // vector<pair<pair<int,int>, vector<int>> > nothing_par = separate_reads_ILP(contig, allreads, allOverlaps, ref3mers, snps,
+    //                                                     allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     
@@ -702,12 +704,6 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
     vector<vector<pair<int,int>>> sims_and_diffs (numberOfReads, vector<pair<int,int>>(numberOfReads, make_pair(0,0)));
     list_similarities_and_differences_between_reads(no_mask, snps, interestingPositions, sims_and_diffs);
 
-    // cout << "interesting posiaaations : " <<  endl;
-    // for (auto pos : interestingPositions){
-    //     cout << pos << " ";
-    // }
-    // cout << endl;
-
     // cout << "similrities and differences computed between reads 0 and other" << endl;
     // for (auto i : sims_and_diffs[0]){
     //     cout << i.first << " " << i.second << endl;
@@ -955,6 +951,136 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 }
 
 /**
+ * @brief separates the reads of the MSA into groups, using an ILP program
+ * 
+ * @param ref reference sequence against which the reads are aligned (in 3mer space)
+ * @param snps MSA
+ * @param meanDistance estimation of the error rate
+ * @param numberOfReads number of reads of the MSA
+ * @return vector<pair<pair<int,int>, vector<int>> >  pairs of coordinates to which are attached a certain partition of reads
+ */
+std::vector< std::pair<std::pair<int,int>, std::vector<int>> > separate_reads_ILP(
+    long int contig,
+    vector<Read> &allreads,
+    vector<Overlap> &allOverlaps,
+    std::string& ref, 
+    std::vector<Column> &snps,
+    int numberOfReads,
+    float errorRate){
+
+    vector<int> suspectPositions;
+    vector<Column> suspiciousColumns;
+
+    int minimumNumberOfReadsToBeConsideredSuspect = 5;
+    if (errorRate < 0.015){ //HiFi reads, we can be more stringent
+        minimumNumberOfReadsToBeConsideredSuspect = 3;
+    }
+
+    for (int position = 0 ; position < ref.size() ; position++){ 
+
+        if (DEBUG && position%100 == 0){
+            cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
+        }
+        //count how many time each char appears at this position
+        unordered_map<char, int> content;
+        int numberOfReadsHere = 0;
+        // bool here496 = false;
+        for (short n = 0 ; n < snps[position].content.size() ; n++){
+            char base = snps[position].content[n];
+            if (content.find(base) == content.end()){
+                content[base] = 0;
+            }
+            if (base != ' '){
+                content[base] += 1;
+                numberOfReadsHere += 1;
+            }
+            // if (snps[position].readIdxs[n] == 2114){
+            //     here496 = true;
+            // }
+        }
+        content[(unsigned char) 0 ] = 0; //to make sure that there are at least 3 different chars
+        content[(unsigned char) 1 ] = 0; //to make sure that there are at least 3 different chars
+        content[(unsigned char) 2 ] = 0; //to make sure that there are at least 3 different chars
+
+        //find the most frequent chars in content
+        vector<pair<char, int>> content_sorted;
+        for (auto it = content.begin() ; it != content.end() ; it++){
+            content_sorted.push_back(make_pair(it->first, it->second));
+        }
+        sort(content_sorted.begin(), content_sorted.end(), [](const pair<char, int>& a, const pair<char, int>& b) {return a.second > b.second;});
+
+        if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
+            && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
+            && content_sorted[0].first%5 != content_sorted[1].first%5 ){ //the central base differs
+
+            suspectPositions.push_back(position);
+
+            char ref_base;
+            if (position < ref.size()){
+                ref_base = ref[position];
+            } else {
+                ref_base = '-';
+            }
+            //find the most frequent char in the reads (eexcept the ref base)
+            char second_frequent_base = content_sorted[0].first;
+            if (second_frequent_base == ref_base){
+                second_frequent_base = content_sorted[1].first;
+            }
+
+            //creat the masked snp, with only reads that are not masked
+            Column snp;
+            snp.pos = position;
+            snp.ref_base = ref_base;
+            snp.second_base = second_frequent_base;
+            auto content_tmp = snps[position].content;
+            int n = 0;
+            for (int read : snps[position].readIdxs){
+                snp.readIdxs.push_back(read);
+                snp.content.push_back(content_tmp[n]);
+                n++;
+            }
+
+            suspiciousColumns.push_back(snp);
+
+        }
+    }
+
+    //output the suspect positions
+    ofstream o;
+    o.open("columns.txt", std::ios_base::app);
+    o << endl << "CONTIG\t" << allreads[contig].name << endl;
+    for (long int n : allreads[contig].neighbors_){
+        o << "READ\t" << allreads[ allOverlaps[n].sequence1 ].name << endl;
+    }
+    //output the list of reads
+    for (auto c : suspiciousColumns){
+        o << "POSITION\t" << c.pos << "\t";
+        int idx = 0;
+        for (auto r = 0 ; r < c.readIdxs.size() ; r++){
+            while (idx < c.readIdxs[r]){
+                o << " ";
+                idx+= 1;
+            }
+
+            if (c.content[r] == c.ref_base){
+                o << 1;
+            }
+            else if (c.content[r] == c.second_base){
+                o << 0;
+            }
+            else{
+                o << "-";
+            }
+            idx+=1;
+        }
+        o<< endl;
+    }
+
+    return {}; //for now, later will be added a module that reads the output of ILP
+
+}
+
+/**
  * @brief Among a certain subset of reads, find the best partition if there is one
  * 
  * @param ref sequence of the original contig
@@ -1181,7 +1307,6 @@ vector<Partition> get_solid_partitions(std::string& ref,
         }
     }
 
-    //select only compatible partitions. In the worst case scenario, trashed partitions will be recovered when masking on the next iteration
     // vector<Partition> compatiblePartitions = select_compatible_partitions(listOfFinalPartitions, numberOfReads, meanError);
     vector<Partition> compatiblePartitions = listOfFinalPartitions; // selecting compatible partitions does not work well when there are many haplotypes
 
@@ -1204,9 +1329,11 @@ vector<Partition> get_solid_partitions(std::string& ref,
     }
     suspectPostitions = newSuspectPositions;
 
-    if (compatiblePartitions.size() > 0 && compatiblePartitions[0].number() < min(min(15.0, 0.01*suspectPostitions.size()), 0.01*(compatiblePartitions[0].get_right()-compatiblePartitions[0].get_left()))){
-        return vector<Partition>();
-    }
+    // cout << "compatible postition 0 : " << compatiblePartitions[0].number() << " " << 0.01*(compatiblePartitions[0].get_right()-compatiblePartitions[0].get_left()) << " " << 0.01*suspectPostitions.size() << endl;
+    // if (compatiblePartitions.size() > 0 && compatiblePartitions[0].number() < min(min(15.0, 0.01*suspectPostitions.size()), 0.01*(compatiblePartitions[0].get_right()-compatiblePartitions[0].get_left()))){
+    //     cout << "YOLLOOOOO" << endl;
+    //     return vector<Partition>();
+    // }
 
     // cout << "All the kept partitions : " << endl;
     // for (auto p = 0 ; p < compatiblePartitions.size() ; p++){
