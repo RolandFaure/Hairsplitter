@@ -163,8 +163,8 @@ void compute_partition_on_this_contig(
 
     //then separate the MSA
     // string ref = allreads[contig].sequence_.str();
-    // vector<pair<pair<int,int>, vector<int>> > nothing_par = separate_reads_ILP(contig, allreads, allOverlaps, ref3mers, snps,
-    //                                                     allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
+    vector<pair<pair<int,int>, vector<int>> > nothing_par = separate_reads_ILP(contig, allreads, allOverlaps, ref3mers, snps,
+                                                        allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     vector<pair<pair<int,int>, vector<int>> > par = separate_reads(ref3mers, snps,
                                                         allreads[contig].neighbors_.size()+1-int(assemble_on_assembly), meanDistance);
     

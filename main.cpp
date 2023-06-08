@@ -11,6 +11,7 @@
 #include "reassemble_unaligned_reads.h"
 #include "clipp.h" //library to build command line interfaces
 #include "tools.h"
+#include "clean_graph.h"
 //#include "phase_variants.h"
 
 using std::cout;
@@ -63,7 +64,7 @@ void check_dependancies(){
     com = " --version > tmp/trash.txt 2> tmp/trash.txt";
     command = WTDBG2 + com;
     auto wtdbg2 = system(command.c_str());
-    if (wtdbg2 != 0){
+    if (wtdbg2 != 0 && WTDBG2 != "no_wtdbg2"){
         cout << "MISSING DEPENDANCY: wtdbg2. Proceeding without re-assembling unaligned reads. (was trying command line " << command << ")" << endl;
         WTDBG2 = "no_wtdbg2";
     }
@@ -94,12 +95,12 @@ void check_dependancies(){
             GRAPHUNZIP = "GraphUnzip";
         }
         else{
-            cout << "ERROR: could not run graphunzip, looking for it at "+ GRAPHUNZIP +".  Make sure the path to graphunzip is correct and that you have python3, numpy and scipy installed. " << endl; 
+            cout << "ERROR: could not run graphunzip, looking for it at "+ GRAPHUNZIP +".  Make sure the path to graphunzip is correct - it may not be if you moved the HairSplitter executable. Also make sure that you have python3, numpy and scipy installed. " << endl; 
         }
     }
 
 
-    if (res != 0 || racon != 0 || graphunzip != 0 || python3 != 0){
+    if (res != 0 || racon != 0 || python3 != 0){
         exit(EXIT_FAILURE);
     }
 }
@@ -141,7 +142,7 @@ int main(int argc, char *argv[])
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
             clipp::option("--path-to-racon").doc("Path to the executable racon (if not in PATH)") & value("path to racon", path_racon),
-            clipp::option("--path-to-wtdbg2").doc("Path to wtdbg2 (if not in PATH)") & value("path to wtdbg2 executable (empty path to disable assembly of unaligned reads)", path_wtdbg2),
+            clipp::option("--path-to-wtdbg2").doc("Path to wtdbg2") & value("path to wtdbg2 executable (empty path to disable assembly of unaligned reads)", path_wtdbg2),
             clipp::option("--path-to-samtools").doc("Path to samtools (if not in PATH)") & value("path to samtools", path_samtools),
             clipp::option("-F", "--force").set(force).doc("Force overwrite of output folder if it exists"),
             clipp::option("-v", "--version").set(version),
@@ -154,7 +155,7 @@ int main(int argc, char *argv[])
     }
     else {
 
-        cout << "HairSplitter version 1.1.1 (26/05/2023)" << endl;
+        cout << "HairSplitter version 1.1.2 (05/06/2023)" << endl;
 
         if (version){
             exit(EXIT_SUCCESS);
@@ -217,7 +218,17 @@ int main(int argc, char *argv[])
         //generate the paf file if not already generated
         if (alnOnRefFile == "no_file"){
 
-            cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
+            cout << "\n===== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes\n\n";
+            cout << " When the assemblers manage to locally phase the haplotypes, they sometimes assemble the alternative haplotype as a separate contig, unconnected in " <<
+                "the gfa graph. This affects negatively the performance of Hairsplitter. Let's delete these contigs\n";
+            string newRef = outputFolder+"/tmp/assembly_cleaned."+format;
+            string logFile = outputFolder+"/hairsplitter_summary.txt";
+            cout << " - Mapping the assembly against itself\n";
+            clean_graph(refFile, newRef, logFile, num_threads, outputFolder);
+            cout << " - Eliminating small unconnected contigs that align on other contigs\n";
+            refFile = newRef;
+
+            cout <<  "\n===== STAGE 2: Aligning reads on the reference\n\n";
 
             alnOnRefFile = outputFolder+"/tmp/reads_aligned_on_assembly.sam";
 
@@ -246,11 +257,11 @@ int main(int argc, char *argv[])
             }
         }
         else{
-            cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
+            cout <<  "\n===== STAGE 2: Aligning reads on the reference\n\n";
             cout << "  Skipped because alignments already inputted with option -a.\n";
         }
 
-        cout << "\n===== STAGE 2: Loading data\n\n";
+        cout << "\n===== STAGE 3: Loading data\n\n";
 
         cout << " - Loading all reads from " << fastqfile << " in memory\n";
         parse_reads(fastqfile, allreads, indices);
@@ -277,7 +288,7 @@ int main(int argc, char *argv[])
             reassemble_unaligned_reads(allreads, allOverlaps, fastqfile, backbone_reads, outputFolder, num_threads, indices, allLinks);
         }
 
-        cout << "\n===== STAGE 3: Checking every contig and separating reads when necessary\n\n";
+        cout << "\n===== STAGE 4: Checking every contig and separating reads when necessary\n\n";
         cout << " For each contig I am going to:\n  - Align all reads precisely on the contig\n  - See at what positions there seem to be many reads disagreeing\n";
         cout << "  - See if the reads disagreeing seem always to be the same ones\n  - If they are always the same ones, they probably come from another haplotype, so separate!\n\n";
         cout << " *To see in more details what contigs have been separated, check out the hairsplitter_summary.txt in the output folder*\n";
@@ -292,7 +303,7 @@ int main(int argc, char *argv[])
         // cout << "Outputting GAF" << endl;
         output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
         
-        cout << "\n===== STAGE 4: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
+        cout << "\n===== STAGE 5: Creating and polishing all the new contigs\n\n This can take time, as we need to polish every new contig using Racon\n";
 
         string readGroupsFile = outputFolder + "/read_groups.txt";
         cout << " - Outputting how reads are partitionned into groups in file " << readGroupsFile << "\n";
@@ -305,7 +316,7 @@ int main(int argc, char *argv[])
         output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
         //now "unzip" the assembly, improving the contiguity where it can be improved
-        cout << "\n===== STAGE 5: Linking all the new contigs that have been produced (maybe bridging repeated regions)\n\n";
+        cout << "\n===== STAGE 6: Linking all the new contigs that have been produced (maybe bridging repeated regions)\n\n";
         string simply = "";
         if (dont_simplify){
             simply = " --dont_merge -r";

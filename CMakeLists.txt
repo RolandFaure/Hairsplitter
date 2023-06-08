@@ -16,6 +16,7 @@ set(TARGET_H
     sequence.h
     tools.h
     Partition.h
+    clean_graph.h
     cluster_graph.h
     clipp.h
     phase_variants.h
@@ -32,6 +33,7 @@ set(TARGET_SRC
     sequence.cpp
     tools.cpp
     Partition.cpp
+    clean_graph.cpp
     cluster_graph.cpp
     phase_variants.cpp
     reassemble_unaligned_reads.cpp
