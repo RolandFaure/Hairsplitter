@@ -135,7 +135,7 @@ def simple_unzip(segments, names, gafFile) :
     for p in paths : 
         p.trim()
 
-    print("All the paths are indexed: hccue")
+    # print("All the paths are indexed: hccue")
 
     pa = 0
     for p in paths :
@@ -186,7 +186,7 @@ def simple_unzip(segments, names, gafFile) :
         go_on = False
         for segment in segments :
 
-            # print("Looking icizzcce at segment : ", segment.names)
+            # print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
 
             segment_to_duplicate = False
             #see if it should be duplicated
@@ -219,6 +219,9 @@ def simple_unzip(segments, names, gafFile) :
                         index_right = sg.find_this_link(contig_right, end_right, segment.links[orientations[p[1]]], segment.otherEndOfLinks[orientations[p[1]]])
 
                         pair = (index_left, index_right)
+                        # if segment.names == ['edge_4_5000_1'] :
+                        #     print("On contig ", segment.names, ", path ", path.name(), " supports the links towards ", segment.links[1-orientations[p[1]]][index_left].names, \
+                        #           "and ", segment.links[orientations[p[1]]][index_right].names)
                         if orientations[p[1]] == 0 :
                             pair = (index_right, index_left)
                         if pair not in pairs :
@@ -237,8 +240,9 @@ def simple_unzip(segments, names, gafFile) :
                 #     for i in on_which_paths_is_this_contig[segment] :
                 #         print("idc : ", paths[i[0]])
 
-                # if segment.names == ['edge_37@15_60000_0'] :
-                #     print("Pairs off ccncnc : ", pairs)
+                # print(segment.names, " ", pairs)
+                if segment.names == ['edge_4_5000_1'] :
+                    print("Pairs off ccncnc : ", pairs)
 
                 #test if the pairs are enough to support a duplication
                 new_pairs = {}

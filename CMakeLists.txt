@@ -9,6 +9,7 @@ project(Hairsplitter)
 # Local header files here ONLY
 set(TARGET_H
     split_reads.h
+    split_reads_BiHap.h
     input_output.h
     modify_gfa.h
     robin_hood.h
@@ -26,6 +27,7 @@ set(TARGET_H
 # Local source files here
 set(TARGET_SRC
     split_reads.cpp
+    split_reads_BiHap.cpp
     edlib/src/edlib.cpp
     input_output.cpp
     modify_gfa.cpp

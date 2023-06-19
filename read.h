@@ -38,7 +38,7 @@ class Read
 
 public:
     Read();
-    Read(std::string s);
+    Read(std::string s, size_t size); //size is the size of the sequence but sometimes we don't upload the actual sequence to be light on memory 
 
     void upload_sequence(std::string s);
     void free_sequence();
@@ -66,6 +66,7 @@ public:
 private : //when reads are actually contigs
     std::vector<size_t> links_left; //indices of links in allLinks vector
     std::vector<size_t> links_right;
+    size_t size_; //size of the sequence (the sequence won't be stored in memory, only its size)
 
     int number_of_threads_in_which_it_is_loaded;
 

@@ -9,18 +9,21 @@ Read::Read()
     sequence_ = Sequence();
     name = "";
     number_of_threads_in_which_it_is_loaded = 0;
+    size_ = 0;
 }
 
-Read::Read(std::string s)
+Read::Read(std::string s, size_t size)
 {
     sequence_ = Sequence(s);
     name = "";
     depth = -1;
     number_of_threads_in_which_it_is_loaded = 0;
+    size_ = size;
 }
 
 void Read::upload_sequence(std::string s){
     sequence_ = Sequence(s);
+    size_ = s.size();
     number_of_threads_in_which_it_is_loaded += 1;
 }
 
@@ -38,7 +41,7 @@ void Read::add_overlap(long int o){
 }
 
 size_t Read::size(){
-    return sequence_.size();
+    return size_;
 }
 
 void Read::new_backbone(std::pair<int, int> pair, size_t size){

@@ -119,16 +119,17 @@ def read_GAF(gafFile,similarity_threshold, whole_mapping_threshold, lines) : #a 
     
     for line in gaf :
         ls = line.split('\t')
-        path = ls[5] # in GAF format, the 6th column is the path on which the read matched
-        
+        if len(ls) > 5 :
+            path = ls[5] # in GAF format, the 6th column is the path on which the read matched
+            
 
-        if ls[5].count('>') + ls[5].count('<') > 1 :
-                        
-            if (not 'id:f' in ls[-2]) or (float(ls[-2].split(':')[-1]) > similarity_threshold) or similarity_threshold == 0 :
-                
-                if (float(ls[3])-float(ls[2]))/float(ls[1]) > whole_mapping_threshold or whole_mapping_threshold == 0 :
-    
-                    lines += [(ls[0],ls[5])]  
+            if ls[5].count('>') + ls[5].count('<') > 1 :
+                            
+                if (not 'id:f' in ls[-2]) or (float(ls[-2].split(':')[-1]) > similarity_threshold) or similarity_threshold == 0 :
+                    
+                    if (float(ls[3])-float(ls[2]))/float(ls[1]) > whole_mapping_threshold or whole_mapping_threshold == 0 :
+        
+                        lines += [(ls[0],ls[5])]  
 
 #input : TSV file (outputted by SPAligner) 
 #output : list of sequences of contigs in GAF-like format (['>12>34<2' , '>77<33' ,... ] for example)

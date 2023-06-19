@@ -95,6 +95,14 @@ void modify_GFA(
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
 
+            //if readLimits is not computed, provide an estimation
+            if (readLimits[backbone].size() == 0){
+                for (int neighbor = 0 ; neighbor < allreads[backbone].neighbors_.size() ; neighbor++){
+                    int overlap = allreads[backbone].neighbors_[neighbor];
+                    readLimits[backbone].push_back(std::make_pair(allOverlaps[overlap].position_2_1, allOverlaps[overlap].position_2_2));
+                }
+            }
+
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
@@ -211,7 +219,6 @@ void modify_GFA(
             vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
             unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, readLimits[backbone], allreads[backbone].depth);
 
-
             int n = 0;
             for (auto interval : partitions[backbone]){
 
@@ -256,7 +263,8 @@ void modify_GFA(
 
                         string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
                         
-                        //cout << "cliipplling read: " << allreads[idxRead].name << " " << limitLeft << " " << limitRight << " " << allreads[idxRead].sequence_.size() << endl;
+                        // cout << "cliipplling read: " << allreads[idxRead].name << " " << limitLeft << " " << limitRight << " " 
+                        //     << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allreads[idxRead].sequence_.size() << endl;
 
                         if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
                             clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
@@ -348,7 +356,7 @@ void modify_GFA(
                         newcontig = interval.second.second[group.first];
                     }
 
-                    Read r(newcontig);
+                    Read r(newcontig, newcontig.size());
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
                     r.depth = newdepths[group.first];
 
@@ -429,7 +437,7 @@ void modify_GFA(
             std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
             string contig = right;
             
-            Read r (contig);
+            Read r (contig, contig.size());
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = newdepths[1];
             
@@ -559,9 +567,9 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
             else{
                 fit_right[neighbor[r]][par[r]] = 1;
             }
+
         }
     }
-
     // if (position == 64000){
     //     cout << "here isss the fit_left" << endl;
     //     for (auto fit : fit_left){
@@ -611,22 +619,22 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
     }
 
     //now scale all the coverages to obtain exactly the original coverage
-    if (originalDepth != -1){ //that would mean we do not know anything about the original depth
+    // if (originalDepth != -1){ //that would mean we do not know anything about the original depth
 
-        double totalCoverage = 0;
-        for (auto cov : newCoverage){
-            if (cov.first != -1){
-                totalCoverage += cov.second;
-            }
-        }
+    //     double totalCoverage = 0;
+    //     for (auto cov : newCoverage){
+    //         if (cov.first != -1){
+    //             totalCoverage += cov.second;
+    //         }
+    //     }
         
-        if (totalCoverage != 0){
-            for (auto cov : newCoverage){
-                // newCoverage[cov.first] = cov.second * originalDepth/totalCoverage; DEBUG
-            }
-        }
+    //     if (totalCoverage != 0){
+    //         for (auto cov : newCoverage){
+    //             newCoverage[cov.first] = cov.second * originalDepth/totalCoverage; DEBUG
+    //         }
+    //     }
 
-    }
+    // }
 
     return newCoverage;
 

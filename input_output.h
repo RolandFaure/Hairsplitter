@@ -14,7 +14,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
      std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks);
 
 void parse_PAF(std::string filePAF, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, 
-    std::vector<unsigned long int> &backbones_reads, bool computeBackbones);
+    std::vector<unsigned long int> &backbones_reads, bool computeBackbones, bool filterUncompleteAlignments);
 
 void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices);
 

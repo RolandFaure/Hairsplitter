@@ -99,7 +99,7 @@ OPTIONS
 ```
 
 # Issues
- Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to be relatively recent. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+ Most installation issues that we have seen yet stem from the use of too old compilers. Hairsplitter has been developed using gcc=11.2.0. Sometimes the default version of the compiler is too old (especially on servers). Specify gcc versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
 
 
 

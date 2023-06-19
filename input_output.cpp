@@ -28,8 +28,13 @@ using std::max;
 using robin_hood::unordered_map;
 
 
-//input : file containing all reads in fastq or fasta format
-//output : all reads stored in allreads
+/**
+ * @brief Parses a fasta or fastq file and stores the reads in allreads
+ * 
+ * @param fileReads file containing all reads in fastq or fasta format
+ * @param allreads vector to store the reads
+ * @param indices maps the name of a read to its index in allreads
+ */
 void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
 
     char format = '@'; //a character to keep track of whether the input file is a fasta or a fastq
@@ -56,7 +61,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
         if (line[0] == format && buffer.size() > 0){
             //then first we append the last read we saw
             // Read r(buffer[1]);
-            Read r(""); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
+            Read r("", buffer[1].size()); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
             r.name = buffer[0];
             r.set_position_in_file(lastoffset+buffer[0].size()+1);
             lastoffset = offset;
@@ -89,7 +94,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
     }
 
     //now append the last read
-    Read r("");//append the read without the sequence to be light on memory. The sequences are only needed when they are needed
+    Read r("", buffer[1].size());//append the read without the sequence to be light on memory. The sequences are only needed when they are needed
     r.set_position_in_file(lastoffset+buffer[0].size()+1);
     r.name = buffer[0];
     allreads.push_back(r);
@@ -175,7 +180,7 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
                 }
                 else if (fieldNb == 2){ //here is the sequence
 
-                    Read r(field);
+                    Read r(field, field.size());
                     r.name = nameOfSequence;
                     backbone_reads.push_back(sequenceID);
                     allreads.push_back(r);
@@ -299,7 +304,13 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
  * @param backbones_reads indicates which of the reads are actually contigs in allreads
  * @param computeBackbones in case where there is no backbone assembly, set this to true. Backbones are then selected from the reads 
  */
-void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, vector<unsigned long int> &backbones_reads, bool computeBackbones){
+void parse_PAF(std::string filePAF, 
+    std::vector <Overlap> &allOverlaps, 
+    std::vector <Read> &allreads, 
+    robin_hood::unordered_map<std::string, unsigned long int> &indices,
+    vector<unsigned long int> &backbones_reads, 
+    bool computeBackbones,
+    bool filterUncompleteAlignments){
 
     ifstream in(filePAF);
     if (!in){
@@ -404,7 +415,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             fieldnumber++;
         }
 
-        if (allgood && mapq_quality > 5 && fieldnumber > 11 && name2 != name1){
+        if (((allgood && mapq_quality > 5) || !filterUncompleteAlignments) && fieldnumber > 11 && name2 != name1){
 
             //now let's check if this overlap extends to the end of the reads (else, it means only a small portion of the read is aligned)
             bool fullOverlap = false;
@@ -448,7 +459,7 @@ void parse_PAF(std::string filePAF, std::vector <Overlap> &allOverlaps, std::vec
             // }
             //add the overlap if it's a full overlap
 
-            if (fullOverlap){
+            if (fullOverlap || !filterUncompleteAlignments){
 
                 // cout << allreads[sequence1].name << endl;
                 // if (allreads[sequence1].name == "@2_@DRR198813.1544 1544 length=56567"){
@@ -1120,14 +1131,14 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 for (auto interval : partitions[backbone]){
 
                     if (interval.second.first[n] > -1 && stop < 2){
-                        // if (allreads[read].name.substr(0,6) == "@c36dd"){
+                        // if (allreads[read].name.substr(0,6) == "@050f1" || allreads[read].name.substr(0,6) == "@fa270"){
                         //     cout << "read " << allreads[read].name << " passes input_output yyu through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
-                        //     for (auto i : interval.second.first){
-                        //         if (i != -2){
-                        //             cout << i << " ";
-                        //         }
-                        //     }
-                        //     cout << endl;
+                        //     // for (auto i : interval.second.first){
+                        //     //     if (i != -2){
+                        //     //         cout << i << " ";
+                        //     //     }
+                        //     // }
+                        //     // cout << endl;
                         // }
                         sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
                             , ov.strand));
@@ -1178,6 +1189,9 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                     // }
                     readPaths[read].push_back(path);
                 }
+                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
+                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << " " <<  << endl;
+                // }
             }
         }
         else{
@@ -1220,10 +1234,9 @@ void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &ba
                 Path contigpath = make_tuple(start,v, backbone);
                 readPaths[read].push_back(contigpath);
 
-                // cout << "bbb " << allreads[backbone_reads[b]].name << endl;
-                // if ("s1.ctg000002l@7" == allreads[backbone_reads[b]].name && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
-                //     cout << "on backbone 228 is aligned " << allreads[read].name.substr(0, 19) << endl;
-                //     exit(1);
+                // cout << "bbb ds " << allreads[backbone_reads[b]].name << endl;
+                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
+                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << endl;
                 // }
             }
         }
