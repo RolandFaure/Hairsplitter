@@ -30,8 +30,12 @@ void clean_graph(
     std::string& outputFile,
     std::string& logFile,
     int num_threads,
-    std::string &outFolder){
+    std::string &outFolder,
+    int &nb_of_deleted_contigs,
+    int &length_of_deleted_contigs){
 
+    nb_of_deleted_contigs = 0;
+    length_of_deleted_contigs = 0;
     string gfaFile;
     string fastaFile;
     string format;
@@ -232,16 +236,22 @@ void clean_graph(
             if (contigNeighbors[contigs[nameOfContig]].first.size() == 0 && contigNeighbors[contigs[nameOfContig]].second.size() == 0){
                 disconnected = true;
                 contained_contigs.push_back(nameOfContig);
+                nb_of_deleted_contigs++;
+                length_of_deleted_contigs += lengthOfContig;
             }
             else if (contigNeighbors[contigs[nameOfContig]].first.size() == 0){
                 //check if the contig has the same neihbor as the contig it maps on
                 if (sameOrientation && contigNeighbors[contigs[nameOfContig]].second == contigNeighbors[contigs[contigItMapsOn]].second){
                     disconnected = true;
                     contained_contigs.push_back(nameOfContig);
+                    nb_of_deleted_contigs++;
+                    length_of_deleted_contigs += lengthOfContig;
                 }
                 else if (!sameOrientation && contigNeighbors[contigs[nameOfContig]].second == contigNeighbors[contigs[contigItMapsOn]].first){
                     disconnected = true;
                     contained_contigs.push_back(nameOfContig);
+                    nb_of_deleted_contigs++;
+                    length_of_deleted_contigs += lengthOfContig;
                 }
             }
             else if (contigNeighbors[contigs[nameOfContig]].second.size() == 0){
@@ -249,10 +259,14 @@ void clean_graph(
                 if (sameOrientation && contigNeighbors[contigs[nameOfContig]].first == contigNeighbors[contigs[contigItMapsOn]].first){
                     disconnected = true;
                     contained_contigs.push_back(nameOfContig);
+                    nb_of_deleted_contigs++;
+                    length_of_deleted_contigs += lengthOfContig;
                 }
                 else if (!sameOrientation && contigNeighbors[contigs[nameOfContig]].first == contigNeighbors[contigs[contigItMapsOn]].second){
                     disconnected = true;
                     contained_contigs.push_back(nameOfContig);
+                    nb_of_deleted_contigs++;
+                    length_of_deleted_contigs += lengthOfContig;
                 }
             }
             if (disconnected){

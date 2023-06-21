@@ -151,7 +151,9 @@ void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file){
 
             //the sequence is the third field
             string seq = line.substr(line.find('\t', 2) + 1, line.find('\t', line.find('\t', 2) + 1) - line.find('\t', 2) - 1);
-
+            if (seq.size() == 0){
+                continue;
+            }
             fasta << ">" << name << endl;
             fasta << seq << endl;
         }
@@ -179,14 +181,23 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
     }
 
     string line;
+    string seq;
+    string name;
     int i = 0;
     while (getline(fasta, line)){
         if (line[0] == '>'){
+            if (i != 0){
+                gfa << "S\t" << name << "\t" << seq << endl;
+            }
             string name = line.substr(1);
-            getline(fasta, line);
-            string seq = line;
-            gfa << "S\t" << name << "\t" << seq << endl;
         }
+        else{
+            seq += line;
+        }
+        i++;
+    }
+    if (i != 0){
+        gfa << "S\t" << name << "\t" << seq << endl;
     }
     fasta.close();
     gfa.close();

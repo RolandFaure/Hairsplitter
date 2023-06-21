@@ -337,6 +337,12 @@ void parse_PAF(std::string filePAF,
 
         int mapq_quality = 255;
 
+        // cout << "fqdio indice " << endl;
+        // for (auto i : indices){
+        //     cout << i.first << " " << i.second << endl;
+        // }
+        // exit(0);
+
         string cigar;
 
         bool allgood = true;
@@ -350,6 +356,7 @@ void parse_PAF(std::string filePAF,
                 try{
                     if (indices.find(field)==indices.end()){
                         cout << "Read in PAF not found in FASTA: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                        exit(0);
                         allgood = false;
                     }
                     

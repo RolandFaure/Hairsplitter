@@ -10,6 +10,8 @@ void clean_graph(
     std::string& outputFile,
     std::string& logFile,
     int num_threads,
-    std::string &outFolder);
+    std::string &outFolder,
+    int &nb_of_deleted_contigs,
+    int &length_of_deleted_contigs);
 
 #endif

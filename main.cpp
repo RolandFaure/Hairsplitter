@@ -254,7 +254,12 @@ int main(int argc, char *argv[])
     }
     else {
 
-        cout << "HairSplitter version 1.2.0 (16/06/2023)" << endl;
+        cout << "Running HairSplitter with command line : " << endl;
+        for (int i = 0; i < argc; i++) {
+            cout << argv[i] << " ";
+        }
+        cout << endl;
+        cout << "HairSplitter version 1.2.0 (16/06/2023)\n\n";
 
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
             cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
@@ -275,8 +280,11 @@ int main(int argc, char *argv[])
         string outputGAF = outputFolder+"/tmp/outout.gaf";
         string outputFile = outputFolder+"/hairsplitter_assembly.gfa";
 
-        string mkdir_out = "mkdir "+ outputFolder + " && mkdir "+ outputFolder + "/tmp/";
+        string mkdir_out = "mkdir "+ outputFolder;// + " 2> " + outputFolder + "/tmp/trash.txt";
         auto mkdir = system(mkdir_out.c_str());
+        mkdir_out = "mkdir "+ outputFolder + "/tmp/";// + " 2> " + outputFolder + "/tmp/trash.txt";
+        mkdir = system(mkdir_out.c_str())*mkdir;
+
         if (mkdir != 0 && !force){
             cout << "Could not run command line " << mkdir_out << endl;
             cout << "ERROR: could not create output folder \"" << outputFolder << "\" make sure it does not exist already, or use option -F." << endl;
@@ -313,9 +321,6 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
-            cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
-            cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
-
             //generate the paf file if not already generated
             if (alnOnRefFile == "no_file"){
 
@@ -325,8 +330,9 @@ int main(int argc, char *argv[])
                 string newRef = outputFolder+"/tmp/assembly_cleaned."+format;
                 string logFile = outputFolder+"/hairsplitter_summary.txt";
                 cout << " - Mapping the assembly against itself\n";
-                clean_graph(refFile, newRef, logFile, num_threads, outputFolder);
-                cout << " - Eliminating small unconnected contigs that align on other contigs\n";
+                int nb_deleted, length_deleted;
+                clean_graph(refFile, newRef, logFile, num_threads, outputFolder, nb_deleted, length_deleted);
+                cout << " - Eliminating small unconnected contigs that align on other contigs: " << nb_deleted << " contigs deleted, for a total length of " << length_deleted << " bp\n";
                 refFile = newRef;
 
                 cout <<  "\n===== STAGE 2: Aligning reads on the reference\n\n";
@@ -455,24 +461,39 @@ int main(int argc, char *argv[])
 
             cout << "\n===== STAGE 0: Converting all the files to the good formats\n\n";
 
-            //samtools index alignment.bam
-            string command_sam = SAMTOOLS + " index " + alnOnRefFile + " 2> "+outputFolder+"/tmp/trash.txt";
-            cout << " - Indexing the alignment file with command line:\n     " << command_sam << "\n";
-            int result = system(command_sam.c_str());
-            if (result != 0){
-                cout << "ERROR: Samtools failed. Please check the output of Samtools in "+outputFolder+"/tmp/trash.txt" << endl;
+            //check the existence of the alnOnRefFile by trying to open it
+            std::ifstream f(alnOnRefFile);
+            if (!f.good()){
+                cout << "ERROR: The file " << alnOnRefFile << " does not exist. Please check the path to the alignment file" << endl;
                 exit(EXIT_FAILURE);
             }
+            f.close();
+
+
+            //samtools index alignment.bam
+            //check if the index already exists, if not, create it
+            string index = alnOnRefFile + ".bai";
+            f.open(index);
+            if (!f.good()){
+                string command_sam = SAMTOOLS + " index " + alnOnRefFile + " 2> "+outputFolder+"/tmp/trash.txt";
+                cout << " - Indexing the alignment file with command line:\n     " << command_sam << "\n";
+                int result = system(command_sam.c_str());
+                if (result != 0){
+                    cout << "ERROR: Samtools failed. Please check the output of Samtools in "+outputFolder+"/tmp/trash.txt" << endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
+            f.close();
 
             //convert the bam to paf so that HairSplitter can parse it
             string pafFile = outputFolder+"/tmp/reads_aligned_on_ref.paf";
             auto command_convert = "python " + BIHAP.substr(0, BIHAP.size()-8) + "bam2paf.py " + alnOnRefFile + " " + pafFile + " 2> "+outputFolder+"/tmp/trash.txt";
-            result = system(command_convert.c_str());
+            cout << " - Obtaining the paf file from the bam file with command line:\n     " << command_convert << "\n";
+            auto result = system(command_convert.c_str());
             if (result != 0){
                 cout << "ERROR: Bam2paf failed. Please check the output of Bam2paf in "+outputFolder+"/tmp/trash.txt" << endl;
                 exit(EXIT_FAILURE);
             }
-            cout << " - Obtaining the paf file from the bam file with command line:\n     " << command_convert << "\n";
 
             std::vector <Read> allreads; 
             robin_hood::unordered_map<std::string, unsigned long int> indices;

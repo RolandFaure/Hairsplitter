@@ -79,7 +79,7 @@ void split_contigs(
         for (long int read : backbones_reads){
 
             cout << "Looking at contig number " << index << " out of " << backbones_reads.size() << " (" << allreads[read].name << ")" << ". By thread " << omp_get_thread_num() << ", " << allreads[read].neighbors_.size() << " reads align here." << endl;
-            if (allreads[read].name != "edge_3@00"){
+            if (allreads[read].name != "edge_8@00"){
 
                 if (DEBUG){
                     #pragma omp critical
@@ -603,8 +603,8 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     int firstRead = 0;
     int lastRead = polishingReads.size();
     int numberOfReads = lastRead-firstRead;
-    int start = 34000;
-    int end = 34100;
+    int start = 0;
+    int end = 500;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -651,6 +651,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     // exit(1);
     */
+    
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -672,6 +673,7 @@ vector<pair<pair<int,int>, vector<int>> > separate_reads(string& ref, std::vecto
 
     vector <bool> no_mask (numberOfReads, true);
     vector<size_t> suspectPostitions;
+    errorRate = 0.01;
     partitions = get_solid_partitions(ref, snps, no_mask, suspectPostitions, errorRate, numberOfReads);
 
     // cout << "partition dnooww: " << partitions.size() << endl;
