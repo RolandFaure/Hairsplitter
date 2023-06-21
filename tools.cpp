@@ -138,26 +138,38 @@ int compute_edit_distance(std::string &cigar, std::string &ref, std::string &rea
  * @param fasta_file 
  */
 void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file){
-    ifstream gfa(gfa_file);
-    ofstream fasta(fasta_file);
+     ifstream fasta(fasta_file);
+    if (!fasta.is_open()){
+        cout << "ERROR : could not open " << fasta_file << endl;
+        exit(1);
+    }
+    ofstream gfa(gfa_file);
+    if (!gfa.is_open()){
+        cout << "ERROR : could not open " << gfa_file << endl;
+        exit(1);
+    }
 
     string line;
-    while (getline(gfa, line)){
-        if (line[0] == 'S'){
-
-            //the name is the second field
-            string name = line.substr(2, line.find('\t', 2) - 2);
-            name = name.substr(0, name.find(' '));
-
-            //the sequence is the third field
-            string seq = line.substr(line.find('\t', 2) + 1, line.find('\t', line.find('\t', 2) + 1) - line.find('\t', 2) - 1);
-
-            fasta << ">" << name << endl;
-            fasta << seq << endl;
+    string seq;
+    string name;
+    int i = 0;
+    while (getline(fasta, line)){
+        if (line[0] == '>'){
+            if (i != 0){
+                gfa << "S\t" << name << "\t" << seq << endl;
+            }
+            string name = line.substr(1);
         }
+        else{
+            seq += line;
+        }
+        i++;
     }
-    gfa.close();
+    if (i != 0){
+        gfa << "S\t" << name << "\t" << seq << endl;
+    }
     fasta.close();
+    gfa.close();
 }
 
 /**
