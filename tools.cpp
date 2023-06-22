@@ -138,7 +138,38 @@ int compute_edit_distance(std::string &cigar, std::string &ref, std::string &rea
  * @param fasta_file 
  */
 void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file){
-     ifstream fasta(fasta_file);
+    ifstream gfa(gfa_file);
+    ofstream fasta(fasta_file);
+
+    string line;
+    while (getline(gfa, line)){
+        if (line[0] == 'S'){
+
+            //the name is the second field
+            string name = line.substr(2, line.find('\t', 2) - 2);
+            name = name.substr(0, name.find(' '));
+
+            //the sequence is the third field
+            string seq = line.substr(line.find('\t', 2) + 1, line.find('\t', line.find('\t', 2) + 1) - line.find('\t', 2) - 1);
+            if (seq.size() == 0){
+                continue;
+            }
+            fasta << ">" << name << endl;
+            fasta << seq << endl;
+        }
+    }
+    gfa.close();
+    fasta.close();
+}
+
+/**
+ * @brief Convert a FASTA file to a GFA file
+ * 
+ * @param fasta_file 
+ * @param gfa_file 
+ */
+void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
+    ifstream fasta(fasta_file);
     if (!fasta.is_open()){
         cout << "ERROR : could not open " << fasta_file << endl;
         exit(1);
@@ -167,38 +198,6 @@ void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file){
     }
     if (i != 0){
         gfa << "S\t" << name << "\t" << seq << endl;
-    }
-    fasta.close();
-    gfa.close();
-}
-
-/**
- * @brief Convert a FASTA file to a GFA file
- * 
- * @param fasta_file 
- * @param gfa_file 
- */
-void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
-    ifstream fasta(fasta_file);
-    if (!fasta.is_open()){
-        cout << "ERROR : could not open " << fasta_file << endl;
-        exit(1);
-    }
-    ofstream gfa(gfa_file);
-    if (!gfa.is_open()){
-        cout << "ERROR : could not open " << gfa_file << endl;
-        exit(1);
-    }
-
-    string line;
-    int i = 0;
-    while (getline(fasta, line)){
-        if (line[0] == '>'){
-            string name = line.substr(1);
-            getline(fasta, line);
-            string seq = line;
-            gfa << "S\t" << name << "\t" << seq << endl;
-        }
     }
     fasta.close();
     gfa.close();
