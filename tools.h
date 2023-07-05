@@ -24,13 +24,15 @@ std::string consensus_reads(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
-    std::string &outFolder);
+    std::string &outFolder,
+    std::string &techno);
 
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
-    std::string &outFolder
+    std::string &outFolder,
+    std::string &techno
 );
 
 #endif

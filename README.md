@@ -21,7 +21,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create and activate a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx gcc python scipy numpy 
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon samtools cmake gxx gcc python scipy numpy
 conda activate hairsplitter
 ```
 
@@ -29,10 +29,11 @@ conda activate hairsplitter
 
 - [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon)
+- [samtools](www.htslib.org)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
 
-If Minimap2 and Racon are not in the PATH, their location should be specified through the `--path-to-minimap2` and `--path-to-racon` options.
+If Minimap2, Racon or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon` or `--path-to-samtools` options.
  
 ## Download & Compilation
 
@@ -50,7 +51,7 @@ make
 
 ## Quick start
 
-Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase your assembly using `Hairsplitter`, run
+Let's say `reads.fastq` (any long reads) were used to build assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase the assembly using `Hairsplitter`, run
 ```
 Hairsplitter -f reads.fastq -i assembly.gfa -o hairsplitter_out/
 ```

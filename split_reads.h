@@ -38,7 +38,6 @@ void split_contigs(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
     bool assemble_on_assembly,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-    bool polish, 
     int num_threads,
     std::string &tmpFolder,
     float &errorRate);
@@ -51,7 +50,6 @@ void compute_partition_on_this_contig(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions, 
     bool assemble_on_assembly,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-    bool polish,
     std::string &tmpFolder,
     float &errorRate);
 
@@ -66,7 +64,6 @@ float generate_msa(
     bool assemble_on_assembly, 
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, 
     std::vector<bool>& misalignedReads, 
-    bool polish,
     std::string &newref,
     std::string &tmpFolder);
 

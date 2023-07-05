@@ -154,7 +154,8 @@ void check_dependancies_BiHap(){
     command = SAMTOOLS + com;
     auto samtools = system(command.c_str());
     if (samtools != 0){
-        cout << "MISSING DEPENDANCY: samtools. Proceeding without re-assembling unaligned reads. (was trying command line " << command << ")" << endl;
+        cout << "MISSING DEPENDANCY: samtools. Was trying command line " << command << endl;
+        cout << "Proceeding without re-assembling unaligned reads. HairSplitter will fail if bam file not already indexed." << endl;
         WTDBG2 = "no_wtdbg2";
     }
 
@@ -187,6 +188,7 @@ void check_dependancies_BiHap(){
 
 int main(int argc, char *argv[])
 {   
+    string version = "1.2.1 (23/06/2023)";
 
     enum class mode {split, BiHap};
     mode split_mode = mode::split;
@@ -206,21 +208,22 @@ int main(int argc, char *argv[])
     string path_cut_gfa = path_path.substr(0, path_path.size()-18) + "GraphUnzip/cut_gfa.py";
 
     int num_threads = 1;
-    bool polish = false;
     bool dont_simplify = false;
     bool output_read_groups = false;
     DEBUG = false;
     bool force = false;
+    string technology = "ont";
     auto splitMode = (
             command("split").set(split_mode, mode::split),
             required("-f", "--fastq").doc("Sequencing reads (required)") & value("raw reads", fastqfile),
             required("-i", "--assembly").doc("Original assembly in GFA or FASTA format (required)") & value("assembly", refFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--output").doc("Output directory") & value("output directory", outputFolder),
+            clipp::option("-x", "--technology").doc("{ont, pacbio, hifi} [ont]") & value("type of technology", technology),
+            clipp::option("-t", "--threads").doc("Number of threads [1]") & value("number of threads", num_threads),
             clipp::option("-a", "--aln-on-asm").doc("Reads aligned on assembly (SAM format)") & value("aligned reads", alnOnRefFile),
             clipp::option("-q", "--output-read-groups").set(output_read_groups).doc("Output read groups (txt format)"),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
-            clipp::option("-p", "--polish").set(polish).doc("Use this option if the input assembly is not polished"),
             clipp::option("-s", "--dont_simplify").set(dont_simplify).doc("Don't rename the contigs and don't merge them"),
             clipp::option("--path-to-minimap2").doc("Path to the executable minimap2 (if not in PATH)") & value("path to minimap2", path_minimap),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
@@ -236,7 +239,9 @@ int main(int argc, char *argv[])
             required("-i", "--assembly").doc("Original assembly in GFA or FASTA format (required)") & value("assembly", refFile),
             // option("-v", "--vcf") & opt_value("vcf file", vcfFile),
             required("-o", "--output").doc("Output directory") & value("output directory", outputFolder),
-            required("-b", "--bam").doc("Reads aligned on assembly (BAM format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-b", "--bam").doc("Reads aligned on assembly (BAM format)") & value("aligned reads", alnOnRefFile),
+            clipp::option("-x", "--technology").doc("{ont, pacbio, hifi} [ont]") & value("type of technology", technology),
+            clipp::option("-t", "--threads").doc("Number of threads [1]") & value("number of threads", num_threads),
             // clipp::option("-q", "--outputGAF").doc("Output GAF file") & value("output GAF", outputGAF),
             clipp::option("-s", "--dont_simplify").set(dont_simplify).doc("Don't rename the contigs and don't merge them"),
             // clipp::option("--path-to-miniasm").doc("Path to the executable miniasm (if not in PATH)") & value("path to miniasm", path_miniasm),
@@ -246,7 +251,7 @@ int main(int argc, char *argv[])
     );
     auto cli = (
     (splitMode | bihapMode ),
-        option("-v", "--version").call([]{cout << "version 1.1.2 (05/06/2023)\n\n";}).doc("show version")  );
+        option("-v", "--version").call([]{cout << "version 1.2.1 (23/06/2023)\n\n";}).doc("show version")  );
 
     if(!parse(argc, argv, cli)) {
         cout << "Could not parse the arguments" << endl;
@@ -254,12 +259,17 @@ int main(int argc, char *argv[])
     }
     else {
 
+        if (technology != "ont" && technology != "pacbio" && technology != "hifi") {
+            cout << "Error: technology must be either ont, pacbio or hifi" << endl;
+            exit(1);
+        }
+
         cout << "Running HairSplitter with command line : " << endl;
         for (int i = 0; i < argc; i++) {
             cout << argv[i] << " ";
         }
         cout << endl;
-        cout << "HairSplitter version 1.2.0 (16/06/2023)\n\n";
+        cout << "HairSplitter version "+version+"\n\n";
 
         cout << "\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n\n";
             cout << "-- Please note that details on what Hairsplitter does will be jotted down in file "+outputFolder+"/hairsplitter_summary.txt --\n";
@@ -354,7 +364,18 @@ int main(int argc, char *argv[])
 
                 convert_GFA_to_FASTA(refFile, fastaFile);
 
-                string command = MINIMAP + " " + fastaFile + " " + fastqfile + " -ax map-ont --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> "+outputFolder+"/tmp/logminimap.txt";
+                string techno_flag = "";
+                if (technology == "pacbio"){
+                    techno_flag = "-x map-pb";
+                }
+                else if (technology == "ont"){
+                    techno_flag = "-x map-ont";
+                }
+                else if (technology == "hifi"){
+                    techno_flag = "-x map-hifi";
+                }
+
+                string command = MINIMAP + " " + fastaFile + " " + fastqfile + + " " + techno_flag + " -a --secondary=no -t "+ std::to_string(num_threads) +" > " + alnOnRefFile + " 2> "+outputFolder+"/tmp/logminimap.txt";
                 cout << " - Running minimap with command line:\n     " << command << "\n   The log of minimap2 can be found at "+outputFolder+"/tmp/logminimap.txt" << endl;
                 auto res_minimap = system(command.c_str());
                 if (res_minimap != 0){
@@ -404,7 +425,7 @@ int main(int argc, char *argv[])
             std::unordered_map <int, vector<pair<int,int>>> readLimits;
             string tmpFolder = outputFolder+"/tmp/";
             float errorRate;
-            split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, polish, num_threads, tmpFolder, errorRate);
+            split_contigs(fastqfile, allreads, allOverlaps, backbone_reads, partitions, true, readLimits, num_threads, tmpFolder, errorRate);
 
             //output GAF, the path of all reads on the new contigs
             // cout << "Outputting GAF" << endl;
@@ -418,7 +439,7 @@ int main(int argc, char *argv[])
             output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
 
             cout << " - Polishing all the newly created contigs \n";
-            modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
+            modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate, technology);
             string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
             output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 
@@ -461,35 +482,85 @@ int main(int argc, char *argv[])
 
             cout << "\n===== STAGE 0: Converting all the files to the good formats\n\n";
 
-            //check the existence of the alnOnRefFile by trying to open it
-            std::ifstream f(alnOnRefFile);
-            if (!f.good()){
-                cout << "ERROR: The file " << alnOnRefFile << " does not exist. Please check the path to the alignment file" << endl;
+            cout << " - Converting the assembly file between fasta and gfa to deal with alignments" << endl;
+            string format = "";
+            string fastaFile = ""; 
+            if (refFile.substr(refFile.size()-4, 4) == ".gfa"){
+                if (alnOnRefFile == "no_file"){ //then we will need a .fa file to align on
+                    fastaFile = outputFolder+"/tmp/assembly.fa";
+                    convert_GFA_to_FASTA(refFile, fastaFile);
+                }
+                format = "gfa";
+            }
+            else if (refFile.substr(refFile.size()-3, 3) == ".fa" || refFile.substr(refFile.size()-6, 6) == ".fasta"){
+                //convert the fasta file to gfa
+                cout << " - Converting the fasta file to gfa" << endl;
+                fastaFile = refFile;
+                string newRefFile = outputFolder+"/tmp/assembly.gfa";
+                convert_FASTA_to_GFA(refFile, newRefFile);
+                refFile = newRefFile;
+                format = "fasta";
+            }
+            else{
+                cout << "ERROR: Unrecognized extension for input assembly. Authorized file extensions are .gfa (for GFA) or .fa/.fasta (for fasta)" << endl;
                 exit(EXIT_FAILURE);
             }
-            f.close();
+
+            //check the existence of the alnOnRefFile by trying to open it
+            cout <<  "\n===== STAGE 1: Aligning reads on the reference\n\n";
+            if (alnOnRefFile != "no_file"){
+                std::ifstream f(alnOnRefFile);
+                if (!f.good()){
+                    cout << "ERROR: The file " << alnOnRefFile << " does not exist. Please check the path to the alignment file" << endl;
+                    exit(EXIT_FAILURE);
+                }
+                f.close();
+                cout << " - Skipping the alignment step, using the provided alignment file " << alnOnRefFile << endl;
+            }
+            else{ //then align
+                string techno_flag = ""; //technology flag for minimap2 (hifi, ont or pacbio)
+                if (technology == "ont"){
+                    techno_flag = "-x map-ont";
+                }
+                else if (technology == "pacbio"){
+                    techno_flag = "-x map-pb";
+                }
+                else if (technology == "hifi"){
+                    techno_flag = "-x map-hifi";
+                }
+                //align the reads on the assembly
+                string command_aln = MINIMAP + " -a " + techno_flag + " " + fastaFile + " " + fastqfile + " -t " + std::to_string(num_threads) + " 2> "+outputFolder+"/tmp/log.txt | "
+                     + SAMTOOLS + " sort -o " + outputFolder+"/tmp/reads_aligned_on_ref.bam - 2> "+outputFolder+"/tmp/log.txt";
+                cout << " - Aligning the reads on the assembly with command line:\n     " << command_aln << "\n";
+
+                int result = system(command_aln.c_str());
+                if (result != 0){
+                    cout << "ERROR: Minimap2 failed. Please check the output of Minimap2 in "+outputFolder+"/tmp/log.txt" << endl;
+                    exit(EXIT_FAILURE);
+                }
+                alnOnRefFile = outputFolder+"/tmp/reads_aligned_on_ref.bam";
+                
+            }
+
 
 
             //samtools index alignment.bam
             //check if the index already exists, if not, create it
             string index = alnOnRefFile + ".bai";
-            f.open(index);
-            if (!f.good()){
-                string command_sam = SAMTOOLS + " index " + alnOnRefFile + " 2> "+outputFolder+"/tmp/trash.txt";
-                cout << " - Indexing the alignment file with command line:\n     " << command_sam << "\n";
-                int result = system(command_sam.c_str());
-                if (result != 0){
-                    cout << "ERROR: Samtools failed. Please check the output of Samtools in "+outputFolder+"/tmp/trash.txt" << endl;
-                    exit(EXIT_FAILURE);
-                }
+
+            string command_sam = SAMTOOLS + " index " + alnOnRefFile + " 2> "+outputFolder+"/tmp/log.txt";
+            cout << " - Indexing the alignment file with command line:\n     " << command_sam << "\n";
+            int result = system(command_sam.c_str());
+            if (result != 0){
+                cout << "ERROR: Samtools failed. Please check the output of Samtools in "+outputFolder+"/tmp/log.txt" << endl;
+                exit(EXIT_FAILURE);
             }
-            f.close();
 
             //convert the bam to paf so that HairSplitter can parse it
             string pafFile = outputFolder+"/tmp/reads_aligned_on_ref.paf";
             auto command_convert = "python " + BIHAP.substr(0, BIHAP.size()-8) + "bam2paf.py " + alnOnRefFile + " " + pafFile + " 2> "+outputFolder+"/tmp/trash.txt";
-            cout << " - Obtaining the paf file from the bam file with command line:\n     " << command_convert << "\n";
-            auto result = system(command_convert.c_str());
+            cout << " - Obtaining a paf file from the bam file with command line:\n     " << command_convert << "\n";
+            result = system(command_convert.c_str());
             if (result != 0){
                 cout << "ERROR: Bam2paf failed. Please check the output of Bam2paf in "+outputFolder+"/tmp/trash.txt" << endl;
                 exit(EXIT_FAILURE);
@@ -502,25 +573,6 @@ int main(int argc, char *argv[])
             vector <Link> allLinks;
 
             auto t1 = high_resolution_clock::now();
-
-            string format = "";
-            if (refFile.substr(refFile.size()-4, 4) == ".gfa"){
-                format = "gfa";
-            }
-            else if (refFile.substr(refFile.size()-3, 3) == ".fa" || refFile.substr(refFile.size()-6, 6) == ".fasta"){
-                //convert the fasta file to gfa
-                cout << " - Converting the fasta file to gfa" << endl;
-
-                string newRefFile = outputFolder+"/tmp/assembly.gfa";
-                convert_FASTA_to_GFA(refFile, newRefFile);
-                refFile = newRefFile;
-                format = "fasta";
-            }
-            else{
-                cout << "ERROR: Unrecognized extension for input assembly. Authorized file extensions are .gfa (for GFA) or .fa/.fasta (for fasta)" << endl;
-                exit(EXIT_FAILURE);
-            }
-
 
             cout << "\n===== STAGE 1: Loading data\n\n";
 
@@ -557,7 +609,7 @@ int main(int argc, char *argv[])
             output_readGroups(readGroupsFile, allreads, backbone_reads, partitions, allOverlaps);
 
             cout << " - Polishing all the newly created contigs \n";
-            modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate);
+            modify_GFA(fastqfile, allreads, backbone_reads, allOverlaps, partitions, allLinks, readLimits, num_threads, tmpFolder, errorRate, technology);
             string zipped_GFA = outputFolder+"/tmp/zipped_gfa.gfa";
             output_GFA(allreads, backbone_reads, zipped_GFA, allLinks);
 

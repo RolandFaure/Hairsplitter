@@ -210,9 +210,10 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param polishingReads list of reads to polish it
  * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
+ * @param techno the sequencing technology used to generate the reads (ont, pacbio, hifi)
  * @return polished sequence 
  */
-string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder){
+string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder, string& techno){
     
     if (polishingReads.size() == 0){
         return backbone;
@@ -264,7 +265,18 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
     else{
     */
 
-    string com = " -t 1 -x map-pb "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+    string technoFlag;
+    if (techno == "ont"){
+        technoFlag = " -x map-ont ";
+    }
+    else if (techno == "pacbio"){
+        technoFlag = " -x map-pb ";
+    }
+    else if (techno == "hifi"){
+        technoFlag = " -x map-hifi ";
+    }
+
+    string com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 
@@ -354,11 +366,22 @@ void rename_reads(std::string &fasta_file, std::string &prefix){
     std::rename((fasta_file+".tmp").c_str(), fasta_file.c_str());
 }
 
+/**
+ * @brief assebmles the reads using wtdbg2
+ * 
+ * @param backbone 
+ * @param polishingReads 
+ * @param id 
+ * @param outFolder 
+ * @param techno 
+ * @return std::string 
+ */
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
-    std::string &outFolder
+    std::string &outFolder,
+    std::string &techno
 ){
 
     //aligns all the reads on backbone to assemble only the interesting parts
@@ -377,7 +400,22 @@ std::string consensus_reads_wtdbg2(
     }
     polishseqs.close();
 
-    string com = " -t 1 -x map-pb "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+    string technoFlag = "";
+    if (techno == "pacbio"){
+        technoFlag = " -x map-pb ";
+    }
+    else if (techno == "nanopore"){
+        technoFlag = " -x map-ont ";
+    }
+    else if (techno == "hifi"){
+        technoFlag = " -x map-hifi ";
+    }
+    else{
+        cout << "unknown sequencing technology" << endl;
+        exit(1);
+    }
+
+    string com = " -t 1 "+ technoFlag = " "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 

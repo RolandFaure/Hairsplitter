@@ -36,6 +36,7 @@ extern string WTDBG2;
  * @param allLinks vector containing all the links of the GFA file (new one will be added)
  * @param readLimits for each backbone, contains the limits (in term of coordinates) of all its neighbors on the backbone
  * @param num_threads number of threads to use
+ * @param techno technology used to generate the reads (ont, pacbio, hifi)
  */
 void modify_GFA(
     std::string readsFile, 
@@ -47,7 +48,8 @@ void modify_GFA(
     unordered_map <int, vector<pair<int,int>>> &readLimits, 
     int num_threads,
     string &outFolder, 
-    float errorRate)
+    float errorRate,
+    string &techno)
     {
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -312,7 +314,7 @@ void modify_GFA(
 
                         if (newcontig == ""){
                             // cout << "In modify gfa, assembly with wtdbg2 failed" << endl;
-                            newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder);
+                            newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder, techno);
                             if (newcontig == ""){
                                 continue;
                             }

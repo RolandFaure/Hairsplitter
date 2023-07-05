@@ -64,7 +64,6 @@ void split_contigs(
         std::unordered_map<unsigned long int, vector< pair<pair<int,int>, pair<vector<int>, unordered_map<int, string>>  > >> &partitions, 
         bool assemble_on_assembly, 
         unordered_map <int, vector<pair<int,int>>> &readLimits,
-        bool polish, 
         int num_threads, 
         std::string &tmpFolder, 
         float &errorRate){
@@ -89,7 +88,7 @@ void split_contigs(
                 }
                 
                 compute_partition_on_this_contig(fileReads, read, allreads, allOverlaps, backbones_reads, partitions, assemble_on_assembly,
-                    readLimits, polish, tmpFolder, errorRate);
+                    readLimits, tmpFolder, errorRate);
         
             }
             // else{ //just for debug
@@ -114,7 +113,6 @@ void split_contigs(
  * @param partitions map containing the partitions (with all their interval) of all backbone reads
  * @param assemble_on_assembly set to false if assembling without a reference
  * @param readLimits 
- * @param polish set to true if assembly needs to be polished
  * @param thread identifier of the thread running this function
  */
 void compute_partition_on_this_contig(
@@ -126,7 +124,6 @@ void compute_partition_on_this_contig(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
     bool assemble_on_assembly,
     std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits,
-    bool polish,
     std::string &tmpFolder,
     float &errorRate
     ){
@@ -146,7 +143,7 @@ void compute_partition_on_this_contig(
     robin_hood::unordered_map<int, int> insertionPositions;
     string ref3mers;
     float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, 
-        partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, polish, ref3mers, tmpFolder);
+        partitions.size(), truePar, assemble_on_assembly, readLimits, misalignedReads, ref3mers, tmpFolder);
     errorRate = meanDistance;
 
     if (DEBUG){
@@ -232,12 +229,13 @@ void compute_partition_on_this_contig(
  * @param assemble_on_assembly Is backbone a read like any other (false), or rather a reference (true) ?
  * @param readLimits Limits of the reads on the backbone. Used to recompute coverage of the backbone
  * @param misalignedReads Reads aligned with <80% identity: the alignment is not good enough to consider phasing there
- * @param polish True if the backbone reads are not polished
+ * @param newref Sequence of backbone read in the MSA space
+ * @param tmpFolder Folder where to store temporary files
  * @return The mean distance between the aligned reads and the consensus backbone
  */
 float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::vector <Read> &allreads, 
     std::vector<Column> &snps, robin_hood::unordered_map<int, int> &insertionPos, int backboneReadIndex, string &truePar, bool assemble_on_assembly, 
-    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads, bool polish,
+    unordered_map <int, vector<pair<int,int>>> &readLimits, std::vector<bool> &misalignedReads,
     string &newref, string &tmpFolder){
 
     string ACGT = "ACGT-";
@@ -288,7 +286,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         // cout << "overlap : " << allreads[overlap.sequence1].name << " on " <<allreads[overlap.sequence2].name << ", " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " "
         //     << overlap.position_2_2 << endl;
 
-        if (overlap.CIGAR != "" && !polish){
+        if (overlap.CIGAR != ""){
             CIGARs.push_back(overlap.CIGAR);
             if (overlap.sequence1 == bbcontig){
                 allreads[overlap.sequence2].new_backbone(make_pair(backboneReadIndex,n), allreads[bbcontig].neighbors_.size()+1);
@@ -346,17 +344,7 @@ float generate_msa(long int bbcontig, std::vector <Overlap> &allOverlaps, std::v
         }
     }
 
-    string consensus;
-    if (polish){
-        string thread_id = std::to_string(omp_get_thread_num());
-        consensus = consensus_reads(read_str , polishingReads, thread_id, tmpFolder);
-        if (DEBUG){
-            cout << "Done polishing the contig" << endl;
-        }
-    }
-    else{
-        consensus = read_str; //if the input assembly is already polished
-    } 
+    string consensus = read_str; //if the input assembly is already polished
 
     snps = vector<Column>(consensus.size());
     for (auto c = 0 ; c < consensus.size() ; c++){
