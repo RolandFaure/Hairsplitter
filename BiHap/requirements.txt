@@ -1,0 +1,6 @@
+pulp >= 2.7.0
+gurobipy >= 10.0.1
+pandas >= 1.5.3
+numpy >= 1.24.2
+scikit-learn >= 1.2.2
+pysam >= 0.20.0
