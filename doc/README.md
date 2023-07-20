@@ -24,8 +24,10 @@ HairSplitter is organized as series of modules, some of these modules being of i
 ```
 Usage: clean_graph <assemblyFile> <newAssembly> <outputFolder> <logFile> <threads> <path_to_minimap>
 ```
-**assemblyFile** Original assembly in GFA format \n
+**assemblyFile** Original assembly in GFA format
+
 **newAssembly** Output, in GFA format
+
 **outputFolder** Folder to store temporary file (typically alignment files)
 **logFile** File to write what clean_graph does
 **threads** Number of threads
