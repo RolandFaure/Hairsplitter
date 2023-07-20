@@ -29,6 +29,7 @@ class Partition {
 
 public :
     Partition(); 
+    Partition(Column &snp, int pos, unsigned char ref_base); //to initialize a binary partition
     Partition(Column &snp, int pos, std::vector<bool> &mask, unsigned char ref_base); //to initialize a binary partition
 
     void print(); //little function to print the consensus

@@ -8,22 +8,36 @@
 #include "read.h"
 //#include "Variant.h"
 
-void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices);
-void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads);
-void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices,
-     std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks);
+void parse_reads(
+    std::string fileReads, 
+    std::vector <Read> &allreads, 
+    robin_hood::unordered_map<std::string, unsigned long int> &indices);
+
+void parse_assembly(
+    std::string fileAssembly, 
+    std::vector <Read> &allreads, 
+    robin_hood::unordered_map<std::string, unsigned long int> &indices,
+    std::vector<unsigned long int> &backbone_reads, 
+    std::vector<Link> &allLinks);
+
+void parse_SAM(
+    std::string fileSAM, 
+    std::vector <Overlap>& allOverlaps, 
+    std::vector <Read> &allreads, 
+    robin_hood::unordered_map<std::string, unsigned long int> &indices);
+
+
+void parse_reads_on_contig(
+    std::string fileReads, 
+    long int backbone, 
+    std::vector <Overlap>& allOverlaps, 
+    std::vector <Read> &allreads);
 
 void parse_PAF(std::string filePAF, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, 
     std::vector<unsigned long int> &backbones_reads, bool computeBackbones, bool filterUncompleteAlignments);
 
-void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices);
-
 // void parse_VCF(std::string fileVCF, robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants);
 // void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants);
-        
-void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks, 
-    std::vector <Overlap> &allOverlaps, std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
-    std::string outputGAF);
 
 void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut);
 void output_GFA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut, std::vector<Link> &allLinks);

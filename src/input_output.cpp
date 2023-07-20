@@ -116,40 +116,14 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 }
 
 /**
- * @brief Uploads the sequence of the reads that align on backbone in allreads
+ * @brief Parses a gfa file and stores the contigs in allreads
  * 
- * @param fileReads file containing the reads
- * @param backbone index of the backbone read in allreads
- * @param allOverlaps vector of all overlaps between backbone reads and normal reads
- * @param allreads vector of all the reads (including backbone)
+ * @param fileAssembly GFA file containing the assembly
+ * @param allreads Vector allreads appended with the contigs
+ * @param indices Indices linking the name of the contigs to their index in allreads
+ * @param backbone_reads Index of the sequences in allreads that are contigs
+ * @param allLinks List of all the links between contigs
  */
-void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads){
- 
-    ifstream in(fileReads);
-    string line;
-
-    //cout << "Loading reads that align on " << allreads[backbone].name << " " << allreads[backbone].neighbors_.size() << endl;
-
-    for (long int n: allreads[backbone].neighbors_){
-        long int read;
-        if (allOverlaps[n].sequence1 != backbone){
-            read = allOverlaps[n].sequence1;
-        }
-        else{
-            read = allOverlaps[n].sequence2;
-        }
-
-        in.seekg(allreads[read].get_position_in_file());
-        getline(in, line);
-
-        allreads[read].upload_sequence(line);
-        // cout << "sequence of read " << allreads[read].name << " is recovered " << line.size() << " " << allreads[read].sequence_.size() << endl;// << line << endl;
-    }
-    in.close();
-}
-
-//input : file containing an assembly in gfa
-//output : the contigs appended to the end of allreads and marked as backbones
 void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices
     , vector<unsigned long int> &backbone_reads, vector<Link> &allLinks){
 
@@ -293,6 +267,272 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
     }
 
 }
+
+/**
+ * @brief Parses the SAM files of all the reads aligned on the assembly
+ * 
+ * @param fileSAM Name of SAM file
+ * @param allOverlaps vector containing all the overlaps
+ * @param allreads vector containing all the reads as well as the contigs
+ * @param indices maps the name of the reads to their index in allreads (comes from parse_reads)
+ * @param backbonesReads indicates which of the reads are actually contigs in allreads
+ */
+void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
+
+    ifstream in(fileSAM);
+    if (!in){
+        cout << "problem reading SAM file " << fileSAM << endl;
+        throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
+    }
+
+    string line;
+    long int linenumber = 0;
+    while(getline(in, line)){
+
+        if (line[0] != '@'){
+            string field;
+            std::istringstream line2(line);
+
+            unsigned long int sequence1 = -1;
+            string name1;
+            int length1 = 0;
+            unsigned long int sequence2= -2;
+            string name2;
+            int pos2_1= -1;
+            bool positiveStrand = true;
+            int flag;
+
+            string cigar;
+
+            bool allgood = true;
+            //now go through the fields of the line
+            short fieldnumber = 0;
+            while (getline(line2, field, '\t'))
+            {
+                if (fieldnumber == 0){
+                    try{
+                        if (indices.find(field)==indices.end()){
+                            cout << "WARNING: read in the sam file not found in fasta file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                            allgood = false;
+                        }
+                        
+                        sequence1 = indices[field];     
+
+                    }
+                    catch(...){
+                        cout << "There is a sequence in the SAM I did not find in the fasta: " << field << endl;
+                        allgood = false;
+                    }
+                }
+                else if (fieldnumber == 1){ //this is the flag
+                    flag = stoi(field);
+                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment 3) flag>2048 is a supplementary alignment but can just be the follow-up of the first alignment
+                        allgood = false;
+                    }
+                    if (flag%32 >= 16){
+                        positiveStrand = false;
+                    }
+                }
+                else if (fieldnumber == 2){
+                    try{
+                        sequence2 = indices[field];
+                        std::istringstream line3(field);
+                        string unit;
+                        while(getline(line3, unit, ' ')){
+                            name2 = unit;
+                            break;
+                        }
+                    }
+                    catch(...){
+                        cout << "There is a sequence in the SAM I did not find in the fasta/q:" << field << ":" << endl;
+                        allgood = false;
+                    }
+                }
+                else if (fieldnumber == 3){
+                    pos2_1 = stoi(field);
+                }
+                else if (fieldnumber == 5){
+                    cigar = field;
+                }
+                else if (fieldnumber == 9){
+                    length1 = field.size();
+                }
+                //std::cout << "my field is : " << field << std::endl;
+                fieldnumber++;
+            }
+
+            if (allgood && fieldnumber > 10 && sequence2 != sequence1){
+
+                int length_alignment = 0;
+                string alignment = convert_cigar(cigar);
+                for (auto a : alignment){
+                    if (a == 'M' || a == 'D' || a == '=' || a == 'X'){
+                        length_alignment++;
+                    }
+                }
+                auto pos2_2 = pos2_1 + length_alignment;
+
+                //do not store the 'H' and 'S' at the ends of the cigar string
+                int nbH_start = 0;
+                int nbH_end = 0;
+                string string_nbH_start = "";
+                //find the first letter in the CIGAR
+                int firstH = 0;
+                for (int i = 0 ; i < cigar.size() ; i++){
+                    if (cigar[i] > '9' || cigar[i] < '0'){
+                        if (cigar[i] != 'H') {
+                            string_nbH_start = "";
+                        }
+                        firstH = i;
+                        break;
+                    }
+                    string_nbH_start += cigar[i];
+                }
+                nbH_start = 0;
+                if (string_nbH_start != ""){
+                    nbH_start = stoi(string_nbH_start);
+                }
+
+                string string_nbH_end = "";
+                int lastH = 0;
+                //find the last letter in the CIGAR
+                for (int i = cigar.size()-1 ; i >= 0 ; i--){
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H'){
+                        lastH = i;
+                        break;
+                    }
+                    string_nbH_end = cigar[i] + string_nbH_end;
+                }
+                nbH_end = 0;
+                if (string_nbH_end != ""){
+                    //strip last character
+                    string_nbH_end = string_nbH_end.substr(0, string_nbH_end.size()-1);
+                    nbH_end = stoi(string_nbH_end);
+                }
+
+                if (!positiveStrand){
+                    auto tmp = nbH_start;
+                    nbH_start = nbH_end;
+                    nbH_end = tmp;
+                }
+
+                int nbS_start = 0;
+                int nbS_end = 0;
+                string string_nbS_start = "";
+                //find the first letter in the CIGAR
+                int firstS = 0;
+                for (int i = 0 ; i < cigar.size() ; i++){
+                    if (cigar[i] > '9' || cigar[i] < '0'){
+                        if (cigar[i] != 'S') {
+                            string_nbS_start = "";
+                        }
+                        firstS = i;
+                        break;
+                    }
+                    string_nbS_start += cigar[i];
+                }
+                nbS_start = 0;
+                if (string_nbS_start != ""){
+                    nbS_start = stoi(string_nbS_start);
+                }
+
+                string string_nbS_end = "";
+                int lastS = 0;
+                //find the last letter in the CIGAR
+                for (int i = cigar.size()-1 ; i >= 0 ; i--){
+                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'S'){
+                        lastS = i;
+                        break;
+                    }
+                    string_nbS_end = cigar[i] + string_nbS_end;
+                }
+                nbS_end = 0;
+                if (string_nbS_end != ""){
+                    //strip last character
+                    string_nbS_end = string_nbS_end.substr(0, string_nbS_end.size()-1);
+                    nbS_end = stoi(string_nbS_end);
+                }
+
+                if (!positiveStrand){
+                    auto tmp = nbS_start;
+                    nbS_start = nbS_end;
+                    nbS_end = tmp;
+                }
+
+                if (nbH_start+nbH_end > 0.2*length1 && flag < 2048){ //flag>=2048 means it is a supplementary alignment, in which case H can generally be changed in S. S alignments can be tolerated, if the read does not align elsewhere )
+                    allgood = false;
+                    //cout << "inpout outpout qkdldkj c " << line << endl;
+                }
+                else{
+
+                    Overlap overlap;
+                    overlap.sequence1 = sequence1;
+                    overlap.sequence2 = sequence2;
+                    overlap.position_1_1 = nbS_start + nbH_start; //the whole read is used
+                    overlap.position_1_2 = nbS_start + nbH_start + length1;
+                    overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
+                    overlap.position_2_2 = pos2_1+length1;
+                    overlap.strand = positiveStrand;
+                    overlap.CIGAR = cigar;
+
+                    // if (allreads[sequence1].name.substr(0,19) == ">SRR14289618.827569"){
+                    //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name << " on " << allreads[overlap.sequence2].name
+                    //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
+                    //     cout << cigar.substr(0,30) << endl;
+                    // }
+
+                    // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
+
+                    allreads[sequence1].add_overlap(allOverlaps.size());
+                    if (sequence1 != sequence2){
+                        allreads[sequence2].add_overlap(allOverlaps.size());
+                    }
+                    // if (sequence1 == 0){
+                    //     cout << "DEBUG added edge bnbnb " << endl; 
+                    // }
+                    allOverlaps.push_back(overlap);
+                }
+            }
+            linenumber++;
+        }
+    }
+
+    in.close();
+}
+
+/**
+ * @brief Uploads the sequence of the reads that align on backbone in allreads
+ * 
+ * @param fileReads file containing the reads
+ * @param backbone index of the backbone read in allreads
+ * @param allOverlaps vector of all overlaps between backbone reads and normal reads
+ * @param allreads vector of all the reads (including backbone)
+ */
+void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads){
+ 
+    ifstream in(fileReads);
+    string line;
+
+    //cout << "Loading reads that align on " << allreads[backbone].name << " " << allreads[backbone].neighbors_.size() << endl;
+
+    for (long int n: allreads[backbone].neighbors_){
+        long int read;
+        if (allOverlaps[n].sequence1 != backbone){
+            read = allOverlaps[n].sequence1;
+        }
+        else{
+            read = allOverlaps[n].sequence2;
+        }
+
+        in.seekg(allreads[read].get_position_in_file());
+        getline(in, line);
+
+        allreads[read].upload_sequence(line);
+        // cout << "sequence of read " << allreads[read].name << " is recovered " << line.size() << " " << allreads[read].sequence_.size() << endl;// << line << endl;
+    }
+    in.close();
+}
+
 
 /**
  * @brief Parses the PAF files of all the reads aligned on the assembly
@@ -534,359 +774,6 @@ void parse_PAF(std::string filePAF,
 
 }
 
-/**
- * @brief Parses the SAM files of all the reads aligned on the assembly
- * 
- * @param fileSAM Name of SAM file
- * @param allOverlaps vector containing all the overlaps
- * @param allreads vector containing all the reads as well as the contigs
- * @param indices maps the name of the reads to their index in allreads (comes from parse_reads)
- * @param backbonesReads indicates which of the reads are actually contigs in allreads
- */
-void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
-
-    ifstream in(fileSAM);
-    if (!in){
-        cout << "problem reading SAM file " << fileSAM << endl;
-        throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
-    }
-
-    string line;
-    long int linenumber = 0;
-    while(getline(in, line)){
-
-        if (line[0] != '@'){
-            string field;
-            std::istringstream line2(line);
-
-            unsigned long int sequence1 = -1;
-            string name1;
-            int length1 = 0;
-            unsigned long int sequence2= -2;
-            string name2;
-            int pos2_1= -1;
-            bool positiveStrand = true;
-            int flag;
-
-            string cigar;
-
-            bool allgood = true;
-            //now go through the fields of the line
-            short fieldnumber = 0;
-            while (getline(line2, field, '\t'))
-            {
-                if (fieldnumber == 0){
-                    try{
-                        if (indices.find(field)==indices.end()){
-                            cout << "WARNING: read in the sam file not found in fasta file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
-                            allgood = false;
-                        }
-                        
-                        sequence1 = indices[field];     
-
-                    }
-                    catch(...){
-                        cout << "There is a sequence in the SAM I did not find in the fasta: " << field << endl;
-                        allgood = false;
-                    }
-                }
-                else if (fieldnumber == 1){ //this is the flag
-                    flag = stoi(field);
-                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment 3) flag>2048 is a supplementary alignment but can just be the follow-up of the first alignment
-                        allgood = false;
-                    }
-                    if (flag%32 >= 16){
-                        positiveStrand = false;
-                    }
-                }
-                else if (fieldnumber == 2){
-                    try{
-                        sequence2 = indices[field];
-                        std::istringstream line3(field);
-                        string unit;
-                        while(getline(line3, unit, ' ')){
-                            name2 = unit;
-                            break;
-                        }
-                    }
-                    catch(...){
-                        cout << "There is a sequence in the SAM I did not find in the fasta/q:" << field << ":" << endl;
-                        allgood = false;
-                    }
-                }
-                else if (fieldnumber == 3){
-                    pos2_1 = stoi(field);
-                }
-                else if (fieldnumber == 5){
-                    cigar = field;
-                }
-                else if (fieldnumber == 9){
-                    length1 = field.size();
-                }
-                //std::cout << "my field is : " << field << std::endl;
-                fieldnumber++;
-            }
-
-            if (allgood && fieldnumber > 10 && sequence2 != sequence1){
-
-                int length_alignment = 0;
-                string alignment = convert_cigar(cigar);
-                for (auto a : alignment){
-                    if (a == 'M' || a == 'D' || a == '=' || a == 'X'){
-                        length_alignment++;
-                    }
-                }
-                auto pos2_2 = pos2_1 + length_alignment;
-
-                //do not store the 'H' and 'S' at the ends of the cigar string
-                int nbH_start = 0;
-                int nbH_end = 0;
-                string string_nbH_start = "";
-                //find the first letter in the CIGAR
-                int firstH = 0;
-                for (int i = 0 ; i < cigar.size() ; i++){
-                    if (cigar[i] > '9' || cigar[i] < '0'){
-                        if (cigar[i] != 'H') {
-                            string_nbH_start = "";
-                        }
-                        firstH = i;
-                        break;
-                    }
-                    string_nbH_start += cigar[i];
-                }
-                nbH_start = 0;
-                if (string_nbH_start != ""){
-                    nbH_start = stoi(string_nbH_start);
-                }
-
-                string string_nbH_end = "";
-                int lastH = 0;
-                //find the last letter in the CIGAR
-                for (int i = cigar.size()-1 ; i >= 0 ; i--){
-                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'H'){
-                        lastH = i;
-                        break;
-                    }
-                    string_nbH_end = cigar[i] + string_nbH_end;
-                }
-                nbH_end = 0;
-                if (string_nbH_end != ""){
-                    //strip last character
-                    string_nbH_end = string_nbH_end.substr(0, string_nbH_end.size()-1);
-                    nbH_end = stoi(string_nbH_end);
-                }
-
-                if (!positiveStrand){
-                    auto tmp = nbH_start;
-                    nbH_start = nbH_end;
-                    nbH_end = tmp;
-                }
-
-                int nbS_start = 0;
-                int nbS_end = 0;
-                string string_nbS_start = "";
-                //find the first letter in the CIGAR
-                int firstS = 0;
-                for (int i = 0 ; i < cigar.size() ; i++){
-                    if (cigar[i] > '9' || cigar[i] < '0'){
-                        if (cigar[i] != 'S') {
-                            string_nbS_start = "";
-                        }
-                        firstS = i;
-                        break;
-                    }
-                    string_nbS_start += cigar[i];
-                }
-                nbS_start = 0;
-                if (string_nbS_start != ""){
-                    nbS_start = stoi(string_nbS_start);
-                }
-
-                string string_nbS_end = "";
-                int lastS = 0;
-                //find the last letter in the CIGAR
-                for (int i = cigar.size()-1 ; i >= 0 ; i--){
-                    if ((cigar[i] > '9' || cigar[i] < '0') && cigar[i] != 'S'){
-                        lastS = i;
-                        break;
-                    }
-                    string_nbS_end = cigar[i] + string_nbS_end;
-                }
-                nbS_end = 0;
-                if (string_nbS_end != ""){
-                    //strip last character
-                    string_nbS_end = string_nbS_end.substr(0, string_nbS_end.size()-1);
-                    nbS_end = stoi(string_nbS_end);
-                }
-
-                if (!positiveStrand){
-                    auto tmp = nbS_start;
-                    nbS_start = nbS_end;
-                    nbS_end = tmp;
-                }
-
-                if (nbH_start+nbH_end > 0.2*length1 && flag < 2048){ //flag>=2048 means it is a supplementary alignment, in which case H can generally be changed in S. S alignments can be tolerated, if the read does not align elsewhere )
-                    allgood = false;
-                    //cout << "inpout outpout qkdldkj c " << line << endl;
-                }
-                else{
-
-                    Overlap overlap;
-                    overlap.sequence1 = sequence1;
-                    overlap.sequence2 = sequence2;
-                    overlap.position_1_1 = nbS_start + nbH_start; //the whole read is used
-                    overlap.position_1_2 = nbS_start + nbH_start + length1;
-                    overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
-                    overlap.position_2_2 = pos2_1+length1;
-                    overlap.strand = positiveStrand;
-                    overlap.CIGAR = cigar;
-
-                    // if (allreads[sequence1].name.substr(0,19) == ">SRR14289618.827569"){
-                    //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name << " on " << allreads[overlap.sequence2].name
-                    //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
-                    //     cout << cigar.substr(0,30) << endl;
-                    // }
-
-                    // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;
-
-                    allreads[sequence1].add_overlap(allOverlaps.size());
-                    if (sequence1 != sequence2){
-                        allreads[sequence2].add_overlap(allOverlaps.size());
-                    }
-                    // if (sequence1 == 0){
-                    //     cout << "DEBUG added edge bnbnb " << endl; 
-                    // }
-                    allOverlaps.push_back(overlap);
-                }
-            }
-            linenumber++;
-        }
-    }
-
-    in.close();
-}
-
-/*
-//input : a VCF file containing a list of variants
-//output : all variants loaded in a variant list
-void parse_VCF(std::string fileVCF, robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants){
-    ifstream in(fileVCF);
-    if (!in){
-        cout << "problem reading VCF file " << fileVCF << endl;
-        throw std::invalid_argument( "Input file '"+fileVCF +"' could not be read" );
-    }
-
-    string line;
-    while(getline(in, line)){
-
-        if (line[0] != '#'){
-
-            std::istringstream line2(line);
-            string field;
-            int nbfield = 0;
-            Variant v;
-
-            while (getline(line2, field, '\t')){
-
-                if (nbfield == 0){
-                    v.refSeq = field;
-                }
-                else if (nbfield == 1){
-                    v.position = std::stoi(field);
-                }
-                else if (nbfield == 7){
-                    std::istringstream field2(field);
-                    std::string info;
-                    while (getline(field2, info, ';')){
-                        if (info.substr(0,6) ==  "RNAMES"){
-                            
-                            std::istringstream info2(info.substr(7, info.size()));
-                            string read;
-                            while(getline(info2, read, ',')){
-                                cout << "read : " << read << endl;
-                                v.readsWithVariant.emplace(read);
-                                cout << "size : " << v.readsWithVariant.size() << endl;
-                            }
-
-                            break;
-                        }
-                    }
-                }
-                nbfield++;
-            }
-            // cout << "variant in : " << v.readsWithVariant.size() << endl;
-            allVariants[v.refSeq].push_back(v);
-        }
-
-    }
-    for (auto refseqs : allVariants)
-    {
-        std::sort(refseqs.second.begin() , refseqs.second.end());   
-        // cout << "length of the variants : " << endl;
-        // for (auto v : refseqs.second){
-        //     cout << v.readsWithVariant.size() << endl;
-        // } 
-    }
-}
-
-//input : sam file of all the reads aligned to the reference
-//output : updated list of variants, with for each variant also the reads that do not align on the ref but only on the variants
-void parseSAM(std::string fileSAM , robin_hood::unordered_map<std::string, std::vector <Variant>> &allVariants){
-
-    ifstream in(fileSAM);
-    if (!in){
-        cout << "problem reading SAM file " << fileSAM << endl;
-        throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
-    }
-
-    string line;
-    int nbreads = 0;
-    while(getline(in, line)){
-
-        if (line[0] != '@'){
-
-            std::istringstream line2(line);
-            string field;
-            int fieldnb = 0;
-            string seqname;
-            string refseq;
-            int position;
-            int length;
-            while (getline(line2, field, '\t')){
-
-                if (fieldnb == 0){
-                    seqname = field;
-                }
-                else if (fieldnb == 2){
-                    refseq = field;
-                }
-                else if (fieldnb == 3){
-                    // cout << "position : " << field << endl;
-                    position = std::stoi(field);
-                }
-                else if (fieldnb == 9){
-                    length = field.size();
-                }
-
-                fieldnb++;
-            }
-            //now check all the variants in this zone
-            for (Variant v : allVariants[refseq]){
-                if (v.position > position && v.position < position+length){
-                    //cout << "the variant " << v.refSeq << " " << v.position << " is found on read " << seqname << endl;
-                    if (v.readsWithVariant.find(seqname) == v.readsWithVariant.end()){
-                        v.readsWithoutVariant.emplace(seqname);
-                    }
-                }
-            }
-            nbreads++;
-            if (nbreads%100 == 0){
-                // cout << "Read " << nbreads << " reads " << endl;
-            }
-        }
-    }
-}
-*/
 
 //input : original file of overlaps, allreads and partitions
 //output : the same file of overlaps, but with all spurious overlap filtered out
@@ -1088,297 +975,6 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
 }
 
 /**
- * @brief Creates the GAF corresponding to the mapping of the reads on the new GFA
- * 
- * @param allreads vector of all reads (including backbone reads which can be contigs)
- * @param backbone_reads vector of all the indices of the backbone reads in allreads
- * @param allLinks vector of all links of the GFA
- * @param allOverlaps vector of all overlaps between backbone reads and normal reads
- * @param partitions contains all the conclusions of the separate_reads algorithm
- * @param outputGAF name of the output file
- */
-typedef std::tuple<int, vector<pair<string, bool>>, long int> Path; //a path is a starting position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
-void output_GAF(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::vector<Link> &allLinks, std::vector <Overlap> &allOverlaps,
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
-    std::string outputGAF){
-
-    vector<vector<Path>> readPaths (allreads.size()); //to each read we associate a path on the graph
-
-    int max_backbone = backbone_reads.size(); 
-    for (int b = 0 ; b < max_backbone ; b++){
-
-        long int backbone = backbone_reads[b];
-
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
-            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
-
-                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
-
-                long int read;
-                long int end;
-                int start = -1;
-
-                if (ov.sequence1 != backbone){
-                    read = ov.sequence1;
-                    start = ov.position_1_1;
-                    end = ov.position_1_2;
-                }
-                else{
-                    read = ov.sequence2;
-                    start = min(ov.position_2_1, ov.position_2_2);
-                    end = max(ov.position_2_1, ov.position_2_2);
-                }
-
-                //go through all the intervals and see through which version this read passes
-                vector<pair<string, bool>> sequence_of_traversed_contigs; //string corresponds to the name of the contig, bool is true if the contig is traversed in the same orientation as the read
-                short stop = 0;
-                bool firsthere = false;
-                bool lasthere = false;
-                int inter = 0;
-                for (auto interval : partitions[backbone]){
-
-                    if (interval.second.first[n] > -1 && stop < 2){
-                        // if (allreads[read].name.substr(0,6) == "@050f1" || allreads[read].name.substr(0,6) == "@fa270"){
-                        //     cout << "read " << allreads[read].name << " passes input_output yyu through " << interval.first.first << " " << interval.first.second << " " << interval.second.first[n] << endl;
-                        //     // for (auto i : interval.second.first){
-                        //     //     if (i != -2){
-                        //     //         cout << i << " ";
-                        //     //     }
-                        //     // }
-                        //     // cout << endl;
-                        // }
-                        sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second.first[n])
-                            , ov.strand));
-                        if (inter == 0){
-                            firsthere = true;
-                        }
-                        stop = 1;
-
-                        // if (stop){ //you have one read that was lost just before !
-                        //     cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
-                        // }
-                    }
-                    else if (stop == 1){
-                        stop = 2;
-                    }
-                    inter++;
-                }
-                //last contig
-                if (stop < 2){
-                    lasthere = true;
-                    int right = partitions[backbone][partitions[backbone].size()-1].first.second+1;
-                    sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(right)+"_0"
-                            , ov.strand));
-                }
-
-                if (!ov.strand){ //then mirror the vector
-                    std::reverse(sequence_of_traversed_contigs.begin(), sequence_of_traversed_contigs.end());
-                }
-
-                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
-                    sequence_of_traversed_contigs.push_back(make_pair("&", ov.strand));
-                }
-                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
-                    sequence_of_traversed_contigs.push_back(make_pair("+", ov.strand));
-                }
-                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
-                    sequence_of_traversed_contigs.push_back(make_pair("-", ov.strand));
-                }
-                
-                if (sequence_of_traversed_contigs.size()>0){ //this should almost always be true, but it's still safer to test
-                    Path path = make_tuple(start,sequence_of_traversed_contigs, backbone);
-                    // if (allreads[read].name.substr(0,6) == "@d5282"){
-                    //     cout << "d5282 is a readdd, path :: "<< endl;
-                    //     for (auto p : get<1>(path)){
-                    //         cout << p.first << " " << p.second << endl;
-                    //     }
-
-                    // }
-                    readPaths[read].push_back(path);
-                }
-                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
-                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << " " <<  << endl;
-                // }
-            }
-        }
-        else{
-            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
-                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
-                long int read;
-                int start = -1;
-                int end = -1;
-
-                bool lasthere = false;
-                bool firsthere = false;
-                if (ov.sequence1 != backbone){
-                    read = ov.sequence1;
-                    start = ov.position_1_1;
-                    end = ov.position_1_2;
-                }
-                else{
-                    read = ov.sequence2;
-                    start = ov.position_2_1;
-                    end = ov.position_2_2;
-                }
-
-                if (start > 100){
-                    firsthere = true;
-                }
-                if (end < allreads[read].size()-100){
-                    lasthere = true;
-                }
-                
-                vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
-                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
-                    v.push_back(make_pair("&", ov.strand));
-                }
-                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
-                    v.push_back(make_pair("+", ov.strand));
-                }
-                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
-                    v.push_back(make_pair("-", ov.strand));
-                }
-                Path contigpath = make_tuple(start,v, backbone);
-                readPaths[read].push_back(contigpath);
-
-                // cout << "bbb ds " << allreads[backbone_reads[b]].name << endl;
-                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
-                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << endl;
-                // }
-            }
-        }
-    }
-
-
-    //now merge the paths that were on different contigs
-    for (auto r = 0 ; r < readPaths.size() ; r++){
-
-        if (readPaths[r].size() > 0){
-
-            std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
-            
-            // if (allreads[r].name.substr(0,19) == ">SRR14289618.827569"){
-
-            //     cout << "on backbone 228 is feed aligned " << allreads[r].name.substr(0, 19) << endl;
-            //     for (auto p = 0 ; p < readPaths[r].size() ; p++){
-            //         Path path = readPaths[r][p];
-            //         cout << "path " << p << " : ";
-            //         auto contigs = get<1>(path);
-            //         for (auto c : contigs){
-            //             cout << c.first << " ";
-            //         }
-            //         cout << ", beginning on read : " << get<0>(path) << endl;
-            //     }
-            //     // exit(1);
-            // }
-
-            vector<Path> mergedPaths;
-            Path currentPath = readPaths[r][0];
-            //check if each path can be merged with next path
-            for (auto p = 0 ; p<readPaths[r].size()-1 ; p++){
-
-                long int contig = get<2> (currentPath);
-                bool orientation = get<1>(currentPath)[get<1>(currentPath).size()-1].second;
-                long int nextContig = get<2> (readPaths[r][p+1]);
-
-                if (contig != nextContig){
-
-                    vector<size_t> links;
-                    if (orientation){
-                        links = allreads[contig].get_links_right();
-                    }
-                    else{
-                        links = allreads[contig].get_links_left();
-                    }
-
-
-                    bool merge = false;
-                    for (auto li : links){
-                        Link l = allLinks[li];
-                        if (l.neighbor1 == nextContig || l.neighbor2 == nextContig){ //then merge
-                            if ((l.end1==l.end2 && get<1>(readPaths[r][p+1])[0].second != orientation) 
-                                || (l.end1!=l.end2 && get<1>(readPaths[r][p+1])[0].second == orientation)){
-                                merge = true;
-                            }
-                        }
-                    }
-
-                    //if & in name, there is a cut there
-                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
-                    char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
-                    if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
-                        merge = false;
-                    }
-                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
-                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
-                    }
-
-                    if (merge){
-                        // if (get<1>(currentPath)[0].first.substr(0,12) == "edge_235@0@0" || get<1>(currentPath)[0].first.substr(0,12) == "edge_510@0@0"){
-                        //     cout << "current path : " << endl;
-                        //     for (auto p : get<1>(currentPath)){
-                        //         cout << p.first << " " << p.second << endl;
-                        //     }
-                        //     cout << "merging 235 with path : in read " << r << endl;
-                        //     for (auto p : get<1>(readPaths[r][p+1])){
-                        //         cout << p.first << " " << p.second << endl;
-                        //     }
-                        // }
-                        get<1>(currentPath).insert(get<1>(currentPath).end(), get<1> (readPaths[r][p+1]).begin(), get<1> (readPaths[r][p+1]).end());
-                        get<2>(currentPath) = get<2> (readPaths[r][p+1]);
-                    }
-                    else{
-                        mergedPaths.push_back(currentPath);
-                        currentPath = readPaths[r][p+1];
-                    }
-
-                }
-                else{
-                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
-                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
-                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
-                    }
-                    mergedPaths.push_back(currentPath);
-                    currentPath = readPaths[r][p+1];
-                }
-            }
-            //if & in name, delete it
-            char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
-            if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
-                get<1>(currentPath).erase(get<1>(currentPath).end()-1);
-            }
-
-            mergedPaths.push_back(currentPath);
-
-            readPaths[r] = mergedPaths;
-        }
-
-    }
-
-    //now the paths have been determined, output the file
-    ofstream out(outputGAF);
-    for (auto p = 0 ; p < readPaths.size() ; p++){
-        for (Path path : readPaths[p]){
-            if (get<1>(path).size() > 0){
-                //output the path
-                out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
-                for (auto contig : get<1>(path)){
-                    if (contig.second){
-                        out << ">";
-                    }
-                    else{
-                        out << "<";
-                    }
-                    out << contig.first;
-                }
-                out << "\t-1\t-1\t-1\t-1\t-1\t255\n";
-            }
-        }
-    }
-
-}
-
-/**
  * @brief Outputs the fasta file
  * 
  * @param allreads vector of all reads (including backbone reads which can be contigs)
@@ -1471,51 +1067,7 @@ void outputTruePar(Partition truePar, std::string id){
     out.close();
 }
 
-/*
-//input: list of suspicious column
-//output: a file written on disk with 0s and 1s
-void outputMatrix(std::vector<Column> &snps, std::vector<size_t> suspectPostitions, string id){
-    
-    string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/matrix_"+id+".tsv";
-    ofstream out(fileOut);
 
-    int nbReads = 0;
-    for (auto c : snps){
-        for (auto pp : c.readIdxs){
-            if (pp > nbReads){
-                nbReads = pp+1;
-            }
-        }
-    }
-
-    vector<vector<int>> matrix (nbReads, vector<int> (suspectPostitions.size(), 0));
-
-    int n = 0;
-
-    for (auto sus : suspectPostitions){
-        auto c =  Partition(snps[sus], 0, snps[sus].content[0]);
-        int n2 = 0;
-        for (auto p : c.getReads()){
-            if (c.getPartition()[n2] == 1){
-                matrix[p][n] = 1;
-            }
-            // else{
-            //     cout << "content : " << c.getPartition()[n2] << " did not ocm ei" << endl;
-            // }
-            n2++;
-        }
-        n++;
-    }
-
-    for (auto line : matrix){
-        for (auto c : line){
-            out << c << "\t";
-        }
-        out << "\n";
-    }
-    out.close();
-}
-*/
 void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, std::string fileOut){
 
     ofstream out(fileOut);

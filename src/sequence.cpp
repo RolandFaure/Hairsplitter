@@ -6,8 +6,6 @@ using std::vector;
 using std::pair;
 using std::string;
 
-extern bool DEBUG; 
-
 Sequence::Sequence(){
 
 }
@@ -69,16 +67,16 @@ Sequence Sequence::reverse_complement() const{
 //takes a subset of a sequence, with argument the position on the sequence and the number of nucleotides
 Sequence Sequence::subseq(int start, int length){
 
-    if (DEBUG){
-        //this verification might be useful for debugging, but it slows down the program
-        if (start*2+length*2 >  s.size()*2){
-            cout << "ERROR in subseq, the sequence is too short " << s.size()*2 << " " << start << " " << length << endl;
-            throw "Problem in subseq function";
-        }
-        if (length < 0){
-            cout << "ERROR in subseq, asking me to do a negative length" << endl;
-        }
-    }
+    // if (DEBUG){
+    //     //this verification might be useful for debugging, but it slows down the program
+    //     if (start*2+length*2 >  s.size()*2){
+    //         cout << "ERROR in subseq, the sequence is too short " << s.size()*2 << " " << start << " " << length << endl;
+    //         throw "Problem in subseq function";
+    //     }
+    //     if (length < 0){
+    //         cout << "ERROR in subseq, asking me to do a negative length" << endl;
+    //     }
+    // }
     vector<bool>::const_iterator st = s.begin() + 2*start;
     vector<bool>::const_iterator f = s.begin() + 2*length+2*start;
     vector<bool> res(st, f);

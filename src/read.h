@@ -45,7 +45,7 @@ public:
     Sequence sequence_;
 
     std::string name;
-    float depth; //coverage of the contig (indicated in the gfa of recomputed from the reads)
+    float depth; //coverage of the contig (indicated in the gfa or recomputed from the reads)
     std::string comments; //comments in the GFA. We don't want to lose them !
 
     void add_overlap(long int o);

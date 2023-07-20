@@ -7,7 +7,6 @@
 #include <sstream>
 #include <cstdio>
 
-#include "edlib.h"
 #include "Partition.h"
 
 std::string convert_cigar(std::string &cigar);
@@ -25,14 +24,18 @@ std::string consensus_reads(
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string &outFolder,
-    std::string &techno);
+    std::string &techno,
+    std::string &MINIMAP, 
+    std::string &RACON);
 
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string &outFolder,
-    std::string &techno
+    std::string &techno,
+    std::string &MINIMAP, 
+    std::string &RACON
 );
 
 #endif

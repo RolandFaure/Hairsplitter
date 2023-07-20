@@ -1,5 +1,6 @@
 #include "tools.h"
 #include "reassemble_unaligned_reads.h"
+#include "edlib/include/edlib.h"
 
 #include <iostream>
 #include <fstream>
@@ -13,11 +14,6 @@ using std::ifstream;
 using std::ofstream;
 using std::min;
 using std::max;
-
-extern string MINIMAP; //path to the minimap executable
-extern string RACON; //path to the racon executable
-extern string HAIRSPLITTER; //path to the hairsplitter folder
-extern bool DEBUG; //running debug mode ?
 
 //input : a CIGAR
 //output : an alignment string where 1 letter = 1 base. i.e. 5M1D1M -> MMMMMIM
@@ -211,12 +207,19 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @param techno the sequencing technology used to generate the reads (ont, pacbio, hifi)
+ * @param MINIMAP path to the minimap2 executable
+ * @param RACON path to the racon executable
  * @return polished sequence 
  */
-string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder, string& techno){
+string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder, string& techno, string &MINIMAP, string &RACON){
     
     if (polishingReads.size() == 0){
         return backbone;
+    }
+
+    //check if the last character of outFolder is a /
+    if (outFolder[outFolder.size()-1] != '/'){
+        outFolder += "/";
     }
 
     system("mkdir tmp/ 2> trash.txt");
@@ -381,7 +384,9 @@ std::string consensus_reads_wtdbg2(
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string &outFolder,
-    std::string &techno
+    std::string &techno,
+    string &MINIMAP, 
+    string &RACON
 ){
 
     //aligns all the reads on backbone to assemble only the interesting parts

@@ -1,10 +1,13 @@
-#include "modify_gfa.h"
+#include "create_new_contigs.h"
+
 #include <algorithm> //for "sort"
 #include <fstream>
 #include <omp.h>
+#include <tuple>
 #include "input_output.h"
 #include "tools.h"
 #include "reassemble_unaligned_reads.h"
+#include "edlib/include/edlib.h"
 
 using std::string;
 using std::cout;
@@ -21,9 +24,100 @@ using std::pair;
 using std::make_pair;
 using std::set;
 using std::to_string;
+using std::stoi;
+using std::stof;
+using std::get; //in tuple
+using std::ofstream;
 
-extern bool DEBUG;
-extern string WTDBG2;
+/**
+ * @brief Parse the file containing the partitions of the reads
+ * 
+ * @param file 
+ * @param allreads 
+ * @param allOverlaps Will be filled by this function
+ * @param partitions Structure that will contain the partitions
+ */
+void parse_split_file(
+    std::string& file, 
+    std::vector <Read> &allreads,
+    std::vector <Overlap> &allOverlaps,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > &partitions){
+
+    robin_hood::unordered_map<std::string, int> name_of_contigs;
+    for (int i = 0 ; i < allreads.size() ; i++){
+        name_of_contigs[allreads[i].name] = i;
+    }
+
+    //open the file
+    std::ifstream infile(file);
+    if (!infile.good()){
+        cerr << "ERROR: could not open file " << file << endl;
+        exit(1);
+    }
+
+    //read the file
+    string line;
+    long int contig;
+    while (std::getline(infile, line)){
+        //read the first field of the line
+        std::istringstream iss(line);
+        string category;
+        iss >> category;
+        if (category == "CONTIG"){
+            //parse the name of the contig
+            string contigName;
+            iss >> contigName;
+            contig = name_of_contigs[contigName];
+            int length;
+            double depth;
+            iss >> length >> depth;
+            allreads[contig].depth = depth;
+            partitions[contig] = {};
+        }
+        else if (category == "READ"){
+            //parse the name of the read
+            string readName;
+            int startRead, endRead, startContig, endContig;
+            bool strand;
+            iss >> readName >> startRead >> endRead >> startContig >> endContig >> strand;
+            long int read = name_of_contigs[readName];
+            //add the overlap between the read and the contig
+            int overlap = allOverlaps.size();
+            Overlap o;
+            o.sequence1 = read;
+            o.sequence2 = contig;
+            o.position_1_1 = startRead;
+            o.position_1_2 = endRead;
+            o.position_2_1 = startContig;
+            o.position_2_2 = endContig;
+            o.strand = strand;
+
+            allOverlaps.push_back(o);
+
+            allreads[read].add_overlap(overlap);
+            allreads[contig].add_overlap(overlap);
+        }
+        else if (category == "GROUP"){
+            //parse the coordinates of the group
+            int start, end;
+            iss >> start >> end;
+            
+            //now parse the partition
+            std::vector<int> partition;
+            string partitionString;
+            iss >> partitionString;
+            // partitionString is a comma-separated list of integers
+            std::istringstream iss2(partitionString);
+            string number;
+            while (std::getline(iss2, number, ',')){
+                partition.push_back(std::stoi(number));
+            }
+
+            //now append to partitions[contig]
+            partitions[contig].push_back(std::make_pair(std::make_pair(start, end), partition));
+        }
+    }
+}
 
 /**
  * @brief Modify the input GFA according to the way the reads have been split.
@@ -43,13 +137,15 @@ void modify_GFA(
     vector <Read> &allreads, 
     vector<unsigned long int> &backbones_reads, 
     vector <Overlap> &allOverlaps,
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::pair<std::vector<int>, std::unordered_map<int, std::string>>  > >> &partitions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > &partitions,
     vector<Link> &allLinks,
-    unordered_map <int, vector<pair<int,int>>> &readLimits, 
     int num_threads,
     string &outFolder, 
     float errorRate,
-    string &techno)
+    string &techno,
+    string &MINIMAP, 
+    string &RACON,
+    bool DEBUG)
     {
 
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
@@ -97,21 +193,20 @@ void modify_GFA(
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
 
-            //if readLimits is not computed, provide an estimation
-            if (readLimits[backbone].size() == 0){
-                for (int neighbor = 0 ; neighbor < allreads[backbone].neighbors_.size() ; neighbor++){
-                    int overlap = allreads[backbone].neighbors_[neighbor];
-                    readLimits[backbone].push_back(std::make_pair(allOverlaps[overlap].position_2_1, allOverlaps[overlap].position_2_2));
-                }
-            }
+            // //if readLimits is not computed, provide an estimation
+            // if (readLimits[backbone].size() == 0){
+            //     for (int neighbor = 0 ; neighbor < allreads[backbone].neighbors_.size() ; neighbor++){
+            //         int overlap = allreads[backbone].neighbors_[neighbor];
+            //         readLimits[backbone].push_back(std::make_pair(allOverlaps[overlap].position_2_1, allOverlaps[overlap].position_2_2));
+            //     }
+            // }
 
             for (int n = 0 ; n < partitions[backbone].size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
-                    std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions[backbone][n].second.first, 
-                                                                            partitions[backbone][n-1].second.first, 
-                                                                            partitions[backbone][n].first.first, 
-                                                                            readLimits[backbone]);
+                    std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions[backbone][n].second, 
+                                                                            partitions[backbone][n-1].second, 
+                                                                            partitions[backbone][n].first.first);
                     // std::unordered_map<int, std::set<int>> stitchRight = stitch(
                     //                                                         partitions[backbone][n-1].second.first,
                     //                                                         partitions[backbone][n].second.first,
@@ -131,14 +226,14 @@ void modify_GFA(
 
                     //make sure all contigs on the left and right are stitched
                     set<int> all_contigs_left;
-                    for (int a : partitions[backbone][n-1].second.first){
+                    for (int a : partitions[backbone][n-1].second){
                         all_contigs_left.emplace(a);
                     }
                     all_contigs_left.erase(-1);
                     all_contigs_left.erase(-2);
 
                     set<int> all_contigs_right;
-                    for (int a : partitions[backbone][n].second.first){
+                    for (int a : partitions[backbone][n].second){
                         all_contigs_right.emplace(a);
                     }
                     all_contigs_right.erase(-1);
@@ -219,7 +314,7 @@ void modify_GFA(
             //compute the depth from the number of aligning reads
             std::pair<int,int> limitsAll= std::make_pair(0, allreads[backbone].sequence_.size()-1);
             vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
-            unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, readLimits[backbone], allreads[backbone].depth);
+            unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, allreads[backbone].depth);
 
             int n = 0;
             for (auto interval : partitions[backbone]){
@@ -255,11 +350,11 @@ void modify_GFA(
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 //taking exactly the right portion of read we need
-                for (int r = 0 ; r < interval.second.first.size(); r++){
-                    if (interval.second.first[r] > -1){
+                for (int r = 0 ; r < interval.second.size(); r++){
+                    if (interval.second[r] > -1){
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
-                        int clust = interval.second.first[r];
+                        int clust = interval.second[r];
                         int limitLeft = max(0,allOverlaps[allreads[backbone].neighbors_[r]].position_1_1-20); //the limit of the read that we should use with a little margin for a clean polish
                         int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
 
@@ -283,14 +378,15 @@ void modify_GFA(
                         }
                     }
                 }
-                if (readsPerPart.size() == 0 && interval.second.first.size() > 0 && interval.second.first[0] <= -1){
+                if (readsPerPart.size() == 0 && interval.second.size() > 0 && interval.second[0] <= -1){
                     readsPerPart[-1] = {}; //so that it defaults back to the consensus
                 }
                 // cout << endl;
 
                 vector<int> futureHangingLinks;
 
-                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second.first, readLimits[backbone], allreads[backbone].depth);
+
+                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
                     int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
@@ -298,26 +394,18 @@ void modify_GFA(
                     int overhangLeft = min(interval.first.first, overhang);
                     int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
-
                     string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
-                        + allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1)
-                        + allreads[backbone].sequence_.str().substr(interval.first.second+1, overhangRight);
+                        + allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first)
+                        + allreads[backbone].sequence_.str().substr(interval.first.second, overhangRight);
 
                     // cout << "toPolisssdcvh: " << toPolish << endl;
 
                     string newcontig = "";
                     if (readsPerPart.size() > 1){
 
-                        // if (newcontig == "" && errorRate < 0.02 && WTDBG2 != "no_wtdbg2"){ //for HiFi reads and low coverage, wtdbg2 does a better polishing than racon
-                        //     newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder);
-                        // }
-
+                        newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
                         if (newcontig == ""){
-                            // cout << "In modify gfa, assembly with wtdbg2 failed" << endl;
-                            newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder, techno);
-                            if (newcontig == ""){
-                                continue;
-                            }
+                            continue;
                         }
 
                         EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
@@ -355,12 +443,17 @@ void modify_GFA(
                         edlibFreeAlignResult(result);                        
                     }
                     else {
-                        newcontig = interval.second.second[group.first];
+                        newcontig = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
                     }
 
                     Read r(newcontig, newcontig.size());
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
-                    r.depth = newdepths[group.first];
+                    if (readsPerPart.size() > 1){
+                        r.depth = newdepths[group.first];
+                    }
+                    else {
+                        r.depth = allreads[backbone].depth;
+                    }
 
                     // cout << "dqfoiuc creating contig " << r.name << endl;
                     // if (r.name == "s0.ctg000001l@1_84000_2"){
@@ -435,7 +528,13 @@ void modify_GFA(
             }
             //now wrap up the right of the contig
             int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
-            string right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
+            string right;
+            if (left < allreads[backbone].sequence_.size()){
+                right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
+            }
+            else {
+                right = "";
+            }
             std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
             string contig = right;
             
@@ -531,7 +630,7 @@ void modify_GFA(
  * @param readLimits limits of the reads in the backbone (so that reads that are not on the position of the stitch are not considered)
  * @return unordered_map<int, set<int>> map associating a set of partitions of neighbor matching each partition of par
  */
-unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int position, vector<pair<int,int>> &readLimits){
+unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int position){
 
     unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
     unordered_map<int, unordered_map<int,int>> fit_right; //each parts maps to what right part ?
@@ -542,7 +641,7 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
         // if (par[r] == 1 && position == 64000){
         //     cout << "parttiion " << par[r] << " neighbor " << neighbor[r] << endl;
         // }
-        if (par[r] > -1 && neighbor[r] > -1 && readLimits[r].first <= position && readLimits[r].second >= position){
+        if (par[r] > -1 && neighbor[r] > -1){
             if (fit_left.find(par[r]) != fit_left.end()){
                 if (fit_left[par[r]].find(neighbor[r]) != fit_left[par[r]].end()){
                     fit_left[par[r]][neighbor[r]] += 1;
@@ -605,7 +704,7 @@ unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int
 
 //input : an interval, the list of the limits of the reads on the backbone, the depth of the contig of origin
 //output : the recomputed read coverage for each of the new contigs, (scaled so that the total is the original depth)
-std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<std::pair<int,int>>& readBorders, double originalDepth){
+std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, double originalDepth){
 
     unordered_map <int, double> newCoverage;
     int lengthOfInterval = limits.second-limits.first+1; //+1 to make sure we do not divide by 0
@@ -616,7 +715,7 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
             newCoverage[partition[c]] = 0;
         }
 
-        newCoverage[partition[c]] += max(0.0, double(min(limits.second, readBorders[c].second)-max(limits.first, readBorders[c].first))/lengthOfInterval );
+        newCoverage[partition[c]] += max(0.0, double(limits.second-limits.first)/lengthOfInterval );
 
     }
 
@@ -641,4 +740,365 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
     return newCoverage;
 
 }
+
+/**
+ * @brief Creates the GAF corresponding to the mapping of the reads on the new GFA
+ * 
+ * @param allreads vector of all reads (including backbone reads which can be contigs)
+ * @param backbone_reads vector of all the indices of the backbone reads in allreads
+ * @param allLinks vector of all links of the GFA
+ * @param allOverlaps vector of all overlaps between backbone reads and normal reads
+ * @param partitions contains all the conclusions of the separate_reads algorithm
+ * @param outputGAF name of the output file
+ */
+typedef std::tuple<int, vector<pair<string, bool>>, long int> Path; //a path is a starting position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
+void output_GAF(
+    std::vector <Read> &allreads, 
+    std::vector<unsigned long int> &backbone_reads, 
+    std::vector<Link> &allLinks, 
+    std::vector <Overlap> &allOverlaps,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>  > >> &partitions,
+    std::string outputGAF){
+
+    vector<vector<Path>> readPaths (allreads.size()); //to each read we associate a path on the graph
+
+    int max_backbone = backbone_reads.size(); 
+    for (int b = 0 ; b < max_backbone ; b++){
+
+        // cout << "here are the intervals of the partioin" << endl;
+        // for (auto i : partitions[backbone_reads[b]]){
+        //     cout << i.first.first << " " << i.first.second << " : ";
+        //     for (auto j : i.second){
+        //         cout << j << " ";
+        //     }
+        //     cout << endl;
+        // }
+
+        long int backbone = backbone_reads[b];
+
+        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0){
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+
+
+                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
+
+                long int read;
+                long int end;
+                int start = -1;
+
+                if (ov.sequence1 != backbone){
+                    read = ov.sequence1;
+                    start = ov.position_1_1;
+                    end = ov.position_1_2;
+                }
+                else{
+                    read = ov.sequence2;
+                    start = min(ov.position_2_1, ov.position_2_2);
+                    end = max(ov.position_2_1, ov.position_2_2);
+                }
+
+                //go through all the intervals and see through which version this read passes
+                vector<pair<string, bool>> sequence_of_traversed_contigs; //string corresponds to the name of the contig, bool is true if the contig is traversed in the same orientation as the read
+                short stop = 0;
+                bool firsthere = false;
+                bool lasthere = false;
+                int inter = 0;
+                for (auto interval : partitions[backbone]){
+
+                    if (interval.second[n] > -1 && stop < 2){
+                        // if (allreads[read].name == ">0_read4" || allreads[read].name.substr(0,6) == "@fa270"){
+                        //     // cout << "read " << allreads[read].name << " passes input_output yyu through " << interval.first.first << " " << interval.first.second << " " << interval.second[n] << endl;
+                        //     // for (auto i : interval.second.first){
+                        //     //     if (i != -2){
+                        //     //         cout << i << " ";
+                        //     //     }
+                        //     // }
+                        //     // cout << endl;
+                        // }
+                        sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(interval.first.first)+"_"+std::to_string(interval.second[n])
+                            , ov.strand));
+                        if (inter == 0){
+                            firsthere = true;
+                        }
+                        stop = 1;
+
+                        // if (stop){ //you have one read that was lost just before !
+                        //     cout << "WHOUOU: revival here of reads " << ov.sequence1 << endl;
+                        // }
+                    }
+                    else if (stop == 1){
+                        stop = 2;
+                    }
+                    inter++;
+                }
+                //last contig
+                if (stop < 2){
+                    lasthere = true;
+                    int right = partitions[backbone][partitions[backbone].size()-1].first.second+1;
+                    sequence_of_traversed_contigs.push_back(make_pair(allreads[backbone].name+"_"+std::to_string(right)+"_0"
+                            , ov.strand));
+                }
+
+                if (!ov.strand){ //then mirror the vector
+                    std::reverse(sequence_of_traversed_contigs.begin(), sequence_of_traversed_contigs.end());
+                }
+
+                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
+                    sequence_of_traversed_contigs.push_back(make_pair("&", ov.strand));
+                }
+                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
+                    sequence_of_traversed_contigs.push_back(make_pair("+", ov.strand));
+                }
+                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
+                    sequence_of_traversed_contigs.push_back(make_pair("-", ov.strand));
+                }
+                
+                if (sequence_of_traversed_contigs.size()>0){ //this should almost always be true, but it's still safer to test
+                    Path path = make_tuple(start,sequence_of_traversed_contigs, backbone);
+                    // if (allreads[read].name.substr(0,6) == "@d5282"){
+                    //     cout << "d5282 is a readdd, path :: "<< endl;
+                    //     for (auto p : get<1>(path)){
+                    //         cout << p.first << " " << p.second << endl;
+                    //     }
+
+                    // }
+                    readPaths[read].push_back(path);
+                }
+                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
+                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << " " <<  << endl;
+                // }
+            }
+        }
+        else{
+            for (int n = 0 ; n < allreads[backbone].neighbors_.size() ; n++){
+                auto ov = allOverlaps[allreads[backbone].neighbors_[n]];
+                long int read;
+                int start = -1;
+                int end = -1;
+
+                bool lasthere = false;
+                bool firsthere = false;
+                if (ov.sequence1 != backbone){
+                    read = ov.sequence1;
+                    start = ov.position_1_1;
+                    end = ov.position_1_2;
+                }
+                else{
+                    read = ov.sequence2;
+                    start = ov.position_2_1;
+                    end = ov.position_2_2;
+                }
+
+                if (start > 100){
+                    firsthere = true;
+                }
+                if (end < allreads[read].size()-100){
+                    lasthere = true;
+                }
+                
+                vector<pair<string, bool>> v = {make_pair(allreads[backbone].name, ov.strand)};
+                if (((ov.strand && !lasthere) || (!ov.strand && !firsthere)) && ((ov.strand && !firsthere) || (!ov.strand && !lasthere))){ //mark if the read does not extend to either end
+                    v.push_back(make_pair("&", ov.strand));
+                }
+                else if ((ov.strand && !lasthere) || (!ov.strand && !firsthere)){ //mark if the read does not extend to the end
+                    v.push_back(make_pair("+", ov.strand));
+                }
+                else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
+                    v.push_back(make_pair("-", ov.strand));
+                }
+                Path contigpath = make_tuple(start,v, backbone);
+                readPaths[read].push_back(contigpath);
+
+                // cout << "bbb ds " << allreads[backbone_reads[b]].name << endl;
+                // if ("edge_4" == allreads[backbone_reads[b]].name){// && allreads[read].name.substr(0,19) == ">SRR14289618.827569"){
+                //     cout << "on backbone qdsfj is aligned " << allreads[read].name.substr(0, 19) << endl;
+                // }
+            }
+        }
+    }
+
+
+    //now merge the paths that were on different contigs
+    for (auto r = 0 ; r < readPaths.size() ; r++){
+
+        if (readPaths[r].size() > 0){
+
+            std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
+            
+            // if (allreads[r].name.substr(0,19) == ">SRR14289618.827569"){
+
+            //     cout << "on backbone 228 is feed aligned " << allreads[r].name.substr(0, 19) << endl;
+            //     for (auto p = 0 ; p < readPaths[r].size() ; p++){
+            //         Path path = readPaths[r][p];
+            //         cout << "path " << p << " : ";
+            //         auto contigs = get<1>(path);
+            //         for (auto c : contigs){
+            //             cout << c.first << " ";
+            //         }
+            //         cout << ", beginning on read : " << get<0>(path) << endl;
+            //     }
+            //     // exit(1);
+            // }
+
+            vector<Path> mergedPaths;
+            Path currentPath = readPaths[r][0];
+            //check if each path can be merged with next path
+            for (auto p = 0 ; p<readPaths[r].size()-1 ; p++){
+
+                long int contig = get<2> (currentPath);
+                bool orientation = get<1>(currentPath)[get<1>(currentPath).size()-1].second;
+                long int nextContig = get<2> (readPaths[r][p+1]);
+
+                if (contig != nextContig){
+
+                    vector<size_t> links;
+                    if (orientation){
+                        links = allreads[contig].get_links_right();
+                    }
+                    else{
+                        links = allreads[contig].get_links_left();
+                    }
+
+
+                    bool merge = false;
+                    for (auto li : links){
+                        Link l = allLinks[li];
+                        if (l.neighbor1 == nextContig || l.neighbor2 == nextContig){ //then merge
+                            if ((l.end1==l.end2 && get<1>(readPaths[r][p+1])[0].second != orientation) 
+                                || (l.end1!=l.end2 && get<1>(readPaths[r][p+1])[0].second == orientation)){
+                                merge = true;
+                            }
+                        }
+                    }
+
+                    //if & in name, there is a cut there
+                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+                    char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
+                    if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
+                        merge = false;
+                    }
+                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+                    }
+
+                    if (merge){
+                        // if (get<1>(currentPath)[0].first.substr(0,12) == "edge_235@0@0" || get<1>(currentPath)[0].first.substr(0,12) == "edge_510@0@0"){
+                        //     cout << "current path : " << endl;
+                        //     for (auto p : get<1>(currentPath)){
+                        //         cout << p.first << " " << p.second << endl;
+                        //     }
+                        //     cout << "merging 235 with path : in read " << r << endl;
+                        //     for (auto p : get<1>(readPaths[r][p+1])){
+                        //         cout << p.first << " " << p.second << endl;
+                        //     }
+                        // }
+                        get<1>(currentPath).insert(get<1>(currentPath).end(), get<1> (readPaths[r][p+1]).begin(), get<1> (readPaths[r][p+1]).end());
+                        get<2>(currentPath) = get<2> (readPaths[r][p+1]);
+                    }
+                    else{
+                        mergedPaths.push_back(currentPath);
+                        currentPath = readPaths[r][p+1];
+                    }
+
+                }
+                else{
+                    char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+                    if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                        get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+                    }
+                    mergedPaths.push_back(currentPath);
+                    currentPath = readPaths[r][p+1];
+                }
+            }
+            //if & in name, delete it
+            char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
+            if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
+                get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+            }
+
+            mergedPaths.push_back(currentPath);
+
+            readPaths[r] = mergedPaths;
+        }
+
+    }
+
+    //now the paths have been determined, output the file
+    ofstream out(outputGAF);
+    for (auto p = 0 ; p < readPaths.size() ; p++){
+        for (Path path : readPaths[p]){
+            if (get<1>(path).size() > 0){
+                //output the path
+                out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
+                for (auto contig : get<1>(path)){
+                    if (contig.second){
+                        out << ">";
+                    }
+                    else{
+                        out << "<";
+                    }
+                    out << contig.first;
+                }
+                out << "\t-1\t-1\t-1\t-1\t-1\t255\n";
+            }
+        }
+    }
+
+}
+
+int main(int argc, char *argv[])
+{
+    //parse the command line arguments
+    if (argc != 13){
+        std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> "
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <path_to_minimap> <path-to-racon> <debug>" << std::endl;
+        cout << argc << endl;
+        return 1;
+    }
+    string original_assembly = argv[1];
+    string reads_file = argv[2];
+    float error_rate = stof(argv[3]);
+    string split_file = argv[4];
+    string tmpFolder = argv[5];
+    int num_threads = stoi(argv[6]);
+    string technology = argv[7];
+    string output_graph = argv[8];
+    string outputGAF = argv[9];
+    string MINIMAP = argv[10];
+    string RACON = argv[11];
+    bool DEBUG = bool(stoi(argv[12]));
+
+
+    vector <Link> allLinks;
+    std::vector <Overlap> allOverlaps;
+    std::vector <Read> allreads; 
+    robin_hood::unordered_map<std::string, unsigned long int> indices;
+    vector<unsigned long int> backbone_reads;
+
+    parse_reads(reads_file, allreads, indices);
+    parse_assembly(original_assembly, allreads, indices, backbone_reads, allLinks);
+
+    //now parse the split file
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > partitions;
+    parse_split_file(split_file, allreads, allOverlaps, partitions);
+
+    cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
+    output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
+
+    cout << " - Creating the new contigs" << endl;
+    modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, tmpFolder, error_rate, technology, MINIMAP, RACON, DEBUG);
+    output_GFA(allreads, backbone_reads, output_graph, allLinks);
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
 

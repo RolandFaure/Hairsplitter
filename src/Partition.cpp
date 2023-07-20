@@ -28,6 +28,58 @@ Partition::Partition(){
     pos_right = -1;
 }
 
+Partition::Partition(Column& snp, int pos, unsigned char ref_base){
+
+    pos_left = pos;
+    pos_right = pos;
+    conf_score = 0;
+
+    readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
+
+    //count the number of different chars in the column
+    robin_hood::unordered_map<unsigned char, int> content;
+    for (int c = 0 ; c < snp.content.size() ; c++){
+        if (content.find(snp.content[c]) == content.end()){
+            content[snp.content[c]] = 1;
+        }
+        else{
+            content[snp.content[c]] += 1;
+        }
+    }
+
+    //now find the two most frequent char in content
+
+    unsigned char mostFrequent = ref_base;
+    auto maxFrequence = content[ref_base];
+    //now find the second most frequent base
+    unsigned char secondFrequent;
+    int maxFrequence2 = -1;
+    for (auto c : content){
+        if (ref_base != c.first) {
+            if (c.second > maxFrequence2){
+                secondFrequent = c.first;
+                maxFrequence2 = c.second;
+            }
+        }
+    }
+
+    for (auto i = 0 ; i < snp.content.size() ; i++){
+        if (snp.content[i] == mostFrequent){
+            mostFrequentBases.push_back(1); 
+        }
+        else if (snp.content[i] == secondFrequent){
+            mostFrequentBases.push_back(-1);
+        }
+        else{
+            mostFrequentBases.push_back(0);
+        }
+        lessFrequence.push_back(0);
+        moreFrequence.push_back(1);
+    }
+
+    numberOfOccurences = 1;
+}
+
 Partition::Partition(Column& snp, int pos, vector<bool> &mask, unsigned char ref_base){
 
     pos_left = pos;
@@ -941,7 +993,7 @@ void print_snp(Column snp, vector<bool> &mask){
     for (short n = 0 ; n < snp.content.size() ; n++){
         while(maskidx < snp.readIdxs[n]){
             if (mask[maskidx]){
-                // cout << "_";
+                cout << "_";
             }
             maskidx++;
         }
