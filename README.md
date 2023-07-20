@@ -1,8 +1,8 @@
-![HS_logo](https://github.com/RolandFaure/HairSplitter/HS_logo.png)
+![HS_logo](HS_logo.png)
 
 Splits contigs into their different haplotypes (or repeats into their different versions).
 
-*For developers working on similar problems:* HairSplitter is puposefully built as a series of modules that could be integrated in other software. See the [How does it work section] (#work) and do not hesitate to contact me.
+*For developers working on similar problems:* HairSplitter is puposefully built as a series of modules that could be integrated in other software. See the [How does it work section](#work) and do not hesitate to contact me.
 
 # What is Hairsplitter ?
 
