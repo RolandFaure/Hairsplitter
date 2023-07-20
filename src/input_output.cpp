@@ -60,12 +60,6 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
         if (line[0] == format && buffer.size() > 0){
             //then first we append the last read we saw
-            // Read r(buffer[1]);
-            Read r("", buffer[1].size()); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
-            r.name = buffer[0];
-            r.set_position_in_file(lastoffset+buffer[0].size()+1);
-            lastoffset = offset;
-            allreads.push_back(r);
 
             ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
             string nameOfSequence = "";
@@ -77,6 +71,12 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
                     nameOfSequence.push_back(buffer[0][i]);
                 }
             }
+
+            Read r("", buffer[1].size()); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
+            r.name = nameOfSequence;
+            r.set_position_in_file(lastoffset+buffer[0].size()+1);
+            lastoffset = offset;
+            allreads.push_back(r);
 
             ///link the minimap name to the index in allreads
             indices[nameOfSequence] = sequenceID;

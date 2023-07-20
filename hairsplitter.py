@@ -176,7 +176,7 @@ def main():
     if args.debug:
         flag_debug = "1"
     command = path_to_src + "build/call_variants " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
-        + flag_debug + " " + tmp_dir + "/variants.txt"
+        + flag_debug + " " + tmp_dir + "/variants.col"
     # print(" - Calling variants with a basic pileup")
     res_call_variants = os.system(command)
     if res_call_variants != 0:
@@ -190,8 +190,8 @@ def main():
 
     print("\n===== STAGE 4: Filtering variants\n")
 
-    command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.txt " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
-        + " " + tmp_dir + "/filtered_variants.txt"
+    command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
+        + " " + tmp_dir + "/filtered_variants.col"
     print(" - Filtering variants")
     # print("Command  : ", command)
     res_filter_variants = os.system(command)
@@ -202,7 +202,7 @@ def main():
     print("\n===== STAGE 5: Separating reads by haplotype of origin\n")
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
-    command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.txt " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
+    command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
         + " " + tmp_dir + "/reads_haplo.txt"
     print(" - Separating reads by haplotype of origin")
     # print("Command  : ", command)

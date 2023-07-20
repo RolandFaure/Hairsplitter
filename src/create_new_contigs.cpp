@@ -1050,7 +1050,7 @@ int main(int argc, char *argv[])
 {
     //parse the command line arguments
     if (argc != 13){
-        std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> "
+        std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> "
                 <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <path_to_minimap> <path-to-racon> <debug>" << std::endl;
         cout << argc << endl;
         return 1;
