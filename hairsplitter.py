@@ -3,12 +3,14 @@
 """
 HairSplitter takes as input a collapsed assembly and a set of long reads and outputs an uncollapsed assembly.
 This is the master file that calls all the other scripts.
+Author: Roland Faure
 
 """
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
 __version__ = "1.3.0"
+__date__ = "2023-07-20"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "RolandFaure/HairSplitter"
@@ -33,7 +35,6 @@ def parse_args():
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
-    parser.add_argument("--path_to_wtdbg2", help="Path to wtdbg2. [wtdbg2]", default="wtdbg2")
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
@@ -79,7 +80,7 @@ def main():
 
     #print the command line used to run HairSplitter
     print(" ".join(sys.argv))
-    print("HairSplitter v"+__version__+" ("+__github__+")")
+    print("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__)
     if args.version:
         sys.exit(0)
 

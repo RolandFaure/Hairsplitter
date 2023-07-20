@@ -8,8 +8,8 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 # Why is it useful ?
 
-`Hairsplitter` can be used to refine a metagenomic assembly. Assemblers commonly collapse closely related strains as on single genome. HairSplitter can recover the lost strains.
-`HairSplitter` is also useful for single-organism assembly, especially if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
+`Hairsplitter` can be used to refine a metagenomic assembly. Assemblers commonly collapse closely related strains as on single genome. HairSplitter can recover the lost strains. The uncollapsed parts of the assembly are left as is.
+`HairSplitter` is also useful for single-organism assembly, especially if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameter-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
 
 # Installation
 
@@ -40,10 +40,9 @@ If Minimap2, Racon or samtools are not in the PATH, their location should be spe
 To download and compile, run
 ```
 git clone https://github.com/RolandFaure/Hairsplitter.git
-cd Hairsplitter
-mkdir build
-cd build
-cmake .. -DCMAKE_CXX_COMPILER=/path/to/g++ -DCMAKE_C_COMPILER=/path/to/gcc
+cd Hairsplitter/src
+mkdir build && cd build
+cmake ..
 make
 ```
 
@@ -51,9 +50,9 @@ make
 
 ## Quick start
 
-Let's say `reads.fastq` (any long reads) were used to build assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase the assembly using `Hairsplitter`, run
+Let's say `reads.fastq` (ONT reads) were used to build assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase the assembly using `Hairsplitter`, run
 ```
-Hairsplitter -f reads.fastq -i assembly.gfa -o hairsplitter_out/
+python hairsplitter.py -f reads.fastq -i assembly.gfa -x ont -o hairsplitter_out/
 ```
 
 In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
@@ -61,42 +60,32 @@ In the folder hairsplitter_out, you will find the new assembly, named `hairsplit
 ## Options
 
 ```bash
-SYNOPSIS
-        Hairsplitter -f <raw reads> -i <assembly> -o <output assembly> [-a
-                                   <aligned reads>] [-q <output GAF>] [-p] [-t <threads>] [-s]
-                                   [--path-to-minimap2 <path to minimap2>] [--path-to-miniasm <path
-                                   to miniasm>] [--path-to-racon <path to racon>]
-                                   [--path-to-graphunzip <path to graphunzip>]
+usage: hairsplitter.py [-h] -i ASSEMBLY -f FASTQ [-x TECHNOLOGY] [-t THREADS] [-s] -o OUTPUT [-F] [--path_to_minimap2 PATH_TO_MINIMAP2]
+                       [--path_to_racon PATH_TO_RACON] [--path_to_samtools PATH_TO_SAMTOOLS] [-d] [-v]
 
-OPTIONS
-        -f, --fastq Sequencing reads (required)
-        -i, --assembly
-                    Original assembly in GFA or FASTA format (required)
+optional arguments:
+  -h, --help            show this help message and exit
+  -i ASSEMBLY, --assembly ASSEMBLY
+                        Original assembly in GFA or FASTA format (required)
+  -f FASTQ, --fastq FASTQ
+                        Sequencing reads fasta/q (required)
+  -x TECHNOLOGY, --technology TECHNOLOGY
+                        {ont, pacbio, hifi} [ont]
+  -t THREADS, --threads THREADS
+                        Number of threads [1]
+  -s, --dont_simplify   Don't rename the contigs and don't merge them
+  -o OUTPUT, --output OUTPUT
+                        Output directory
+  -F, --force           Force overwrite of output folder if it exists
+  --path_to_minimap2 PATH_TO_MINIMAP2
+                        Path to the executable minimap2 [minimap2]
+  --path_to_racon PATH_TO_RACON
+                        Path to the executable racon [racon]
+  --path_to_samtools PATH_TO_SAMTOOLS
+                        Path to samtools [samtools]
+  -d, --debug           Debug mode
+  -v, --version         Print version and exit
 
-        -o, --output
-                    Output directory (required)
-
-        -a, --aln-on-asm
-                    Reads aligned on assembly (SAM format) (not recommended)
-
-        -q, --output-read-groups
-                    Output read groups (txt format)
-
-        -p, --polish
-                    Use this option if the input assembly is not polished
-
-        -s, --dont_simplify
-                    Don't rename the contigs and don't merge them
-
-        --path-to-minimap2
-                    Path to the executable minimap2 (if not in PATH)
-
-        --path-to-racon
-                    Path to the executable racon (if not in PATH)
-
-        -F, --force Force overwrite of output folder if it exists
-        -t, --threads
-                    Number of threads
 ```
 
 # Issues
