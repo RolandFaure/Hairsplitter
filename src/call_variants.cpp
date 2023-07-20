@@ -50,7 +50,7 @@ float generate_msa(
 
     //keep count of the distance between two reads to know the mean distance
     float totalDistance = 0;
-    double totalLengthOfAlignment = 0;
+    double totalLengthOfAlignment = 1; //1 to avoid dividing by 0
 
     //to remember on what backbone the backbone read is leaning -> itself
     allreads[bbcontig].new_backbone(make_pair(backboneReadIndex, allreads[bbcontig].neighbors_.size()), allreads[bbcontig].neighbors_.size()+1);
@@ -617,6 +617,7 @@ int main(int argc, char *argv[])
 
     int index = 0;
     float totalErrorRate = 0;
+    int numberOfContigsWHereErrorRateIsComputed = 0;
 
     omp_set_num_threads(num_threads);
     #pragma omp parallel
@@ -649,7 +650,10 @@ int main(int argc, char *argv[])
                 
                 #pragma omp critical
                 {
-                    totalErrorRate += meanDistance;
+                    if (meanDistance > 0){ //to avoid contigs with no reads aligned
+                        totalErrorRate += meanDistance;
+                        numberOfContigsWHereErrorRateIsComputed += 1;
+                    }
                 }
                 
 
@@ -681,7 +685,7 @@ int main(int argc, char *argv[])
     //output the errorRate
     std::ofstream errorRateFile;
     errorRateFile.open(error_rate_out);
-    errorRateFile << totalErrorRate/backbone_reads.size() << endl;
+    errorRateFile << totalErrorRate/numberOfContigsWHereErrorRateIsComputed << endl;
     errorRateFile.close();
 
     return 0;

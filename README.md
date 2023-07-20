@@ -1,6 +1,8 @@
-# Hairsplitter
+![HS_logo](https://github.com/RolandFaure/HairSplitter/HS_logo.png)
 
 Splits contigs into their different haplotypes (or repeats into their different versions).
+
+*For developers working on similar problems:* HairSplitter is puposefully built as a series of modules that could be integrated in other software. See the [How does it work section] (#work) and do not hesitate to contact me.
 
 # What is Hairsplitter ?
 
@@ -90,6 +92,34 @@ optional arguments:
 
 # Issues
  Most installation issues that we have seen yet stem from the use of too old compilers. Hairsplitter has been developed using gcc=11.2.0. Sometimes the default version of the compiler is too old (especially on servers). Specify gcc versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+ 
+ <a name="work">
+</a>
+# How does it work ?
+
+HairSplitter is organized as series of modules, some of these modules being of independant interest. The full documentation can be found in the doc/ folder.
+
+1. *Cleaning the assembly* Ideally, the assembly would be purged of all assembly errors. In practice, ensure there is no over-duplication by deleting unconnected contigs that align very well on other contigs.
+
+2. *Calling variants* Variants are called using an alignment of the reads on the assembly. For now, a basic pileup is used. Calling variants in a metagenomic context is hard: favor calling false variants over missing true variants - the false variants will be filtered afterward.
+
+3. *Filtering variants* This step is crucial. Each called variant partition the reads in groups. Keep only variants which partition occur frequently, because this cannot be chance. This way, only very robust variant are kept.
+
+4. *Separating the reads* Based on the robust variants, HairSplitter inspect each contig and determine if several distinct groups of reads align there. If it is the case, it means that several different versions of the contig exist.
+
+5. *Creating the new contigs* Create every new contig by polishing the existing contig using the several groups of reads.
+
+6. *Improving contiguity* Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
+ 
+# Citation
+ A preprint will very soon be available online. Until then, you can cite the poster presented at _Genome Informatics 2022_ (https://hal.science/hal-03817928/document):
+ ``
+Roland Faure, Jean-François Flot, Dominique Lavenier. Hairsplitter: Separating noisy long reads into
+an unknown number of haplotypes. Genome Informatics 2022, Sep 2022, London / Virtual, United
+Kingdom. pp.1-1. hal-03817928
+ ``
+ 
+ 
 
 
 

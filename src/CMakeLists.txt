@@ -133,7 +133,7 @@ target_compile_options (create_new_contigs PRIVATE -march=x86-64)
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
+    # target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(call_variants PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(filter_variants PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(separate_reads PRIVATE OpenMP::OpenMP_CXX)
