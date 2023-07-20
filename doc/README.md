@@ -7,17 +7,27 @@ Do not hesitate to use the issues of the github to suggest improvements or new f
 
 HairSplitter is organized as series of modules, some of these modules being of independant interest. 
 
-1. *Cleaning the assembly* Ideally, the assembly would be purged of all assembly errors. In practice, ensure there is no over-duplication by deleting unconnected contigs that align very well on other contigs.
+1. *Cleaning the assembly*. Ideally, the assembly would be purged of all assembly errors. In practice, ensure there is no over-duplication by deleting unconnected contigs that align very well on other contigs.
 
-2. *Calling variants* Variants are called using an alignment of the reads on the assembly. For now, a basic pileup is used. Calling variants in a metagenomic context is hard: favor calling false variants over missing true variants - the false variants will be filtered afterward.
+2. *Calling variants*. Variants are called using an alignment of the reads on the assembly. For now, a basic pileup is used. Calling variants in a metagenomic context is hard: favor calling false variants over missing true variants - the false variants will be filtered afterward.
 
-3. *Filtering variants* This step is crucial. Each called variant partition the reads in groups. Keep only variants which partition occur frequently, because this cannot be chance. This way, only very robust variant are kept.
+3. *Filtering variants*. This step is crucial. Each called variant partition the reads in groups. Keep only variants which partition occur frequently, because this cannot be chance. This way, only very robust variant are kept.
 
-4. *Separating the reads* Based on the robust variants, HairSplitter inspect each contig and determine if several distinct groups of reads align there. If it is the case, it means that several different versions of the contig exist.
+4. *Separating the reads*. Based on the robust variants, HairSplitter inspect each contig and determine if several distinct groups of reads align there. If it is the case, it means that several different versions of the contig exist.
 
-5. *Creating the new contigs* Create every new contig by polishing the existing contig using the several groups of reads.
+5. *Creating the new contigs*. Create every new contig by polishing the existing contig using the several groups of reads.
 
-6. *Improving contiguity* Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
+6. *Improving contiguity*. Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
 
+## Module: cleaning the assembly
 
+```
+Usage: clean_graph <assemblyFile> <newAssembly> <outputFolder> <logFile> <threads> <path_to_minimap>
+```
+**assemblyFile** Original assembly in GFA format
+**newAssembly** Output, in GFA format
+**outputFolder** Folder to store temporary file (typically alignment files)
+**logFile** File to write what clean_graph does
+**threads** Number of threads
+**path_to_minimap** Path to executable minimap2
 

@@ -95,6 +95,7 @@ optional arguments:
  
  <a name="work">
 </a>
+
 # How does it work ?
 
 HairSplitter is organized as series of modules, some of these modules being of independant interest. The full documentation can be found in the doc/ folder.
