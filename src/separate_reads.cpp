@@ -438,7 +438,6 @@ int main(int argc, char *argv[]){
 
             if (suspectPostitionIdx >= snps.size() || snps[suspectPostitionIdx].pos > (chunk+1)*sizeOfWindow){
                 //no snp in this window, just add the reads, with -2 for the reads that are not here and 0 for the reads that are here
-                cout << "sepatate reads qsklfmljkm dsqjio  f,qlk " << chunk*sizeOfWindow << endl;
                 vector<int> readsHere (numberOfReadsHere, -2);
                 for (auto r = 0 ; r < readLimits[n].size() ; r++){
                     int pointLeft = chunk*sizeOfWindow;
