@@ -1,5 +1,5 @@
 #include "tools.h"
-#include "reassemble_unaligned_reads.h"
+// #include "reassemble_unaligned_reads.h"
 #include "edlib/include/edlib.h"
 
 #include <iostream>
@@ -386,7 +386,9 @@ std::string consensus_reads_wtdbg2(
     std::string &outFolder,
     std::string &techno,
     string &MINIMAP, 
-    string &RACON
+    string &RACON,
+    string &SAMTOOLS,
+    string &WTDBG2
 ){
 
     //aligns all the reads on backbone to assemble only the interesting parts
@@ -489,7 +491,7 @@ std::string consensus_reads_wtdbg2(
     o.close();
 
     string unpolished = outFolder +"unpolished_"+id+".fasta";
-    assemble_with_wtdbg2(fileReads, outFolder, unpolished, id);
+    assemble_with_wtdbg2(fileReads, outFolder, unpolished, id, WTDBG2, MINIMAP, SAMTOOLS);
     //get the result
     string resultFile = outFolder+"/wtdbg2_"+id+".fa";
     std::ifstream assembled(resultFile);
@@ -513,4 +515,73 @@ std::string consensus_reads_wtdbg2(
 }
 
 
+/**
+ * @brief Assemble and a polish a file of reads using wtdbg2
+ * 
+ * @param fileReads All the reads to assemble
+ * @param outputFolder 
+ * @param ref File to the reference
+ * @param num_threads 
+ */
+void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std::string &ref, std::string id, std::string &WTDBG2, std::string &MINIMAP, std::string &SAMTOOLS){
+
+    auto lastslash = WTDBG2.find_last_of("/");
+    if (lastslash == string::npos){
+        lastslash = 0;
+    }
+    string wtdbg2_folder = WTDBG2.substr(0, lastslash);
+
+    if (ref == ""){
+        string comAsm = wtdbg2_folder+ "/wtdbg2 -A -e 1 -l 200 -L 0 -S 100 --no-read-clip --no-chainning-clip --ctg-min-length 200 --ctg-min-nodes 0 -R -o "
+                                + outputFolder + "wtdbg2_"+id+" -i " + fileReads + " 2>"+outputFolder+"trash.txt";
+        auto res = system(comAsm.c_str());
+        if (res != 0){
+            cout << "ERROR wtdbg2 failed, while running " << comAsm << endl;
+            exit(1);
+        }
+
+        string cons_wtdbg2 = wtdbg2_folder+"/wtpoa-cns -t 1 -i " + outputFolder + "wtdbg2_"+id+".ctg.lay.gz -fo " + outputFolder + "dbg_"+id+".raw.fa 2>tmp/trash.txt";
+        int res_wtdbg2 = system(cons_wtdbg2.c_str());
+        ref = outputFolder + "dbg_"+id+".raw.fa";
+    }
+
+    // polish consensus, not necessary if you want to polish the assemblies using other tools
+    // string comMap = MINIMAP+" -ax map-pb -r2k " + outputFolder + "dbg_"+id+".raw.fa " + fileReads + " 2>" + outputFolder + "trash.txt | "
+    //                     +SAMTOOLS+" sort >" + outputFolder + "dbg_"+id+".bam 2>" + outputFolder + "trash.txt";
+    string comMap = MINIMAP+" -ax map-pb " + ref + " " + fileReads + " 2>" + outputFolder + "trash.txt | "
+                        + SAMTOOLS+" sort >" + outputFolder + "dbg_"+id+".bam 2>" + outputFolder + "trash.txt";
+    auto res = system(comMap.c_str());
+    if (res != 0){
+        cout << "ERROR minimap2 failed tt, while running " << comMap << endl;
+        exit(1);
+    }
+
+    // string comSamtools = SAMTOOLS+" view -F0x900 " + outputFolder + "dbg_"+id+".bam 2>" + outputFolder + "trash.txt | "
+    //                 +wtdbg2_folder+"/wtpoa-cns -d " + outputFolder + "dbg_"+id+".raw.fa -i - -fo " + outputFolder + "dbg_"+id+".cns.fa 2>" + outputFolder + "trash.txt";
+    string comSamtools = SAMTOOLS+" view -F0x900 " + outputFolder + "dbg_"+id+".bam 2>" + outputFolder + "trash.txt | "
+                    +wtdbg2_folder+"/wtpoa-cns -t 1 -d " + ref + " -i - -fo " + outputFolder + "dbg_"+id+".cns.fa 2>" + outputFolder + "trash.txt";
+    
+    res = system(comSamtools.c_str());
+    if (res != 0){
+        cout << "ERROR samtools failed, while running " << comSamtools << endl;
+        exit(1);
+    }
+    // cout << "Samtools command dici " << comSamtools << endl;
+
+    string new_contigs_file = outputFolder + "wtdbg2_"+id+".fa";
+    string comUnfold = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' " + outputFolder + "dbg_"+id+".cns.fa >" + new_contigs_file + " 2>" + outputFolder + "trash.txt";
+    res = system(comUnfold.c_str());
+    if (res != 0){
+        cout << "ERROR awk failed, while running " << comUnfold << endl;
+        exit(1);
+    }
+
+    //rename the contigs of the new assembly to be sure not to conflict with the original contigs
+    string prefix = "reassembled_by_HairSplitter_";
+    rename_reads(new_contigs_file, prefix);
+
+    // cout << "THe times are ggtvy : " <<  duration_cast<milliseconds>(t1-t0).count() << " " <<  duration_cast<milliseconds>(t2-t1).count() <<
+    //     " " <<  duration_cast<milliseconds>(t3-t2).count() << " " <<  duration_cast<milliseconds>(t4-t3).count() << " " <<  duration_cast<milliseconds>(t5-t4).count() <<
+    //     " " <<  duration_cast<milliseconds>(t6-t5).count() << endl;
+}
 
