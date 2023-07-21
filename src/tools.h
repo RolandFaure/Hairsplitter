@@ -35,7 +35,11 @@ std::string consensus_reads_wtdbg2(
     std::string &outFolder,
     std::string &techno,
     std::string &MINIMAP, 
-    std::string &RACON
+    std::string &RACON,
+    std::string &SAMTOOLS,
+    std::string &WTDBG2
 );
+
+void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std::string &ref, std::string id, std::string &WTDBG2, std::string &MINIMAP, std::string &SAMTOOLS);
 
 #endif
