@@ -1,6 +1,8 @@
-# Hairsplitter
+![HS_logo](HS_logo.png)
 
 Splits contigs into their different haplotypes (or repeats into their different versions).
+
+*For developers working on similar problems:* HairSplitter is puposefully built as a series of modules that could be integrated in other software. See the [How does it work section](#work) and do not hesitate to contact me.
 
 # What is Hairsplitter ?
 
@@ -8,8 +10,8 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 # Why is it useful ?
 
-`Hairsplitter` can be used to refine a metagenomic assembly. Assemblers commonly collapse closely related strains as on single genome. HairSplitter can recover the lost strains.
-`HairSplitter` is also useful for single-organism assembly, especially if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameters-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
+`Hairsplitter` can be used to refine a metagenomic assembly. Assemblers commonly collapse closely related strains as on single genome. HairSplitter can recover the lost strains. The uncollapsed parts of the assembly are left as is.
+`HairSplitter` is also useful for single-organism assembly, especially if you are trying to obtain a phased assembly. The main advantage of `Hairsplitter` compared to other techniques is that it is totally parameter-free. Most importantly, it does not requires to know the ploidy of the organism, and can infer different ploidies corresponding to different contigs. It can thus be used just as well on haploid assemblies (to improve the assembly of duplications) as on complex allotetraploids (to assemble separately the haplotypes). Just run the assembly through!
 
 # Installation
 
@@ -21,7 +23,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create and activate a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon cmake gxx gcc python scipy numpy 
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon samtools cmake gxx gcc python scipy numpy
 conda activate hairsplitter
 ```
 
@@ -29,20 +31,20 @@ conda activate hairsplitter
 
 - [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon)
+- [samtools](www.htslib.org)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
 
-If Minimap2 and Racon are not in the PATH, their location should be specified through the `--path-to-minimap2` and `--path-to-racon` options.
+If Minimap2, Racon or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon` or `--path-to-samtools` options.
  
 ## Download & Compilation
 
 To download and compile, run
 ```
 git clone https://github.com/RolandFaure/Hairsplitter.git
-cd Hairsplitter
-mkdir build
-cd build
-cmake .. -DCMAKE_CXX_COMPILER=/path/to/g++ -DCMAKE_C_COMPILER=/path/to/gcc
+cd Hairsplitter/src
+mkdir build && cd build
+cmake ..
 make
 ```
 
@@ -50,9 +52,9 @@ make
 
 ## Quick start
 
-Let's say you used `reads.fastq` (any long reads) to build the assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase your assembly using `Hairsplitter`, run
+Let's say `reads.fastq` (ONT reads) were used to build assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase the assembly using `Hairsplitter`, run
 ```
-Hairsplitter -f reads.fastq -i assembly.gfa -o hairsplitter_out/
+python hairsplitter.py -f reads.fastq -i assembly.gfa -x ont -o hairsplitter_out/
 ```
 
 In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
@@ -60,46 +62,65 @@ In the folder hairsplitter_out, you will find the new assembly, named `hairsplit
 ## Options
 
 ```bash
-SYNOPSIS
-        Hairsplitter -f <raw reads> -i <assembly> -o <output assembly> [-a
-                                   <aligned reads>] [-q <output GAF>] [-p] [-t <threads>] [-s]
-                                   [--path-to-minimap2 <path to minimap2>] [--path-to-miniasm <path
-                                   to miniasm>] [--path-to-racon <path to racon>]
-                                   [--path-to-graphunzip <path to graphunzip>]
+usage: hairsplitter.py [-h] -i ASSEMBLY -f FASTQ [-x TECHNOLOGY] [-t THREADS] [-s] -o OUTPUT [-F] [--path_to_minimap2 PATH_TO_MINIMAP2]
+                       [--path_to_racon PATH_TO_RACON] [--path_to_samtools PATH_TO_SAMTOOLS] [-d] [-v]
 
-OPTIONS
-        -f, --fastq Sequencing reads (required)
-        -i, --assembly
-                    Original assembly in GFA or FASTA format (required)
+optional arguments:
+  -h, --help            show this help message and exit
+  -i ASSEMBLY, --assembly ASSEMBLY
+                        Original assembly in GFA or FASTA format (required)
+  -f FASTQ, --fastq FASTQ
+                        Sequencing reads fasta/q (required)
+  -x TECHNOLOGY, --technology TECHNOLOGY
+                        {ont, pacbio, hifi} [ont]
+  -t THREADS, --threads THREADS
+                        Number of threads [1]
+  -s, --dont_simplify   Don't rename the contigs and don't merge them
+  -o OUTPUT, --output OUTPUT
+                        Output directory
+  -F, --force           Force overwrite of output folder if it exists
+  --path_to_minimap2 PATH_TO_MINIMAP2
+                        Path to the executable minimap2 [minimap2]
+  --path_to_racon PATH_TO_RACON
+                        Path to the executable racon [racon]
+  --path_to_samtools PATH_TO_SAMTOOLS
+                        Path to samtools [samtools]
+  -d, --debug           Debug mode
+  -v, --version         Print version and exit
 
-        -o, --output
-                    Output directory (required)
-
-        -a, --aln-on-asm
-                    Reads aligned on assembly (SAM format) (not recommended)
-
-        -q, --output-read-groups
-                    Output read groups (txt format)
-
-        -p, --polish
-                    Use this option if the input assembly is not polished
-
-        -s, --dont_simplify
-                    Don't rename the contigs and don't merge them
-
-        --path-to-minimap2
-                    Path to the executable minimap2 (if not in PATH)
-
-        --path-to-racon
-                    Path to the executable racon (if not in PATH)
-
-        -F, --force Force overwrite of output folder if it exists
-        -t, --threads
-                    Number of threads
 ```
 
 # Issues
- Most installation issues that we have seen yet stem from the use of too old compilers. g++ and gcc have to be relatively recent. Sometimes their default versions (especially on servers) are too old. Specify modern versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+ Most installation issues that we have seen yet stem from the use of too old compilers. Hairsplitter has been developed using gcc=11.2.0. Sometimes the default version of the compiler is too old (especially on servers). Specify gcc versions manually to cmake using `-DCMAKE_CXX_COMPILER=/path/to/modern/g++` and `-DCMAKE_C_COMPILER=/path/to/modern/gcc`.
+ 
+ <a name="work">
+</a>
+
+# How does it work ?
+
+HairSplitter is organized as series of modules, some of these modules being of independant interest. The full documentation can be found in the doc/ folder.
+
+1. *Cleaning the assembly* Ideally, the assembly would be purged of all assembly errors. In practice, ensure there is no over-duplication by deleting unconnected contigs that align very well on other contigs.
+
+2. *Calling variants* Variants are called using an alignment of the reads on the assembly. For now, a basic pileup is used. Calling variants in a metagenomic context is hard: favor calling false variants over missing true variants - the false variants will be filtered afterward.
+
+3. *Filtering variants* This step is crucial. Each called variant partition the reads in groups. Keep only variants which partition occur frequently, because this cannot be chance. This way, only very robust variant are kept.
+
+4. *Separating the reads* Based on the robust variants, HairSplitter inspect each contig and determine if several distinct groups of reads align there. If it is the case, it means that several different versions of the contig exist.
+
+5. *Creating the new contigs* Create every new contig by polishing the existing contig using the several groups of reads.
+
+6. *Improving contiguity* Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
+ 
+# Citation
+ A preprint will very soon be available online. Until then, you can cite the poster presented at _Genome Informatics 2022_ (https://hal.science/hal-03817928/document):
+ ``
+Roland Faure, Jean-François Flot, Dominique Lavenier. Hairsplitter: Separating noisy long reads into
+an unknown number of haplotypes. Genome Informatics 2022, Sep 2022, London / Virtual, United
+Kingdom. pp.1-1. hal-03817928
+ ``
+ 
+ 
 
 
 
