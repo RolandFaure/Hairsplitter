@@ -6,7 +6,7 @@
 #include <tuple>
 #include "input_output.h"
 #include "tools.h"
-#include "reassemble_unaligned_reads.h"
+// #include "reassemble_unaligned_reads.h"
 #include "edlib/include/edlib.h"
 
 using std::string;
