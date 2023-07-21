@@ -93,7 +93,7 @@ void parse_column_file(
             names_of_reads[names_of_reads.size()-1].push_back(line);
             string name, startRead, endRead, startContig, endContig;
             iss >> name >> startRead >> endRead >> startContig >> endContig;
-            cout << "LINE sep reasd qslkjmflmsqdj " << line << endl;
+            // cout << "LINE sep reasd qslkjmflmsqdj " << line << endl;
             readLimits[readLimits.size()-1].push_back(make_pair(std::stoi(startContig), std::stoi(endContig)));
         }
 

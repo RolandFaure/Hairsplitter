@@ -3,6 +3,7 @@
 #include <set>
 #include <fstream>
 #include <sstream>
+
 #include <tuple>
 
 #include "input_output.h"
@@ -61,16 +62,10 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
         if (line[0] == format && buffer.size() > 0){
             //then first we append the last read we saw
 
-            ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
+            ///parse the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
             string nameOfSequence = "";
-            for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
-                if (buffer[0][i] == ' '){
-                    break;
-                }
-                else{
-                    nameOfSequence.push_back(buffer[0][i]);
-                }
-            }
+            std::stringstream line2(buffer[0].substr(1)); //exclude the first character (either @ or >)
+            std::getline(line2, nameOfSequence, ' ');
 
             Read r("", buffer[1].size()); //append the read without the sequence to be light on memory. The sequences are only needed when they are needed
             r.name = nameOfSequence;
@@ -94,21 +89,15 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
     }
 
     //now append the last read
+    string nameOfSequence = "";
+    std::stringstream line2(buffer[0].substr(1)); //exclude the first character (either @ or >)
+    std::getline(line2, nameOfSequence, ' ');
+
     Read r("", buffer[1].size());//append the read without the sequence to be light on memory. The sequences are only needed when they are needed
     r.set_position_in_file(lastoffset+buffer[0].size()+1);
-    r.name = buffer[0];
+    r.name = nameOfSequence;
     allreads.push_back(r);
 
-    ///compute the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
-    string nameOfSequence = "";
-    for (unsigned int i = 1 ; i < buffer[0].size() ; i++){
-        if (buffer[0][i] == ' '){
-            break;
-        }
-        else{
-            nameOfSequence.push_back(buffer[0][i]);
-        }
-    }
     ///link the minimap name to the index in allreads
     indices[nameOfSequence] = sequenceID;
     sequenceID++;
@@ -312,7 +301,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 if (fieldnumber == 0){
                     try{
                         if (indices.find(field)==indices.end()){
-                            cout << "WARNING: read in the sam file not found in fasta file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
+                            cout << "WARNING: read in the sam file not found in reads file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
                             allgood = false;
                         }
                         
