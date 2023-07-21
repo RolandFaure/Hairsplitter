@@ -615,6 +615,7 @@ int main(int argc, char *argv[]){
             }
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min((chunk+1)*sizeOfWindow-1, int(length_of_contigs[n]))), haplotypes));
         }
+        
 
         //append threadedReads to file
         #pragma omp critical

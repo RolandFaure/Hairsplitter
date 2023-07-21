@@ -31,8 +31,9 @@ def parse_args():
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
     # parser.add_argument("-r", "--reassemble", help="Reassemble unaligned reads with wtdbg2", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
-    parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
     parser.add_argument("-o", "--output", help="Output directory", required=True)
+    parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
+    parser.add_argument("-p", "--polish-everything", help="Polish every contig with racon, even those ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
@@ -124,9 +125,12 @@ def main():
         if res_fasta2gfa != 0:
             print("ERROR: Conversion from fasta to gfa failed while running the command:\n" + command)
             sys.exit(1)
+    else:
+        print("ERROR: Assembly file must be in GFA or FASTA format. File extension not recognized.")
+        sys.exit(1)
 
     # 1. Clean the assembly
-    print("\n===== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes [", datetime.datetime.now() ,"]\n\n")
+    print("\n===== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes   [", datetime.datetime.now() ,"]\n\n")
     print(" When the assemblers manage to locally phase the haplotypes, they sometimes assemble the alternative haplotype as a separate contig, unconnected in "\
                     "the gfa graph. This affects negatively the performance of Hairsplitter. Let's delete these contigs\n")
     
@@ -143,7 +147,7 @@ def main():
     print(" - Eliminated small unconnected contigs that align on other contigs")
 
     # 2. Map the reads on the assembly
-    print("\n===== STAGE 2: Aligning reads on the reference[", datetime.datetime.now() ,"]\n\n")
+    print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n\n")
 
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
@@ -171,7 +175,7 @@ def main():
         print("ERROR: minimap2 could not run properly, check "+tmp_dir+"/logminimap.txt")
         sys.exit(1)
 
-    print("\n===== STAGE 3: Calling variants[", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
     error_rate_file = tmp_dir + "/error_rate.txt"
     flag_debug = "0"
     if args.debug:
@@ -189,7 +193,7 @@ def main():
     with open(error_rate_file, 'r') as f:
         error_rate = float(f.readline())
 
-    print("\n===== STAGE 4: Filtering variants[", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
 
     command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
         + " " + tmp_dir + "/filtered_variants.col"
@@ -200,7 +204,7 @@ def main():
         print("ERROR: filter_variants failed. Was trying to run: " + command)
         sys.exit(1)
 
-    print("\n===== STAGE 5: Separating reads by haplotype of origin[", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 5: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
     command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
@@ -212,10 +216,13 @@ def main():
         print("ERROR: separate_reads failed. Was trying to run: " + command)
         sys.exit(1)
 
-    print("\n===== STAGE 6: Creating all the new contigs[", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
+    print("\n===== STAGE 6: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <debug>" 
     gaffile = tmp_dir + "/reads_on_new_contig.gaf"
     zipped_GFA = tmp_dir + "/zipped_assembly.gfa"
+    polish_everything = "0"
+    if args.polish_everything:
+        polish_everything = "1"
     command = path_to_src + "build/create_new_contigs " \
         + new_assembly + " " \
         + readsFile + " " \
@@ -226,6 +233,7 @@ def main():
         + technology + " " \
         + zipped_GFA + " " \
         + gaffile +  " " \
+        + polish_everything + " " \
         + path_to_minimap2 + " " \
         + args.path_to_racon + " " \
         + flag_debug
@@ -235,7 +243,7 @@ def main():
         print("ERROR: create_new_contigs failed. Was trying to run: " + command)
         sys.exit(1)
 
-    print("\n===== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity[", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
     simply = ""
     if args.dont_simplify :
         simply = " --dont_merge -r"
@@ -266,7 +274,7 @@ def main():
         print("ERROR: gfa2fa failed. Was trying to run: " + command)
         sys.exit(1)
 
-    print("\n===== HairSplitter finished! ===== [", datetime.datetime.now() ,"]\n")
+    print("\n===== HairSplitter finished! =====   [", datetime.datetime.now() ,"]\n")
     
 
 

@@ -109,6 +109,8 @@ Usage: ./create_new_contigs <assembly> <reads_file> <error_rate> <gro_file> <tmp
 
 **output_gaf** File created by create_new_contigs that describes how the reads align on the contig successively in the [GAF format](https://github.com/lh3/gfatools/blob/master/doc/rGFA.md#the-graph-alignment-format-gaf). Only the first 6 fields need to be filled 
 
+**polish_everything** 0|1 : 1 means that every contig gets polished, 0 only the contigs where there has been a separation
+
 **path_to_minimap** Path to executable minimap2
 
 **path_to_racon** Path to executable racon

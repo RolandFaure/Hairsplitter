@@ -142,6 +142,7 @@ void modify_GFA(
     int num_threads,
     string &outFolder, 
     float errorRate,
+    bool polish,
     string &techno,
     string &MINIMAP, 
     string &RACON,
@@ -350,6 +351,7 @@ void modify_GFA(
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 //taking exactly the right portion of read we need
+                int numberOfClusters = 0;
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] > -1){
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
@@ -372,6 +374,9 @@ void modify_GFA(
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
                             readsPerPart[clust] = {clippedRead};
+                            if (clust >= 0){
+                                numberOfClusters++;
+                            }
                         }
                         else {
                             readsPerPart[clust].push_back(clippedRead);
@@ -401,7 +406,7 @@ void modify_GFA(
                     // cout << "toPolisssdcvh: " << toPolish << endl;
 
                     string newcontig = "";
-                    if (readsPerPart.size() > 1){
+                    if (numberOfClusters > 1 || polish){
 
                         newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
                         if (newcontig == ""){
@@ -1049,9 +1054,9 @@ void output_GAF(
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
-    if (argc != 13){
+    if (argc != 14){
         std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> "
-                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <path_to_minimap> <path-to-racon> <debug>" << std::endl;
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polish_everything> <path_to_minimap> <path-to-racon> <debug>" << std::endl;
         cout << argc << endl;
         return 1;
     }
@@ -1064,9 +1069,10 @@ int main(int argc, char *argv[])
     string technology = argv[7];
     string output_graph = argv[8];
     string outputGAF = argv[9];
-    string MINIMAP = argv[10];
-    string RACON = argv[11];
-    bool DEBUG = bool(stoi(argv[12]));
+    bool polish = bool(stoi(argv[10]));
+    string MINIMAP = argv[11];
+    string RACON = argv[12];
+    bool DEBUG = bool(stoi(argv[13]));
 
 
     vector <Link> allLinks;
@@ -1086,7 +1092,7 @@ int main(int argc, char *argv[])
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
 
     cout << " - Creating the new contigs" << endl;
-    modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, tmpFolder, error_rate, technology, MINIMAP, RACON, DEBUG);
+    modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, tmpFolder, error_rate, polish, technology, MINIMAP, RACON, DEBUG);
     output_GFA(allreads, backbone_reads, output_graph, allLinks);
 
     return 0;

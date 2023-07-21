@@ -26,6 +26,7 @@ void modify_GFA(
     int num_threads,
     std::string &outFolder,
     float errorRate,
+    bool polish,
     std::string &techno,
     std::string &MINIMAP, 
     std::string &RACON,
