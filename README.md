@@ -23,7 +23,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 You can create and activate a conda environment with all dependencies installed by typing: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon samtools cmake gxx gcc python scipy numpy
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon samtools cmake gxx gcc python scipy numpy pysam
 conda activate hairsplitter
 ```
 
@@ -32,6 +32,7 @@ conda activate hairsplitter
 - [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon)
 - [samtools](www.htslib.org)
+- [pysam](https://pypi.org/project/pysam/)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
 

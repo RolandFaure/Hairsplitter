@@ -234,14 +234,11 @@ float generate_msa(
                     //     snps[insertionPos[10000*indexQuery+ins]].content.push_back('-');
                     // }
 
-                    if (polishingReads[n][indexTarget] != previous_char){ //to avoid all homopolymers errors
-                        previous_previous_previous_char = previous_previous_char;
-                        previous_previous_char = previous_char;
-                        previous_char = polishingReads[n][indexTarget];
-                    }
+                    previous_previous_previous_char = previous_previous_char;
+                    previous_previous_char = previous_char;
+                    previous_char = polishingReads[n][indexTarget];
 
                     unsigned char three_mer = '!' + 5*ACGT.find(previous_previous_previous_char) + ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char);
-
                     snps[indexQuery].readIdxs.push_back(n);
                     snps[indexQuery].content.push_back(three_mer);
 
@@ -280,11 +277,9 @@ float generate_msa(
 
                     size_of_deletion += 1;
 
-                    if ( '-' != previous_char || size_of_deletion > 10){ //to avoid all homopolymers, except for long deletions
-                        previous_previous_previous_char = previous_previous_char;
-                        previous_previous_char = previous_char;
-                        previous_char = '-';
-                    }
+                    previous_previous_previous_char = previous_previous_char;
+                    previous_previous_char = previous_char;
+                    previous_char = '-';
 
                     unsigned char three_mer = '!' + 5*ACGT.find(previous_previous_previous_char) + ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char);
 
@@ -329,11 +324,9 @@ float generate_msa(
                     //     numberOfInsertionsThere ++;
                     // }
 
-                    if (polishingReads[n][indexTarget] != previous_char && indexQuery > 0){ //to avoid all homopolymers
-                        previous_previous_previous_char = previous_previous_char;
-                        previous_previous_char = previous_char;
-                        previous_char = polishingReads[n][indexTarget];
-                    }
+                    previous_previous_previous_char = previous_previous_char;
+                    previous_previous_char = previous_char;
+                    previous_char = polishingReads[n][indexTarget];
 
                     indexTarget++;
                     totalDistance += 1;
@@ -369,11 +362,9 @@ float generate_msa(
     unsigned char previous_previous_char = 'C';
     unsigned char previous_char = 'G';
     for(auto i : consensus){
-        if (i != previous_char){
-            previous_previous_previous_char = previous_previous_char;
-            previous_previous_char = previous_char;
-            previous_char = i;
-        }
+        previous_previous_previous_char = previous_previous_char;
+        previous_previous_char = previous_char;
+        previous_char = i;
         newRef += (unsigned char) ('!' + 5*ACGT.find(previous_previous_previous_char) + ACGT.find(previous_previous_char) + 25*ACGT.find(previous_char));
     }
     newref = newRef;
@@ -458,9 +449,11 @@ void call_variants(
     float &meanError,
     std::string &tmpFolder,
     std::string &outputFile,
+    std::string &vcfFile,
     bool DEBUG){
 
     std::ofstream out(outputFile, std::ios_base::app);
+    std::ofstream vcf(vcfFile, std::ios_base::app);
 
     vector<int> suspectPositions;
     vector<Column> suspiciousColumns;
@@ -478,10 +471,10 @@ void call_variants(
             cout << "Going through the positions, " << position << "/" << ref.size() << "          \r" << std::flush;
         }
         //count how many time each char appears at this position
-        unordered_map<char, int> content;
+        unordered_map<unsigned char, int> content;
         // bool here496 = false;
         for (short n = 0 ; n < snps[position].content.size() ; n++){
-            char base = snps[position].content[n];
+            unsigned char base = snps[position].content[n];
             if (content.find(base) == content.end()){
                 content[base] = 0;
             }
@@ -498,11 +491,11 @@ void call_variants(
         content[(unsigned char) 2 ] = 0; //to make sure that there are at least 3 different chars
 
         //find the most frequent chars in content
-        vector<pair<char, int>> content_sorted;
+        vector<pair<unsigned char, int>> content_sorted;
         for (auto it = content.begin() ; it != content.end() ; it++){
             content_sorted.push_back(make_pair(it->first, it->second));
         }
-        std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<char, int>& a, const pair<char, int>& b) {return a.second > b.second;});
+        std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<unsigned char, int>& a, const pair<unsigned char, int>& b) {return a.second > b.second;});
 
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
@@ -518,6 +511,11 @@ void call_variants(
             } else {
                 ref_base = '-';
             }
+            // cout << "\nAt first snp, dlsq , " << position << " " << (int) content_sorted[0].first << " " << (int) content_sorted[1].first << " " << (int) ref_base << endl;
+            // int code = content_sorted[0].first-'!';
+            // cout << "first alternative : " << "ACGT-"[(code%25) / 5] <<  "ACGT-"[code%5] << "ACGT-"[code/25] << endl;
+            // cout << "second alternative : " << "ACGT-"[((content_sorted[1].first-'!')%25)/5] << "ACGT-"[(content_sorted[1].first-'!')%5] << "ACGT-"[((content_sorted[1].first-'!')/25)] << endl;
+            // exit(1);
             //find the most frequent char in the reads (eexcept the ref base)
             char second_frequent_base = content_sorted[0].first;
             if (second_frequent_base == ref_base){
@@ -552,19 +550,28 @@ void call_variants(
                 << "\t" << allOverlaps[n].position_2_1 << "\t" << allOverlaps[n].position_2_2
                 << "\t" << allOverlaps[n].strand << "\n";
         }
+        int numberOfReads = allreads[contig].neighbors_.size();
         //output the list of reads
         for (auto c : suspiciousColumns){
-            out << "SNPS\t" << c.pos << "\t" << c.ref_base << "\t" << c.second_base << "\t:";
+            out << "SNPS\t" << c.pos << "\t" << (int) c.ref_base << "\t" << (int) c.second_base << "\t:";
             int idx = 0;
             for (auto r = 0 ; r < c.readIdxs.size() ; r++){
                 while (idx < c.readIdxs[r]){
-                    out << " ";
+                    out << " ,";
                     idx+= 1;
                 }
-                out << c.content[r];
+                out << (int) c.content[r] << ",";
                 idx+=1;
             }
+            while (idx < numberOfReads){
+                out << " ,";
+                idx+= 1;
+            }
             out << "\n";
+
+            //output the vcf file
+            vcf << allreads[contig].name << "\t" << c.pos << "\t.\t" << "ACGT-"[(c.ref_base-'!') % 5]<< "\t" << "ACGT-"[(c.second_base-'!') % 5] << "\t.\t.\tDP=" << c.readIdxs.size()
+                << "\n";
         }
     }
 }
@@ -577,8 +584,8 @@ int main(int argc, char *argv[])
     std::vector <Overlap> allOverlaps;
     vector <Link> allLinks;
 
-    if (argc < 9){
-        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <DEBUG> <file_out>\n";
+    if (argc < 10){
+        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <DEBUG> <file_out> <vcfFile>\n";
         return 0;
     }
     std::string gfafile = argv[1];
@@ -589,9 +596,17 @@ int main(int argc, char *argv[])
     std::string error_rate_out = argv[6];
     bool DEBUG = bool(std::stoi(argv[7]));
     std::string file_out = argv[8];
-    //erase the output file
+    std::string vcfFile = argv[9];
+    //erase the output files
     std::ofstream out(file_out);
     out.close();
+    //write the header of the vcf file
+    std::ofstream vcf(vcfFile);
+    vcf << "##fileformat=VCFv4.2\n";
+    vcf << "##source=call_variants\n";
+    vcf << "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Depth\">\n";
+    vcf << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
+    vcf.close();
 
     cout << " - Loading all reads from " << readsFile << " in memory\n";
     parse_reads(readsFile, allreads, indices);
@@ -659,7 +674,7 @@ int main(int argc, char *argv[])
 
                 //call variants
                 vector<size_t> suspectPostitions;
-                call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, file_out, DEBUG);
+                call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, file_out, vcfFile, DEBUG);
 
                 //output the columns with variants in a file
 

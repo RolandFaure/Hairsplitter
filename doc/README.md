@@ -155,14 +155,14 @@ READ    @0_7b15b848-cb53-91a7-b204-e2cced890836      0       3660    148     380
 ### SNPS lines
 SNPS line come after the read lines and describe the position of the pileup of reads on the contig.
 ```
-SNPS    1259       A       T       :AAAA TCAT TTTCAA TTT  TTTTAAAAAAA AATATATATTTAAAA 
+SNPS    1259       A       T       :A,A,A,A, ,T,C,A,T, ,T,T,T,C,A,A, ,T,T,T, , ,T,T,T,T,A,A,A,A,A,A,A, ,A,A,T,A,T,A,T,A,T,T,T,A,A,A,A, 
 ```
 5 fields in this kind of line:
 1. SNPS
 2. Position of the SNP on the contig
-3. Majority allele at this position (can be any ASCII character)
-4. Minority allele at this position (can be any ASCII character)
-5. Pileup. Must starts by ":". Then, there must be exactly as many character as there are reads aligning on a contig. The character at position _n_ describes the allele of the _n_th read (corresponding to the _n_th READ line after the last CONTIG line) at this position. ' ' is inserted if the read is not defined at this position.
+3. Majority allele at this position (either a letter or an integer in range [0:255] - do not mix both in the same file)
+4. Minority allele at this position (either a letter or an integer in range [0:255] - do not mix both in the same file)
+5. Pileup. Must starts by ":". Follows a comma-separated list with exactly as many tokens (either characters or integer ASCII encodings) as there are reads aligning on a contig. The token at position _n_ describes the allele of the _n_th read (corresponding to the _n_th READ line after the last CONTIG line) at this position. ' ' is inserted if the read is not defined at this position. Last character of the list must be a comma.
 
 A complete (small) COL file can look like this:
 ```

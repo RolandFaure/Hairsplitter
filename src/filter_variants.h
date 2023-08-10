@@ -30,9 +30,21 @@ void parse_column_file(
     std::string file, 
     std::vector<std::vector<Column>> &snps, 
     std::unordered_map<std::string, int>& name_of_contigs, 
+    std::unordered_map<int, std::string>& name_of_contigs2,
     std::vector<int> &numberOfReads);
 
-void output_new_column_file(std::string initial_column_file, std::vector<std::vector<Column>>  &new_snps, std::unordered_map<std::string, int>& name_of_contigs, std::string &output_file);
+void output_new_column_file(
+    std::string initial_column_file, 
+    std::vector<std::vector<Column>>  &new_snps, 
+    std::unordered_map<std::string, int>& name_of_contigs, 
+    std::string &output_file);
+
+void output_new_vcf_file(
+    std::string &initial_vcf_file, 
+    std::vector<std::vector<Column>>  &new_snps, 
+    std::unordered_map<std::string, int>& name_of_contigs, 
+    std::string &output_file);
+
 
 void keep_only_robust_variants(
     std::vector<std::vector<Column>> &snps_in, 

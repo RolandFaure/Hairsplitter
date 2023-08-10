@@ -9,11 +9,11 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.3.0"
-__date__ = "2023-07-20"
+__version__ = "1.3.1"
+__date__ = "2023-08-10"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
-__github__ = "RolandFaure/HairSplitter"
+__github__ = "github.com/RolandFaure/HairSplitter"
 __status__ = "Prototype"
 
 import sys
@@ -27,7 +27,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
-    parser.add_argument("-f", "--fastq", help="Sequencing reads fasta/q (required)", required=True)
+    parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
     # parser.add_argument("-r", "--reassemble", help="Reassemble unaligned reads with wtdbg2", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
@@ -118,7 +118,7 @@ def main():
     # 0. Convert the assembly to gfa if needed
     if args.assembly[-3:] == "gfa":
         gfaAssembly = args.assembly
-    elif args.assembly[-6:] == "fasta" or args.assembly[-3:] == "fa":
+    elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa":
         gfaAssembly = tmp_dir + "/assembly.gfa"
         command = path_to_src + "build/fa2gfa " + args.assembly + " > " + gfaAssembly
         res_fasta2gfa = os.system(command)
@@ -138,6 +138,7 @@ def main():
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     command = path_to_src + "build/clean_graph " + gfaAssembly + " " + new_assembly + " " + args.output.rstrip('/') +" " + logFile + " " \
         + str(nb_threads) + " " + args.path_to_minimap2
+    print(" Running: ", command)
     res_clean = os.system(command)
 
     if res_clean != 0:
@@ -147,13 +148,13 @@ def main():
     print(" - Eliminated small unconnected contigs that align on other contigs")
 
     # 2. Map the reads on the assembly
-    print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n\n")
+    print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
 
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
     command = path_to_src + "build/gfa2fa " + new_assembly + " > " + fastaAsm
     res_gfa2fasta = os.system(command)
-    if res_gfa2fasta != 0:
+    if res_gfa2fasta != 0 :
         print("ERROR: gfa2fa failed UUE. Was trying to run: " + command)
         sys.exit(1)
     
@@ -181,8 +182,9 @@ def main():
     if args.debug:
         flag_debug = "1"
     command = path_to_src + "build/call_variants " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
-        + flag_debug + " " + tmp_dir + "/variants.col"
+        + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
     # print(" - Calling variants with a basic pileup")
+    print(" Running: ", command)
     res_call_variants = os.system(command)
     if res_call_variants != 0:
         print("ERROR: call_variants failed. Was trying to run: " + command)
@@ -196,9 +198,9 @@ def main():
     print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
 
     command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
-        + " " + tmp_dir + "/filtered_variants.col"
+        + " " + tmp_dir + "/filtered_variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/variants_filtered.vcf"
     print(" - Filtering variants")
-    # print("Command  : ", command)
+    print(" Running: ", command)
     res_filter_variants = os.system(command)
     if res_filter_variants != 0:
         print("ERROR: filter_variants failed. Was trying to run: " + command)
@@ -210,7 +212,7 @@ def main():
     command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
         + " " + tmp_dir + "/reads_haplo.gro"
     print(" - Separating reads by haplotype of origin")
-    # print("Command  : ", command)
+    print(" Running: ", command)
     res_separate_reads = os.system(command)
     if res_separate_reads != 0:
         print("ERROR: separate_reads failed. Was trying to run: " + command)
@@ -237,7 +239,7 @@ def main():
         + path_to_minimap2 + " " \
         + args.path_to_racon + " " \
         + flag_debug
-    print("Command  : ", command)
+    print(" Running : ", command)
     res_create_new_contigs = os.system(command)
     if res_create_new_contigs != 0:
         print("ERROR: create_new_contigs failed. Was trying to run: " + command)

@@ -6,6 +6,10 @@
 #include <sstream>
 #include <omp.h> //for efficient parallelization
 #include <cmath>
+#include <set>
+#include <cctype> //to check the type of a string (is it a number ?)
+
+#include "clipp.h" //library to build command line interfaces
 
 using std::cout;
 using std::endl;
@@ -15,6 +19,8 @@ using std::unordered_map;
 using std::min;
 using std::max;
 using std::ofstream;
+using std::ifstream;
+using namespace clipp;
 
 /**
  * @brief Parse a column file and store the SNPs for each contig
@@ -28,28 +34,72 @@ void parse_column_file(
     std::string file, 
     std::vector<std::vector<Column>> &snps, 
     std::unordered_map<string, int>& name_of_contigs, 
+    std::unordered_map<int, std::string>& name_of_contigs2,
     std::vector<int> &numberOfReads){
 
     std::ifstream infile(file);
     std::string line;
+    bool numbers = false; //are the variants encoded as numbers or as letters ?
+    bool firstsnpline = true;
     while (std::getline(infile, line)){
         std::istringstream iss(line);
         std::string line_type;
         iss >> line_type;
         if (line_type == "CONTIG"){
             name_of_contigs[line] = snps.size();
+            string nameofcontig;
+            iss >> nameofcontig;
+            name_of_contigs2[snps.size()] = nameofcontig;
             snps.push_back(std::vector<Column>());
         }
         else if (line_type == "SNPS"){
+
             string pos;
+            string ref_base_string;
+            string second_frequent_base_string;
             char ref_base;
             char second_frequent_base;
             string content;
-            iss >> pos >> ref_base >> second_frequent_base;
+            iss >> pos >> ref_base_string >> second_frequent_base_string;
+
+            if (firstsnpline && (!std::isalpha(ref_base_string[0]) && ref_base_string[0] != '-')){
+                numbers = true;
+                
+            }
+            if (numbers){
+                ref_base = (char) std::stoi(ref_base_string);
+                second_frequent_base = (char) std::stoi(second_frequent_base_string);
+            }
+            else{
+                ref_base = ref_base_string[0];//the string should be of length 1 anyway
+                second_frequent_base = second_frequent_base_string[0];
+            }
+            firstsnpline = false;
             //get the rest of the line in content
             std::getline(iss, content);
             //strip the last \n from content and from the : character
             content = content.substr(content.find(':')+1);
+            //content is a comma-separated list of the bases at this position represented by ints: remove the commas and convert to char
+            string new_content = "";
+            string integer = ""; //the variant can be either an integer encoding a char or directly a char
+            for (auto c : content){
+                if (c == ','){
+                    if (integer == " "){
+                        new_content += " ";
+                    }
+                    else if (numbers){
+                        new_content += (char) std::stoi(integer);
+                    }
+                    else{
+                        new_content += integer; //in this cas "integer" is actually already a char
+                    }
+                    integer = "";
+                }
+                else{
+                    integer += c;
+                }
+            }
+            content = new_content;
 
             Column snp;
             snp.pos = std::atoi(pos.c_str());
@@ -61,8 +111,7 @@ void parse_column_file(
                     snp.readIdxs.push_back(n);
                 }                
             }
-            snps[snps.size()-1].push_back(snp);                
-
+            snps[snps.size()-1].push_back(snp);               
         }
 
     }
@@ -98,14 +147,14 @@ void output_new_column_file(std::string initial_column_file, std::vector<std::ve
             firstsnpline = true;
             //then output all the new snps
             for (auto snp : new_snps[name_of_contigs[contig]]){
-                out << "SNPS\t" << snp.pos << "\t" << snp.ref_base << "\t" << snp.second_base << "\t:";
+                out << "SNPS\t" << snp.pos << "\t" << (int) snp.ref_base << "\t" << (int) snp.second_base << "\t:";
                 int n = 0;
                 for (auto c  = 0 ; c < snp.content.size(); c++){
                     while (snp.readIdxs[c] > n){
-                        out << " ";
+                        out << " ,";
                         n++;
                     }
-                    out << snp.content[c];
+                    out << (int) snp.content[c] <<",";
                     n++;
                 }
                 out << "\n";
@@ -113,6 +162,56 @@ void output_new_column_file(std::string initial_column_file, std::vector<std::ve
         }
     }
 
+}
+
+/**
+ * @brief Output the robust columns in a new vcf file
+ * 
+ * @param new_snps 
+ * @param name_of_contigs 
+ * @param output_file 
+ */
+void output_new_vcf_file(
+    std::string &vcf_in,
+    std::vector<std::vector<Column>>  &new_snps, 
+    std::unordered_map<int, std::string>& name_of_contigs, 
+    std::string &output_file){
+
+    //create a set inventorying all the positions that are in the new snps
+    std::unordered_map<string, std::set<int>> new_snp_positions;
+    for (auto contig = 0 ; contig < new_snps.size() ; contig++){
+        new_snp_positions[name_of_contigs[contig]] = std::set<int>();
+        for (auto snp : new_snps[contig]){
+            new_snp_positions[name_of_contigs[contig]].insert(snp.pos);
+        }
+    }
+
+    //open the vcf file and write the header
+    ofstream out(output_file);
+    ifstream in(vcf_in);
+
+    //go through all the lines and output only the ones which positions are in the new snps
+    std::string line;
+    while (std::getline(in, line)){
+        std::istringstream iss(line);
+        
+        if (line[0] == '#'){
+            out << line << "\n";
+        }
+        else { //this is a putative variant
+            std::string contigname;
+            iss >> contigname;
+            int pos;
+            iss >> pos;
+            //look for pos-1 because the positions in the vcf file are 1-based
+            if (new_snp_positions.find(contigname) != new_snp_positions.end() && new_snp_positions[contigname].find(pos-1) != new_snp_positions[contigname].end()){
+                out << line << "\n";
+            }
+        }
+    }
+
+    in.close();
+    out.close();
 }
 
 /**
@@ -552,7 +651,6 @@ void keep_only_robust_variants(
                 distancePartition dis = distance(partitions[p], snp, snp.ref_base);
                 auto comparable = dis.n00 + dis.n11 + + dis.n01 + dis.n10;
 
-
                 //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
                 if (dis.n01 < 0.1 * (dis.n00+dis.n01) && dis.n10 < 0.1 * (dis.n11+dis.n10) && comparable >= snp.readIdxs.size()/2){
                 
@@ -594,14 +692,6 @@ void keep_only_robust_variants(
         if (partitions.size() == 0){ //there are no position of interest
             continue;
         }
-
-        //print the partitions
-        // cout << "partitions in filtervar: " << endl;
-        // for (auto p = 0 ; p < 3 ; p++){
-        //     cout << "partition " << p << " : " << endl;
-        //     partitions[p].print();
-        // }
-
         
         float threshold = min(4, max(2, (int) (mean_error*100)));
 
@@ -665,7 +755,7 @@ void keep_only_robust_variants(
         //list the interesting positions
         for (auto snp : snps){
             // cout << "suspecct possisssiion : " << endl;
-            // print_snp(snps[pos], no_mask);
+            // print_snp(snp);
             for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
                 distancePartition dis = distance(listOfFinalPartitions[p], snp, snp.ref_base);
                 if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
@@ -682,8 +772,9 @@ void keep_only_robust_variants(
 
 int main(int argc, char *argv[])
 {
-    if (argc < 6){
-        std::cout << "Usage: ./filter_variants <columns> <error_rate> <threads> <DEBUG> <file_out>\n";
+
+    if (argc != 8){
+        std::cout << "Usage: ./filter_variants <columns> <error_rate> <threads> <DEBUG> <col_out> <vcf_in> <vcf_out>\n";
         return 1;
     }
 
@@ -692,11 +783,14 @@ int main(int argc, char *argv[])
     int threads = atoi(argv[3]);
     bool DEBUG = bool(atoi(argv[4]));
     string output_file = argv[5];
+    string vcf_in = argv[6];
+    string vcf_out = argv[7];
 
     std::unordered_map<string, int> name_of_contigs;
+    std::unordered_map<int, std::string> name_of_contigs2;
     std::vector<std::vector<Column>> snps_in;
     std::vector<int> numberOfReads; //useless here
-    parse_column_file(columnsFile, snps_in, name_of_contigs, numberOfReads);
+    parse_column_file(columnsFile, snps_in, name_of_contigs, name_of_contigs2, numberOfReads);
 
     // cout << "name of contigs : " << endl;
     // for (auto c : name_of_contigs){
@@ -709,5 +803,7 @@ int main(int argc, char *argv[])
     keep_only_robust_variants(snps_in, snps_out, name_of_contigs, meanError, threads);
 
     output_new_column_file(columnsFile, snps_out, name_of_contigs, output_file);
+
+    output_new_vcf_file(vcf_in, snps_out, name_of_contigs2, vcf_out);
 
 }

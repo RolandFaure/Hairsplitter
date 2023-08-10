@@ -74,6 +74,24 @@ void parse_column_file(
             std::getline(iss, content);
             //strip the last \n from content and from the : character
             content = content.substr(content.find(':')+1);
+            //content is a comma-separated list of the bases at this position represented by ints: remove the commas and convert to char
+            string new_content = "";
+            string integer = "";
+            for (auto c : content){
+                if (c == ','){
+                    if (integer == " "){
+                        new_content += ' ';
+                    }
+                    else{
+                        new_content += (char) std::stoi(integer);
+                    }
+                    integer = "";
+                }
+                else{
+                    integer += c;
+                }
+            }
+            content = new_content;
 
             Column snp;
             snp.pos = std::atoi(pos.c_str());
