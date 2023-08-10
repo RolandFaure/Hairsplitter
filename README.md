@@ -43,8 +43,7 @@ If Minimap2, Racon or samtools are not in the PATH, their location should be spe
 To download and compile, run
 ```
 git clone https://github.com/RolandFaure/Hairsplitter.git
-cd Hairsplitter/src
-mkdir build && cd build
+cd Hairsplitter/src/build
 cmake ..
 make
 ```
