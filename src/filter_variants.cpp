@@ -9,7 +9,7 @@
 #include <set>
 #include <cctype> //to check the type of a string (is it a number ?)
 
-#include "clipp.h" //library to build command line interfaces
+// #include "clipp.h" //library to build command line interfaces
 
 using std::cout;
 using std::endl;
@@ -20,7 +20,7 @@ using std::min;
 using std::max;
 using std::ofstream;
 using std::ifstream;
-using namespace clipp;
+// using namespace clipp;
 
 /**
  * @brief Parse a column file and store the SNPs for each contig
