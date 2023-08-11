@@ -47,6 +47,8 @@ void parse_column_file(
     std::string line;
     int nbreadshere = 0;
     names_of_reads = vector<vector<string>>(0);
+    bool numbers = false;
+    bool firstsnpline = true;
     while (std::getline(infile, line)){
         std::istringstream iss(line);
         std::string line_type;
@@ -66,24 +68,43 @@ void parse_column_file(
         }
         else if (line_type == "SNPS"){
             string pos;
+            string ref_base_string;
+            string second_frequent_base_string;
             char ref_base;
             char second_frequent_base;
             string content;
-            iss >> pos >> ref_base >> second_frequent_base;
+            iss >> pos >> ref_base_string >> second_frequent_base_string;
+
+            if (firstsnpline && (!std::isalpha(ref_base_string[0]) && ref_base_string[0] != '-')){
+                numbers = true;
+                
+            }
+            if (numbers){
+                ref_base = (char) std::stoi(ref_base_string);
+                second_frequent_base = (char) std::stoi(second_frequent_base_string);
+            }
+            else{
+                ref_base = ref_base_string[0];//the string should be of length 1 anyway
+                second_frequent_base = second_frequent_base_string[0];
+            }
+            firstsnpline = false;
             //get the rest of the line in content
             std::getline(iss, content);
             //strip the last \n from content and from the : character
             content = content.substr(content.find(':')+1);
             //content is a comma-separated list of the bases at this position represented by ints: remove the commas and convert to char
             string new_content = "";
-            string integer = "";
+            string integer = ""; //the variant can be either an integer encoding a char or directly a char
             for (auto c : content){
                 if (c == ','){
                     if (integer == " "){
-                        new_content += ' ';
+                        new_content += " ";
+                    }
+                    else if (numbers){
+                        new_content += (char) std::stoi(integer);
                     }
                     else{
-                        new_content += (char) std::stoi(integer);
+                        new_content += integer; //in this cas "integer" is actually already a char
                     }
                     integer = "";
                 }
