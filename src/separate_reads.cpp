@@ -88,11 +88,10 @@ void parse_column_file(
                 second_frequent_base = second_frequent_base_string[0];
             }
             firstsnpline = false;
-            //get the rest of the line in content
-            std::getline(iss, content);
-            //strip the last \n from content and from the : character
-            content = content.substr(content.find(':')+1);
-            //content is a comma-separated list of the bases at this position represented by ints: remove the commas and convert to char
+            //get the content and the indices
+            string readsIdx;
+            iss >> readsIdx >> content;
+            //content is a comma-separated list of the bases at this position represented by ints or chars: remove the commas and convert to char
             string new_content = "";
             string integer = ""; //the variant can be either an integer encoding a char or directly a char
             for (auto c : content){
@@ -114,6 +113,19 @@ void parse_column_file(
             }
             content = new_content;
 
+            iss >> readsIdx;
+            string readIdx = "";
+            vector<int> readIdxs;
+            for (auto c : readsIdx){
+                if (c == ','){
+                    readIdxs.push_back(std::atoi(readIdx.c_str()));
+                    readIdx = "";
+                }
+                else{
+                    readIdx += c;
+                }
+            }
+
             Column snp;
             snp.pos = std::atoi(pos.c_str());
             snp.ref_base = ref_base;
@@ -121,7 +133,7 @@ void parse_column_file(
             for (int n = 0; n < content.size(); n++){
                 if (content[n] != ' '){
                     snp.content.push_back(content[n]);
-                    snp.readIdxs.push_back(n);
+                    snp.readIdxs.push_back(readIdxs[n]);
                 }                
             }
             snps[snps.size()-1].push_back(snp);                
@@ -449,6 +461,30 @@ int main(int argc, char *argv[]){
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads);
 
+    //choosing size of window: compute the mean length of the 1000 first reads
+    int numberOfReadsHere = 0;
+    int sumLength = 0;
+    for (auto c : readLimits){
+        for (auto r : c){
+            numberOfReadsHere++;
+            sumLength += r.second-r.first+1;
+            if (numberOfReadsHere > 1000){
+                break;
+            }
+        }
+        if (numberOfReadsHere > 1000){
+            break;
+        }
+    }
+    double meanLength = sumLength / double(numberOfReadsHere);
+    int sizeOfWindow = 2000;
+    if (meanLength < 4000 && meanLength > 2000){
+        sizeOfWindow = 1000;
+    }
+    else if (meanLength < 2000){
+        sizeOfWindow = 500;
+    }
+
     //separate the reads on each contig parralelly
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
@@ -471,7 +507,6 @@ int main(int argc, char *argv[]){
 
         vector<pair<pair<int,int>, vector<int>>> threadedReads;
         int suspectPostitionIdx = 0;
-        int sizeOfWindow = 2000;
         int chunk = -1;
         while ((chunk+1)*sizeOfWindow-1 < length_of_contigs[n]){
             chunk++;
@@ -665,10 +700,25 @@ int main(int argc, char *argv[]){
                 out << r << "\n";
             }
             //now output all the groups
+            vector<int> readsHere;
+            vector<int> groups;
             for (auto r : threadedReads){
+                readsHere.clear();
+                groups.clear();
                 out << "GROUP\t" << r.first.first << "\t" << r.first.second << "\t";
-                for (auto h : r.second){
-                    out << h << ",";
+                for (auto h = 0 ; h < r.second.size() ; h++){
+                    int group = r.second[h];
+                    if (group != -2){
+                        readsHere.push_back(h);
+                        groups.push_back(group);
+                    }
+                }
+                for (auto h = 0 ; h < readsHere.size() ; h++){
+                    out << readsHere[h] << ",";
+                }
+                out << "\t";
+                for (auto h = 0 ; h < groups.size() ; h++){
+                    out << groups[h] << ",";
                 }
                 out << "\n";
             }

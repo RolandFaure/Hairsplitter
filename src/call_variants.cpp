@@ -369,62 +369,61 @@ float generate_msa(
     }
     newref = newRef;
 
-    /*
     //print snps (just for debugging)
-    cout << "Printing SNPs, in split_read: cicizzx" << endl;
-    int step = 1; //porportions of reads
-    int prop = 1; //proportion of positions
-    int firstRead = 0;
-    int lastRead = polishingReads.size();
-    int numberOfReads = lastRead-firstRead;
-    int start = 0;
-    int end = 500;
-    vector<string> reads (int(numberOfReads/step));
-    string cons = "";
-    for (unsigned int i = start ; i < end; i+=prop){
-        for (short n = 0 ; n < numberOfReads ; n+= step){
-            unsigned char c = ' ';
-            int ri = 0;
-            int soughtRead = firstRead+n;
-            for (auto r : snps[i].readIdxs){
-                if (r == soughtRead){
-                    c = snps[i].content[ri];
-                }
-                ri ++;
-            }
-            reads[n/step] += min(c, (unsigned char) 126);
-        }
-        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-        //     int snpidx = insertionPos[10000*i+insert];
-        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-        //         char c = ' ';
-        //         int ri = 0;
-        //         for (auto r : snps[snpidx].readIdxs){
-        //             if (r == n){
-        //                 c = snps[snpidx].content[ri];
-        //             }
-        //             ri ++;
-        //         }
-        //         reads[n/step] += c;
-        //     }
-        // }
-    }
-    cout << "Here are the aligned reads : " << endl;
-    int index = firstRead;
-    for (auto neighbor : reads){
-        if (neighbor[neighbor.size()-1] != ' '){
-            cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name << endl;
-        }
-        index+= step;
-    }
-    int n =start;
-    for(unsigned char i : consensus.substr(start, end-start)){
-        cout << newRef[n];
-        n+=prop;
-    } cout << endl;
+    // cout << "Printing SNPs, in split_read: cicizzx" << endl;
+    // int step = 1; //porportions of reads
+    // int prop = 1; //proportion of positions
+    // int firstRead = 0;
+    // int lastRead = 10;
+    // int numberOfReads = lastRead-firstRead;
+    // int start = 200;
+    // int end = 400;
+    // vector<string> reads (int(numberOfReads/step));
+    // string cons = "";
+    // for (unsigned int i = start ; i < end; i+=prop){
+    //     for (short n = 0 ; n < numberOfReads ; n+= step){
+    //         unsigned char c = ' ';
+    //         int ri = 0;
+    //         int soughtRead = firstRead+n;
+    //         for (auto r : snps[i].readIdxs){
+    //             if (r == soughtRead){
+    //                 c = snps[i].content[ri];
+    //             }
+    //             ri ++;
+    //         }
+    //         reads[n/step] += std::min(c, (unsigned char) 126);
+    //     }
+    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+    //     //     int snpidx = insertionPos[10000*i+insert];
+    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+    //     //         char c = ' ';
+    //     //         int ri = 0;
+    //     //         for (auto r : snps[snpidx].readIdxs){
+    //     //             if (r == n){
+    //     //                 c = snps[snpidx].content[ri];
+    //     //             }
+    //     //             ri ++;
+    //     //         }
+    //     //         reads[n/step] += c;
+    //     //     }
+    //     // }
+    // }
+    // cout << "Here are the aligned reads : " << endl;
+    // int index = firstRead;
+    // for (auto neighbor : reads){
+    //     if (neighbor[neighbor.size()-1] != ' '){
+    //         cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name << endl;
+    //     }
+    //     index+= step;
+    // }
+    // int n =start;
+    // for(unsigned char i : consensus.substr(start, end-start)){
+    //     cout << newRef[n];
+    //     n+=prop;
+    // } cout << endl;
     // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     // exit(1);
-    */
+    
     
     return totalDistance/totalLengthOfAlignment;
 
@@ -497,9 +496,12 @@ void call_variants(
         }
         std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<unsigned char, int>& a, const pair<unsigned char, int>& b) {return a.second > b.second;});
 
+        // cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << (int) content_sorted[0].first << " " << (int) content_sorted[1].first << " " << (int) content_sorted[2].first << endl;
+
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
             && content_sorted[0].first%5 != content_sorted[1].first%5 //the central base differs
+            && ((content_sorted[1].first - '!')%5 != 4 || (content_sorted[1].first/5%5 != content_sorted[0].first%5 && content_sorted[1].first/25%5 != content_sorted[0].first%5) ) //don't call indels that are adjacent to homopolymers, it's the best way to call false positives
             && position - posoflastsnp > 5){ //the snp is not too close to the previous one
             
             posoflastsnp = position;
@@ -553,21 +555,14 @@ void call_variants(
         int numberOfReads = allreads[contig].neighbors_.size();
         //output the list of reads
         for (auto c : suspiciousColumns){
-            out << "SNPS\t" << c.pos << "\t" << (int) c.ref_base << "\t" << (int) c.second_base << "\t:";
-            int idx = 0;
+            out << "SNPS\t" << c.pos << "\t" << (int) c.ref_base << "\t" << (int) c.second_base << "\t";
+            string idxs;
+            string bases;
             for (auto r = 0 ; r < c.readIdxs.size() ; r++){
-                while (idx < c.readIdxs[r]){
-                    out << " ,";
-                    idx+= 1;
-                }
-                out << (int) c.content[r] << ",";
-                idx+=1;
+                idxs += std::to_string(c.readIdxs[r]) + ",";
+                bases += std::to_string((int) c.content[r]) + ",";
             }
-            while (idx < numberOfReads){
-                out << " ,";
-                idx+= 1;
-            }
-            out << "\n";
+            out << idxs << "\t" << bases << "\n";
 
             //output the vcf file
             vcf << allreads[contig].name << "\t" << c.pos << "\t.\t" << "ACGT-"[(c.ref_base-'!') % 5]<< "\t" << "ACGT-"[(c.second_base-'!') % 5] << "\t.\t.\tDP=" << c.readIdxs.size()

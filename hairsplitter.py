@@ -150,6 +150,16 @@ def main():
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
 
+    # 2.1. Cut the contigs in chunks of 300000bp to avoid memory issues
+    print(" - Cutting the contigs in chunks of 300000bp to avoid memory issues")
+    command = "python " + path_to_src + "cut_gfa.py -a " + new_assembly + " -l 300000 -o " + tmp_dir + "/cut_assembly.gfa"
+    res_cut_gfa = os.system(command)
+    if res_cut_gfa != 0 :
+        print("ERROR: cut_gfa.py failed. Was trying to run: " + command)
+        sys.exit(1)
+    new_assembly = tmp_dir + "/cut_assembly.gfa"
+
+    # 2.2 Convert the assembly in fasta format
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
     command = path_to_src + "build/gfa2fa " + new_assembly + " > " + fastaAsm
@@ -158,6 +168,7 @@ def main():
         print("ERROR: gfa2fa failed UUE. Was trying to run: " + command)
         sys.exit(1)
     
+    # 2.3 Align the reads on the assembly
     print(" - Aligning the reads on the assembly")
     techno_flag = ""
     technology = args.technology.lower()
@@ -194,6 +205,9 @@ def main():
     error_rate = 0.0
     with open(error_rate_file, 'r') as f:
         error_rate = float(f.readline())
+
+    if error_rate > 0.15 :
+        error_rate = 0.15 #more errors than this are probably heterozygous variants
 
     print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
 

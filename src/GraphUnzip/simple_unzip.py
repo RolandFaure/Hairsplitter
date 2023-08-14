@@ -196,7 +196,7 @@ def simple_unzip(segments, names, gafFile) :
                 pairs = {}
                 pair_to_paths = {}
                 for p in on_which_paths_is_this_contig[segment] :
-                    # if segment.names == ['s0.ctg000001l@1_42000_0'] :
+                    # if segment.names == ['NC_038882.1_8000_4'] :
                     #     print("ciciuddou ", paths[p[0]], " ", p[1], " ", len(path)-1)
                     path = paths[p[0]]
                     if p[1] > 0 and p[1] < len(path)-1 : #we want paths that go through the contigs

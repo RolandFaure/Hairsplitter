@@ -139,7 +139,9 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
             unsigned int chunk = 0; //corresponds to lengthOfContig/MAX_SIZE_OF_CONTIGS
             while(getline(line2, field, '\t')){
                 if (fieldNb == 1){ // name of the sequence
-                    nameOfSequence = field;
+                    //name of sequence as is in minimap file is field up to the first blank space
+                    std::stringstream line3(field);
+                    std::getline(line3, nameOfSequence, ' ');                    
                 }
                 else if (fieldNb == 2){ //here is the sequence
 
@@ -349,6 +351,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 //std::cout << "my field is : " << field << std::endl;
                 fieldnumber++;
             }
+
 
             if (allgood && fieldnumber > 10 && sequence2 != sequence1){
 

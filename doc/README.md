@@ -155,14 +155,15 @@ READ    @0_7b15b848-cb53-91a7-b204-e2cced890836      0       3660    148     380
 ### SNPS lines
 SNPS line come after the read lines and describe the position of the pileup of reads on the contig.
 ```
-SNPS    1259       A       T       :A,A,A,A, ,T,C,A,T, ,T,T,T,C,A,A, ,T,T,T, , ,T,T,T,T,A,A,A,A,A,A,A, ,A,A,T,A,T,A,T,A,T,T,T,A,A,A,A, 
+SNPS    1259       A       T       2,3,4,5,8,9,14,15,16,	A,T,T,T,A,A,C,A,A,
 ```
-5 fields in this kind of line:
+6 fields in this kind of line:
 1. SNPS
 2. Position of the SNP on the contig
 3. Majority allele at this position (either a letter or an integer in range [0:255] - do not mix both in the same file)
 4. Minority allele at this position (either a letter or an integer in range [0:255] - do not mix both in the same file)
-5. Pileup. Must starts by ":". Follows a comma-separated list with exactly as many tokens (either characters or integer ASCII encodings) as there are reads aligning on a contig. The token at position _n_ describes the allele of the _n_th read (corresponding to the _n_th READ line after the last CONTIG line) at this position. ' ' is inserted if the read is not defined at this position. Last character of the list must be a comma.
+5. Reads present at this position. Follows a comma-separated list describing what reads are present at this position. The _n_th read corresponds to the _n_th READ line after the last CONTIG line. Last character of the list must be a comma.
+6. Pileup. Comma-separated list describing the alleles of the reads present at this position. 
 
 A complete (small) COL file can look like this:
 ```
@@ -171,9 +172,9 @@ READ	read_1	3300	4356	0	1034	1
 READ	read_4	0	1056	0	1034	0
 READ	read_5	0	567	345	901	1
 READ	read_6	100	1203	0	1034	1
-SNPS	23	A	T	:  AT
-SNPS	345	C	-	:CC--
-SNPS	678	-	G	:-G -
+SNPS	23	A	T	1,2,3	AAT
+SNPS	345	C	-	1,2,3,4	-C-C
+SNPS	678	-	G	1,2,4	GG-
 ```
 
 <a name="GRO">
@@ -210,13 +211,14 @@ READ    @0_7b15b848-cb53-91a7-b204-e2cced890836      0       3660    148     380
 ### Group lines
 Group lines follow read lines and describe how reads are split along the contig.
 ```
-GROUP   6000    7999    -2,0,0,-2,0,-2,0,-2,-2,-2,0,-2,-2,1,-2,1,-2,1,1,-2,-2,
+GROUP   6000    7999    2,3,4,5,7,8,10,14	1,1,1,2,2,1,2,2
 ```
-4 fields in this kind of line:
+5 fields in this kind of line:
 1. GROUP
 2. Start position of the group on the contig
 3. End position of the group on the contig
-4. Assignment of the reads in groups. Comma-separated list of integers. The integer at position _n_ is the identifier of the group of the _n_th read (corresponding to the _n_th READ line after the last CONTIG line). `-2` is a special int to describe that the read is not defined on this interval. In the above example, there is thus only two groups of reads.
+4. Reads present in this group. Follows a comma-separated list describing what reads are present at this position. The _n_th read corresponds to the _n_th READ line after the last CONTIG line. Last character of the list must be a comma.
+5. Assignment of the reads in groups. Comma-separated list of positive integers. The integer at position _i_ is the identifier of the group of the _i_th read of the precedent field. A -1 means that the read could not be clustered
 
 The GROUP lines MUST tile the entire contig!
 
@@ -227,11 +229,11 @@ READ	read_1	3300	4356	0	1034	1
 READ	read_4	0	1056	0	1034	0
 READ	read_5	0	567	345	901	1
 READ	read_6	100	1203	0	1034	1
-GROUP	0	199	0,0,-2,0
-GROUP	200	344	0,0,1,1
-GROUP	345	901	4,4,4,4
-GROUP	902	1034	0,0,-2,2
-GROUP	1034	1034	-2,-2,-2,-2
+GROUP	0	199	1,2,4		0,0,1,
+GROUP	200	344	1,2,3,4		0,0,1,1
+GROUP	345	901	1,2,3,4		4,4,4,4
+GROUP	902	1034	1,2,3,4		0,0,-1,2
+GROUP	1034	1034	3		-1
 ```
 
 

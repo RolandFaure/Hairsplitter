@@ -101,20 +101,44 @@ void parse_split_file(
             //parse the coordinates of the group
             int start, end;
             iss >> start >> end;
+
+            //parse the index of reads present there
+            std::vector<int> readIdxs;
+            string readIdxsString;
+            iss >> readIdxsString;
+            // readIdxsString is a comma-separated list of integers
+            std::istringstream iss2(readIdxsString);
+            string number;
+            while (std::getline(iss2, number, ',')){
+                readIdxs.push_back(std::stoi(number));
+            }
             
             //now parse the partition
             std::vector<int> partition;
             string partitionString;
             iss >> partitionString;
             // partitionString is a comma-separated list of integers
-            std::istringstream iss2(partitionString);
-            string number;
-            while (std::getline(iss2, number, ',')){
+            std::istringstream iss3(partitionString);
+            while (std::getline(iss3, number, ',')){
                 partition.push_back(std::stoi(number));
             }
 
+            vector<int> partitions_with_the_minus_2; //to spare memory, -2 were not stored in the file, so we need to add them back
+            int index = 0;
+            for (int r =  0 ; r < readIdxs.size() ; r++){
+                while (index < readIdxs[r]){
+                    partitions_with_the_minus_2.push_back(-2);
+                    index++;
+                }
+                partitions_with_the_minus_2.push_back(partition[r]);
+                index++;
+            }
+            while (index < allreads[contig].neighbors_.size()){
+                partitions_with_the_minus_2.push_back(-2);
+                index++;
+            }
             //now append to partitions[contig]
-            partitions[contig].push_back(std::make_pair(std::make_pair(start, end), partition));
+            partitions[contig].push_back(std::make_pair(std::make_pair(start, end), partitions_with_the_minus_2));
         }
     }
 }

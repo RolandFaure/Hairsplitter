@@ -59,8 +59,9 @@ void parse_column_file(
             string second_frequent_base_string;
             char ref_base;
             char second_frequent_base;
+            string idxs_str;
             string content;
-            iss >> pos >> ref_base_string >> second_frequent_base_string;
+            iss >> pos >> ref_base_string >> second_frequent_base_string >> idxs_str >> content;
 
             if (firstsnpline && (!std::isalpha(ref_base_string[0]) && ref_base_string[0] != '-')){
                 numbers = true;
@@ -75,10 +76,7 @@ void parse_column_file(
                 second_frequent_base = second_frequent_base_string[0];
             }
             firstsnpline = false;
-            //get the rest of the line in content
-            std::getline(iss, content);
-            //strip the last \n from content and from the : character
-            content = content.substr(content.find(':')+1);
+
             //content is a comma-separated list of the bases at this position represented by ints: remove the commas and convert to char
             string new_content = "";
             string integer = ""; //the variant can be either an integer encoding a char or directly a char
@@ -101,6 +99,19 @@ void parse_column_file(
             }
             content = new_content;
 
+            //parse idx as a comma-separated list of integers
+            vector<int> idxs;
+            string idx = "";
+            for (auto c : idxs_str){
+                if (c == ','){
+                    idxs.push_back(std::stoi(idx));
+                    idx = "";
+                }
+                else{
+                    idx += c;
+                }
+            }
+
             Column snp;
             snp.pos = std::atoi(pos.c_str());
             snp.ref_base = ref_base;
@@ -108,7 +119,7 @@ void parse_column_file(
             for (int n = 0; n < content.size(); n++){
                 if (content[n] != ' '){
                     snp.content.push_back(content[n]);
-                    snp.readIdxs.push_back(n);
+                    snp.readIdxs.push_back(idxs[n]);
                 }                
             }
             snps[snps.size()-1].push_back(snp);               
@@ -148,16 +159,13 @@ void output_new_column_file(std::string initial_column_file, std::vector<std::ve
             //then output all the new snps
             for (auto snp : new_snps[name_of_contigs[contig]]){
                 out << "SNPS\t" << snp.pos << "\t" << (int) snp.ref_base << "\t" << (int) snp.second_base << "\t:";
-                int n = 0;
+                string content = "";
+                string idxs = "";
                 for (auto c  = 0 ; c < snp.content.size(); c++){
-                    while (snp.readIdxs[c] > n){
-                        out << " ,";
-                        n++;
-                    }
-                    out << (int) snp.content[c] <<",";
-                    n++;
+                    idxs += std::to_string(snp.readIdxs[c]) + ",";
+                    content += std::to_string( (int) snp.content[c]) + ",";
                 }
-                out << "\n";
+                out << idxs << "\t" << content << "\n";
             }
         }
     }
