@@ -145,7 +145,14 @@ void parse_column_file(
             string name, startRead, endRead, startContig, endContig;
             iss >> name >> startRead >> endRead >> startContig >> endContig;
             // cout << "LINE sep reasd qslkjmflmsqdj " << line << endl;
-            readLimits[readLimits.size()-1].push_back(make_pair(std::stoi(startContig), std::stoi(endContig)));
+            try {
+                readLimits[readLimits.size()-1].push_back(make_pair(std::stoi(startContig), std::stoi(endContig)));
+            }
+            catch (const std::invalid_argument& ia) {
+                cout << "error in parsing read limits" << endl;
+                cout << "line : " << line << endl;
+                exit(1);
+            }
         }
 
     }
@@ -493,6 +500,11 @@ int main(int argc, char *argv[]){
         int numberOfReadsHere = numberOfReads[n];
         if (snps.size() == 0){
             continue;
+        }
+
+        #pragma omp critical (cout)
+        {
+            cout << "separating reads on contig " << name_of_contigs[n] << "\r";
         }
 
         vector<vector<pair<int,int>>> sims_and_diffs (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));

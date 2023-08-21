@@ -134,6 +134,12 @@ def main():
     print(" When the assemblers manage to locally phase the haplotypes, they sometimes assemble the alternative haplotype as a separate contig, unconnected in "\
                     "the gfa graph. This affects negatively the performance of Hairsplitter. Let's delete these contigs\n")
     
+    #write in the log file where to look in case of error
+    f = open(logFile, "w")
+    f.write("==== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes   ["+str(datetime.datetime.now())+"]\nIn case of errors\
+            , check the log file of minimap2 at "+tmp_dir+"/tmp/minimap2.log")
+    f.close()
+    
     print(" - Mapping the assembly against itself")
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     command = path_to_src + "build/clean_graph " + gfaAssembly + " " + new_assembly + " " + args.output.rstrip('/') +" " + logFile + " " \
@@ -149,6 +155,11 @@ def main():
 
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
+
+    #write in the log file the time at which the alignment starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
 
     # 2.1. Cut the contigs in chunks of 300000bp to avoid memory issues
     print(" - Cutting the contigs in chunks of 300000bp to avoid memory issues")
@@ -187,7 +198,18 @@ def main():
         print("ERROR: minimap2 could not run properly, check "+tmp_dir+"/logminimap.txt")
         sys.exit(1)
 
+    #write in log file that alignment went smoothly
+    f = open(logFile, "a")
+    f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully")
+    f.close()
+
     print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
+
+    #write in the log file the time at which the variant calling starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
+
     error_rate_file = tmp_dir + "/error_rate.txt"
     flag_debug = "0"
     if args.debug:
@@ -201,6 +223,11 @@ def main():
         print("ERROR: call_variants failed. Was trying to run: " + command)
         sys.exit(1)
 
+    #write in the log file that variant calling went smoothly
+    f = open(logFile, "a")
+    f.write("STAGE 3: Variant calling computed, call_variants exited successfully. Variants are stored in "+tmp_dir+"/variants.vcf and "+tmp_dir+"/variants.col")
+    f.close()
+
     #reading the error rate
     error_rate = 0.0
     with open(error_rate_file, 'r') as f:
@@ -209,7 +236,17 @@ def main():
     if error_rate > 0.15 :
         error_rate = 0.15 #more errors than this are probably heterozygous variants
 
+    #write in the log file the error rate
+    f = open(logFile, "a")
+    f.write("STAGE 3: Error rate estimated from the alignment, error rate is "+str(error_rate))
+    f.close()
+
     print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
+
+    #write in the log file the time at which the filtering starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 4: Filtering variants   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
 
     command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
         + " " + tmp_dir + "/filtered_variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/variants_filtered.vcf"
@@ -220,7 +257,18 @@ def main():
         print("ERROR: filter_variants failed. Was trying to run: " + command)
         sys.exit(1)
 
+    #write in the log file that variant filtering went smoothly
+    f = open(logFile, "a")
+    f.write("STAGE 4: Variant filtering computed, filter_variants exited successfully. Filtered variants are stored in "+tmp_dir+"/variants_filtered.vcf \
+            and "+tmp_dir+"/filtered_variants.col")
+    f.close()
+
     print("\n===== STAGE 5: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
+
+    #write in the log file the time at which the separation starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 5: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
     command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
@@ -232,8 +280,19 @@ def main():
         print("ERROR: separate_reads failed. Was trying to run: " + command)
         sys.exit(1)
 
+    #write in the log file that read separation went smoothly
+    f = open(logFile, "a")
+    f.write("STAGE 5: Read separation computed, separate_reads exited successfully. Groups of reads are stored in "+tmp_dir+"/reads_haplo.gro. Explanation of the format\
+            can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
+
     print("\n===== STAGE 6: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <debug>" 
+    
+    #write in the log file the time at which the new contigs creation starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 6: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
+    
     gaffile = tmp_dir + "/reads_on_new_contig.gaf"
     zipped_GFA = tmp_dir + "/zipped_assembly.gfa"
     polish_everything = "0"
@@ -259,7 +318,19 @@ def main():
         print("ERROR: create_new_contigs failed. Was trying to run: " + command)
         sys.exit(1)
 
+    #write in the log file that new contigs were created
+    f = open(logFile, "a")
+    f.write("STAGE 6: New contigs created, create_new_contigs exited successfully. The new assembly graph is stored in "+zipped_GFA+" and the alignments of the reads\
+            on the new contigs are stored in "+gaffile)
+    f.close()
+
     print("\n===== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
+
+    #write in the log file the time at which the untangling starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
+
     simply = ""
     if args.dont_simplify :
         simply = " --dont_merge -r"
@@ -272,16 +343,27 @@ def main():
     if resultGU != 0 :
         print( "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in "+tmp_dir+"/logGraphUnzip.txt" )
         sys.exit(1)
+    
+    #write in the log file that untangling went smoothly
+    f = open(logFile, "a")
+    f.write("STAGE 7: Untangling computed, GraphUnzip exited successfully. The new assembly is stored in "+outfile+". To see how the contigs were merged, check out hairsplitter_summary.txt.")
+    f.close()
 
     print( "\n *To see in more details what supercontigs were created with GraphUnzip, check the hairsplitter_summary.txt*\n")
     output_file = "output.txt"
     o = open(output_file, "a")
     o.write("\n\n *****Linking the created contigs***** \n\nLeft, the name of the produced supercontig. Right, the list of new contigs with a suffix -0, -1...indicating the copy of the contig, linked with _ \n\n")
-    o.close();
+    o.close()
     command = "cat output.txt "+args.output +"/supercontigs.txt > output2.txt 2> "+args.output+"/tmp/trash.txt"
     os.system(command)
     command =  "mv output2.txt "+args.output+"/hairsplitter_summary.txt && rm supercontigs.txt output.txt 2> "+args.output+"/tmp/trash.txt";
     os.system(command)
+
+    #write in the log file that the summary file was created
+    f = open(logFile, "a")
+    f.write("STAGE 7: Summary file created, hairsplitter_summary.txt is stored in "+args.output)
+    f.close()
+
     
     fasta_name = outfile[0:-4] + ".fasta"
     command = path_to_src + "build/gfa2fa " + outfile + " > " + fasta_name
@@ -291,8 +373,11 @@ def main():
         sys.exit(1)
 
     print("\n===== HairSplitter finished! =====   [", datetime.datetime.now() ,"]\n")
-    
 
+    #write in the log file that hairsplitter finished
+    f = open(logFile, "a")
+    f.write("\n==== HairSplitter finished!   ["+str(datetime.datetime.now())+"]\n")
+    f.close()
 
 if __name__ == "__main__":
     main()

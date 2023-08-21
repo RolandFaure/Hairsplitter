@@ -59,7 +59,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
     while(getline(in, line)){
 
-        if (line[0] == format && buffer.size() > 0){
+        if (line[0] == format && buffer.size() == 4){
             //then first we append the last read we saw
 
             ///parse the name of the sequence as it will appear in minimap (i.e. up to the first blank space)

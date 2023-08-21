@@ -462,6 +462,7 @@ void call_variants(
         minimumNumberOfReadsToBeConsideredSuspect = 3;
     }
 
+    
     double depthOfCoverage = 0;
     int posoflastsnp = -5;
     for (int position = 0 ; position < ref.size() ; position++){ 
@@ -497,7 +498,6 @@ void call_variants(
         std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<unsigned char, int>& a, const pair<unsigned char, int>& b) {return a.second > b.second;});
 
         // cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << (int) content_sorted[0].first << " " << (int) content_sorted[1].first << " " << (int) content_sorted[2].first << endl;
-
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
             && content_sorted[0].first%5 != content_sorted[1].first%5 //the central base differs
@@ -545,7 +545,7 @@ void call_variants(
     {
         auto coverage = depthOfCoverage / ref.size();
         //output the suspect positions
-        out << endl << "CONTIG\t" << allreads[contig].name << "\t" << allreads[contig].sequence_.size() << "\t" << coverage << "\n";
+        out << "CONTIG\t" << allreads[contig].name << "\t" << allreads[contig].sequence_.size() << "\t" << coverage << "\n";
         for (long int n : allreads[contig].neighbors_){
             out << "READ\t" << allreads[ allOverlaps[n].sequence1 ].name 
                 << "\t" << allOverlaps[n].position_1_1 << "\t" << allOverlaps[n].position_1_2 
@@ -568,6 +568,8 @@ void call_variants(
             vcf << allreads[contig].name << "\t" << c.pos << "\t.\t" << "ACGT-"[(c.ref_base-'!') % 5]<< "\t" << "ACGT-"[(c.second_base-'!') % 5] << "\t.\t.\tDP=" << c.readIdxs.size()
                 << "\n";
         }
+        out << endl;
+        vcf << endl;
     }
 }
 
@@ -646,7 +648,10 @@ int main(int argc, char *argv[])
                 //     }
                 // }
                 
-                parse_reads_on_contig(readsFile, contig, allOverlaps, allreads);
+                #pragma omp critical
+                {
+                    parse_reads_on_contig(readsFile, contig, allOverlaps, allreads);
+                }
     
                 vector<Column> snps;  //vector containing list of position, with SNPs at each position
                 //build a pileup of the reads on the contig
@@ -658,7 +663,7 @@ int main(int argc, char *argv[])
                 float meanDistance = generate_msa(contig, allOverlaps, allreads, snps, insertionPositions, 
                     contigIndex, readLimits, ref3mers, tmpFolder, DEBUG);
                 
-                #pragma omp critical
+                #pragma omp critical (errorRate)
                 {
                     if (meanDistance > 0){ //to avoid contigs with no reads aligned
                         totalErrorRate += meanDistance;
@@ -666,16 +671,10 @@ int main(int argc, char *argv[])
                     }
                 }
                 
-
                 //call variants
+
                 vector<size_t> suspectPostitions;
                 call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, file_out, vcfFile, DEBUG);
-
-                //output the columns with variants in a file
-
-                //free memory by deleting snps
-                snps.clear();
-                vector<Column>().swap(snps);
 
                 //free up memory by deleting the sequence of the reads used there
                 for (auto n : allreads[contig].neighbors_){
@@ -690,6 +689,7 @@ int main(int argc, char *argv[])
             }
             index++;
         }
+
     }
 
     //output the errorRate
