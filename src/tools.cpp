@@ -281,11 +281,19 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
 
     string com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
     string commandMap = MINIMAP + com; 
-    system(commandMap.c_str());
+    auto map = system(commandMap.c_str());
+    if (map != 0){
+        cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+        exit(1);
+    }
 
     com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".paf "+ outFolder +"unpolished_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
-    system(commandPolish.c_str());
+    auto polishres = system(commandPolish.c_str());
+    if (polishres != 0){
+        cout << "ERROR racon failed, while running " << commandPolish << endl;
+        exit(1);
+    }
 
     //polish using CONSENT
     // string CONSENT = "/home/rfaure/Documents/software/CONSENT/CONSENT-polish";
