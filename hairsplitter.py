@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
-    # parser.add_argument("-r", "--reassemble", help="Reassemble unaligned reads with wtdbg2", action="store_true")
+    parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
@@ -337,7 +337,11 @@ def main():
 
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
-    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
+    meta = " --meta"
+    if args.multiploid :
+        meta = ""
+
+    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + meta + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
     print( " - Running GraphUnzip with command line:\n     ", command, "\n   The log of GraphUnzip is written on ",tmp_dir+"/logGraphUnzip.txt\n")
     resultGU = os.system(command)
     if resultGU != 0 :

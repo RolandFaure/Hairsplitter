@@ -59,7 +59,7 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
 
     while(getline(in, line)){
 
-        if (line[0] == format && buffer.size() == 4){
+        if (line[0] == format && (buffer.size() == 4 && format == '@' || buffer.size() == 2 && format == '>')){
             //then first we append the last read we saw
 
             ///parse the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
@@ -298,6 +298,12 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             bool allgood = true;
             //now go through the fields of the line
             short fieldnumber = 0;
+
+            //print all keys of indices
+            // for (auto i : indices){
+            //     cout << "flkdjs : fqdsjf input output " <<  i.first << "\n";
+            // }
+
             while (getline(line2, field, '\t'))
             {
                 if (fieldnumber == 0){
