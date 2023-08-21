@@ -169,6 +169,8 @@ void output_new_column_file(std::string initial_column_file, std::vector<std::ve
             }
         }
     }
+    infile.close();
+    out.close();
 
 }
 
