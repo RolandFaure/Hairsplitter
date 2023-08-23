@@ -74,6 +74,7 @@ optional arguments:
                         Sequencing reads fasta/q (required)
   -x TECHNOLOGY, --technology TECHNOLOGY
                         {ont, pacbio, hifi} [ont]
+  -m, --multiploid      Use this option if all haplotypes can be assumed to have the same coverage
   -t THREADS, --threads THREADS
                         Number of threads [1]
   -s, --dont_simplify   Don't rename the contigs and don't merge them
