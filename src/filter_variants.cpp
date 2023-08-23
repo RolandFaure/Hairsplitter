@@ -158,7 +158,7 @@ void output_new_column_file(std::string initial_column_file, std::vector<std::ve
             firstsnpline = true;
             //then output all the new snps
             for (auto snp : new_snps[name_of_contigs[contig]]){
-                out << "SNPS\t" << snp.pos << "\t" << (int) snp.ref_base << "\t" << (int) snp.second_base << "\t:";
+                out << "SNPS\t" << snp.pos << "\t" << (int) snp.ref_base << "\t" << (int) snp.second_base << "\t";
                 string content = "";
                 string idxs = "";
                 for (auto c  = 0 ; c < snp.content.size(); c++){
@@ -200,6 +200,13 @@ void output_new_vcf_file(
     ofstream out(output_file);
     ifstream in(vcf_in);
 
+    //print all the new_snps_positions
+    for (auto contig : new_snp_positions){
+        for (auto pos : contig.second){
+            cout << contig.first << "\t" << pos << "\n";
+        }
+    }
+
     //go through all the lines and output only the ones which positions are in the new snps
     std::string line;
     while (std::getline(in, line)){
@@ -213,8 +220,7 @@ void output_new_vcf_file(
             iss >> contigname;
             int pos;
             iss >> pos;
-            //look for pos-1 because the positions in the vcf file are 1-based
-            if (new_snp_positions.find(contigname) != new_snp_positions.end() && new_snp_positions[contigname].find(pos-1) != new_snp_positions[contigname].end()){
+            if (new_snp_positions.find(contigname) != new_snp_positions.end() && new_snp_positions[contigname].find(pos) != new_snp_positions[contigname].end()){
                 out << line << "\n";
             }
         }

@@ -502,10 +502,10 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        #pragma omp critical (cout)
-        {
-            cout << "separating reads on contig " << name_of_contigs[n] << "\r";
-        }
+        // #pragma omp critical (cout)
+        // {
+        //     cout << "separating reads on contig " << name_of_contigs[n] << "\r";
+        // }
 
         vector<vector<pair<int,int>>> sims_and_diffs (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
 
@@ -520,15 +520,20 @@ int main(int argc, char *argv[]){
         vector<pair<pair<int,int>, vector<int>>> threadedReads;
         int suspectPostitionIdx = 0;
         int chunk = -1;
-        while ((chunk+1)*sizeOfWindow-1 < length_of_contigs[n]){
+        int upperBound;
+        while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
             chunk++;
+            upperBound = (chunk+1)*sizeOfWindow;
+            if ((chunk+1)*sizeOfWindow + 100 > length_of_contigs[n]){ //to avoid having extremely short terminal windows
+                upperBound = length_of_contigs[n]+1;
+            }
 
-            if (suspectPostitionIdx >= snps.size() || snps[suspectPostitionIdx].pos > (chunk+1)*sizeOfWindow){
+            if (suspectPostitionIdx >= snps.size() || snps[suspectPostitionIdx].pos > upperBound-1){
                 //no snp in this window, just add the reads, with -2 for the reads that are not here and 0 for the reads that are here
                 vector<int> readsHere (numberOfReadsHere, -2);
                 for (auto r = 0 ; r < readLimits[n].size() ; r++){
                     int pointLeft = chunk*sizeOfWindow;
-                    int pointRight = min((chunk+1)*sizeOfWindow-1, int(length_of_contigs[n]));
+                    int pointRight = min(upperBound-1, int(length_of_contigs[n]));
                     int middlePoint = (pointLeft+pointRight)/2;
                     if (middlePoint < 500){
                         middlePoint = min(500, int(length_of_contigs[n]/2));
@@ -542,7 +547,7 @@ int main(int argc, char *argv[]){
                     }
                 }
                 
-                threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min((chunk+1)*sizeOfWindow-1, int(length_of_contigs[n]))), readsHere));
+                threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), readsHere));
                 continue;
             }
             //only consider reads that span the whole length of the window: create a mask
@@ -551,7 +556,7 @@ int main(int argc, char *argv[]){
                 mask_at_this_position[snps[suspectPostitionIdx].readIdxs[r]] = true;
             }
 
-            while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < (chunk+1)*sizeOfWindow){
+            while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < upperBound-1){
                 suspectPostitionIdx++;
             } //suspectPostitionIdx is now the first position after the window
             suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
@@ -685,7 +690,7 @@ int main(int argc, char *argv[]){
 
             merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position);
             if (debug){
-                cout << "haploutypes sepreads : " << chunk << endl;
+                cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
                 int n = 0;
                 for (auto h : haplotypes){
                     if (h > -1){
@@ -693,16 +698,15 @@ int main(int argc, char *argv[]){
                         cout << h;
                     }
                     // else{
-                    //     cout << " ";
+                    //     cout << "*";
                     // }
                     n += 1;
                 }
                 cout << endl;
             }
-            threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min((chunk+1)*sizeOfWindow-1, int(length_of_contigs[n]))), haplotypes));
+            threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));
         }
         
-
         //append threadedReads to file
         #pragma omp critical
         {

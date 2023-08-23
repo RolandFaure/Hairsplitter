@@ -203,6 +203,9 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @brief Function that uses racon to polish a sequence
  * 
  * @param backbone sequence to be polished
+ * @param full_backbone the full backbone, to be used if the reads do not align well on the backbone
+ * @param start_pos_on_full_backbone the position of the backbone on the full backbone
+ * @param sizeOfWindow the size of the window of the backbones
  * @param polishingReads list of reads to polish it
  * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
@@ -211,7 +214,7 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param RACON path to the racon executable
  * @return polished sequence 
  */
-string consensus_reads(string const &backbone, vector <string> &polishingReads, string &id, string &outFolder, string& techno, string &MINIMAP, string &RACON){
+string consensus_reads(string &backbone, string &full_backbone, int start_pos_on_full_backbone, int sizeOfWindow, vector <string> &polishingReads, string &id, string &outFolder, string& techno, string &MINIMAP, string &RACON){
     
     if (polishingReads.size() == 0){
         return backbone;
@@ -222,7 +225,10 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
         outFolder += "/";
     }
 
-    system("mkdir tmp/ 2> trash.txt");
+    if (polishingReads.size() == 0){
+        return backbone;
+    }
+
     std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
     outseq << ">seq\n" << backbone;
     outseq.close();
@@ -287,6 +293,37 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
         exit(1);
     }
 
+    //check that the alignment of the reads were correct, otherwise change the backbone
+    string nameOfFile = outFolder +"mapped_"+id+".paf";
+    bool bbaligns = true;
+    int alternativeBackbone = 0;
+    while (!check_alignment(nameOfFile) && alternativeBackbone < polishingReads.size()){ //this means that no reads aligned really well in the first 5 reads
+        bbaligns = false;
+        //realign taking the first read as a backbone
+        backbone = polishingReads[alternativeBackbone];
+        alternativeBackbone++;
+
+        std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
+        outseq << ">seq\n" << backbone;
+        outseq.close();
+
+        com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+        commandMap = MINIMAP + com;
+        auto map = system(commandMap.c_str());
+        if (map != 0){
+            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+            exit(1);
+        }
+        outseq.close();
+
+    }
+
+    if (alternativeBackbone == polishingReads.size()){ //the group of reads is really weird and we cannot align them on anything coherently
+        return backbone;
+    }
+
+    // cout << "minimap2 done in tools , ran command " << commandMap << endl;
+
     com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".paf "+ outFolder +"unpolished_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
@@ -295,15 +332,9 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
         exit(1);
     }
 
-    //polish using CONSENT
-    // string CONSENT = "/home/rfaure/Documents/software/CONSENT/CONSENT-polish";
-    // string com = " -S 30 --contigs tmp/unpolished_"+id+".fasta --reads tmp/reads_"+id+".fasta --out tmp/polished_"+id+".paf >tmp/log_CONSENT.txt 2>tmp/trash.txt";
-    // string commandPolish = CONSENT + com;
-    // system(commandPolish.c_str());
-
     std::ifstream polishedRead(outFolder +"polished_"+id+".fasta");
-    string line;
     string consensus;
+    string line;
     while(getline(polishedRead, line)){
         if (line[0] != '>'){
             consensus = line; 
@@ -314,40 +345,56 @@ string consensus_reads(string const &backbone, vector <string> &polishingReads, 
         return backbone;
     }
 
-    //racon tends to drop the ends of the sequence, so attach them back.
-    //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
-    auto before_size = min(size_t(300), backbone.size());
-    auto after_size = min(size_t(200), consensus.size());
+    string new_seq;
+    if (bbaligns){ //in the case the reads aligned well on the backbone
+        //racon tends to drop the ends of the sequence, so attach them back.
+        //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
+        auto before_size = min(size_t(300), backbone.size());
+        auto after_size = min(size_t(200), consensus.size());
 
-    // Do the alignment for the beginning of the sequence.
-    string before_start = backbone.substr(0,before_size);
-    string after_start = consensus.substr(0,after_size);
+        // Do the alignment for the beginning of the sequence.
+        string before_start = backbone.substr(0,before_size);
+        string after_start = consensus.substr(0,after_size);
 
-    EdlibAlignResult result = edlibAlign(after_start.c_str(), after_start.size(), before_start.c_str(), before_start.size(),
-                                        edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
-
-
-    int start_pos = result.startLocations[0];
-    string additional_start_seq = before_start.substr(0, start_pos);
-
-    edlibFreeAlignResult(result);
+        EdlibAlignResult result = edlibAlign(after_start.c_str(), after_start.size(), before_start.c_str(), before_start.size(),
+                                            edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
 
-    // And do the alignment for the end of the sequence.
-    string before_end = backbone.substr(backbone.size()-before_size, before_size);
-    string after_end = consensus.substr(consensus.size()-after_size , after_size);
+        int start_pos = result.startLocations[0];
+        string additional_start_seq = before_start.substr(0, start_pos);
 
-    result = edlibAlign(after_end.c_str(), after_end.size(), before_end.c_str(), before_end.size(),
-                                        edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+        edlibFreeAlignResult(result);
 
-    int end_pos = result.endLocations[0]+1;
-    string additional_end_seq = before_end.substr(end_pos , before_end.size()-end_pos);
-    edlibFreeAlignResult(result);
+
+        // And do the alignment for the end of the sequence.
+        string before_end = backbone.substr(backbone.size()-before_size, before_size);
+        string after_end = consensus.substr(consensus.size()-after_size , after_size);
+
+        result = edlibAlign(after_end.c_str(), after_end.size(), before_end.c_str(), before_end.size(),
+                                            edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+
+        int end_pos = result.endLocations[0]+1;
+        string additional_end_seq = before_end.substr(end_pos , before_end.size()-end_pos);
+        edlibFreeAlignResult(result);
+
+        new_seq = additional_start_seq + consensus + additional_end_seq;
+
+    }
+    else{ // in the case we had to reassemble, it is more tricky to find the limits of the seq, so it makes no sense to align the borders
+        new_seq = consensus;
+    }
     
     // cout << "consensus : " << endl << (additional_start_seq + consensus + additional_end_seq).substr(100,150) << endl;
     // cout << backbone.substr(100,150) << endl;
+
+    //remove all the temporary files
+    std::remove((outFolder+"unpolished_"+id+".fasta").c_str());
+    std::remove((outFolder+"reads_"+id+".fasta").c_str());
+    std::remove((outFolder+"mapped_"+id+".paf").c_str());
+    std::remove((outFolder+"polished_"+id+".fasta").c_str());
+    std::remove((outFolder+"trash.txt").c_str());
     
-    return additional_start_seq + consensus + additional_end_seq;
+    return new_seq;
 
 }
 
@@ -399,6 +446,7 @@ std::string consensus_reads_wtdbg2(
     string &WTDBG2
 ){
 
+    outFolder += "/";
     //aligns all the reads on backbone to assemble only the interesting parts
     if (polishingReads.size() == 0){
         return backbone;
@@ -419,18 +467,18 @@ std::string consensus_reads_wtdbg2(
     if (techno == "pacbio"){
         technoFlag = " -x map-pb ";
     }
-    else if (techno == "nanopore"){
+    else if (techno == "ont"){
         technoFlag = " -x map-ont ";
     }
     else if (techno == "hifi"){
         technoFlag = " -x map-hifi ";
     }
     else{
-        cout << "unknown sequencing technology" << endl;
+        cout << "unknown sequencing technology: " << techno << endl;
         exit(1);
     }
 
-    string com = " -t 1 "+ technoFlag = " "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+    string com = " -t 1 "+ technoFlag + " "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
     string commandMap = MINIMAP + com; 
     system(commandMap.c_str());
 
@@ -591,5 +639,41 @@ void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std:
     // cout << "THe times are ggtvy : " <<  duration_cast<milliseconds>(t1-t0).count() << " " <<  duration_cast<milliseconds>(t2-t1).count() <<
     //     " " <<  duration_cast<milliseconds>(t3-t2).count() << " " <<  duration_cast<milliseconds>(t4-t3).count() << " " <<  duration_cast<milliseconds>(t5-t4).count() <<
     //     " " <<  duration_cast<milliseconds>(t6-t5).count() << endl;
+}
+
+/**
+ * @brief Check if the reads aligned well on the backbone
+ * 
+ * @param paf_file 
+ * @return true 
+ * @return false 
+ */
+bool check_alignment(std::string &paf_file){
+    ifstream in(paf_file);
+    string line;
+    int read = 0;
+    int aligned = 0;
+    while (getline(in, line)){
+        //look at the 12th field of the line
+        read += 1;
+        short fieldnumber = 0;
+        string field;
+        std::istringstream line2(line);
+        string quality;
+        while (getline(line2, field, '\t'))
+        {
+            if (fieldnumber == 11){
+                quality = field;
+            }
+            fieldnumber+= 1;
+        }
+        if (quality == "60"){
+            aligned += 1;
+        }
+        if (read == 6){
+            break;
+        }
+    }
+    return (aligned >= 2);
 }
 

@@ -997,11 +997,11 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
     for (auto r : backbone_reads){
         if (allreads[r].name != "delete_me"){
             Read read = allreads[r];
-            out << "S\t"<< read.name << "\t" << read.sequence_.str();// << read.comments; // the comments may not be compatible with the new contigs
+            out << "S\t"<< read.name << "\t" << read.sequence_.str() << "\t";// << read.comments; // the comments may not be compatible with the new contigs
             if (read.depth != -1){
-                out << "\tDP:f:" << std::to_string(read.depth);
+                out << "DP:f:" << std::to_string(read.depth);
             }
-            out << "\n";
+            out << " LN:i:" << std::to_string(read.sequence_.size()) << "\n";
         }
     }
     for (auto l : allLinks){

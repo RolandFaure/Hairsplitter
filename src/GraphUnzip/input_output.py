@@ -267,13 +267,18 @@ def get_contig_GFA(gfaFile, contig, contigOffset):
         if len(sline) >= 3 and sline[0] == 'S' and (contig in sline[1]):
             extra_tags = ''
             depth = ''
-            for f in sline[3:] :
+            tags = sline[3].split()
+            for f in tags :
                 if 'dp' in f or 'DP' in f or 'KC' in f or 'RC' in f:
                     depth = f
                 else :
-                    extra_tags += f + '\t'
-                
-            return sline[2], depth, extra_tags
+                    extra_tags += f + ' '
+            extra_tags = extra_tags.strip(" ")
+            
+            sequence = sline[2]
+            if sequence == "*" :
+                sequence = ""
+            return sequence, depth, extra_tags
 
         else :
             print('ERROR : Problem in the offset file, not pointing to the right lines')
@@ -565,7 +570,10 @@ def load_gfa(file):
     
     for line in gfa_read:
         if line[0] == "S":
+
             l = line.strip('\n').split("\t")
+            if line[4] == '\t' :
+                l = l[:4] + [''] + l[4:]
             cov = 0
             
             for element in l :
@@ -584,10 +592,8 @@ def load_gfa(file):
             s = Segment([l[1]], [1], [len(l[2])], readCoverage = [cov])
             segments.append(s)
             names[s.names[0]] = index #now this contig (identified by its name) is attached to index
-            index += 1
-            
+            index += 1            
 
-    print('Loading links')
     gfa_read = open(file, "r")
         
     cov = 1

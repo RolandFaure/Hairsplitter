@@ -422,17 +422,19 @@ void modify_GFA(
                     
                     int overhangLeft = min(interval.first.first, overhang);
                     int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
+                    string full_backbone =  allreads[backbone].sequence_.str();
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
-                    string toPolish = allreads[backbone].sequence_.str().substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
-                        + allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first)
-                        + allreads[backbone].sequence_.str().substr(interval.first.second, overhangRight);
-
-                    // cout << "toPolisssdcvh: " << toPolish << endl;
+                    string toPolish = full_backbone.substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
+                        + full_backbone.substr(interval.first.first, interval.first.second-interval.first.first)
+                        + full_backbone.substr(interval.first.second, overhangRight);
 
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
-                        newcontig = consensus_reads(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
+                        newcontig = consensus_reads(toPolish, full_backbone, interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
+                        // string samtools = "samtools";
+                        // string wtdbg2 = "/home/rfaure/Documents/software/wtdbg2/wtdbg2";
+                        // newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON, samtools, wtdbg2 );
                         if (newcontig == ""){
                             continue;
                         }
@@ -462,14 +464,14 @@ void modify_GFA(
                             if (posOnToPolish == overhangLeft){
                                 posStartOnNewContig = posOnNewContig;
                             }
-                            if (posOnToPolish == toPolish.size()-overhangRight-1){
+                            if (posOnToPolish == toPolish.size()-overhangRight){
                                 posEndOnNewContig = posOnNewContig;
                             }
                             // cout << "indices: " << posOnToPolish << " " << posOnNewContig << endl;
                         }
                         
                         newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
-                        edlibFreeAlignResult(result);                        
+                        edlibFreeAlignResult(result);   
                     }
                     else {
                         newcontig = allreads[backbone].sequence_.str().substr(interval.first.first, interval.first.second-interval.first.first+1);
@@ -1075,6 +1077,119 @@ void output_GAF(
 
 }
 
+/**
+ * @brief Merges the intervals that can be easily merged to reduce the number of intervals
+ * 
+ * @param partitions 
+ */
+void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>  > >> &partitions){
+
+    //create a new partitions
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>  > >> new_partitions;
+
+    // #pragma omp parallel for
+    for (auto contig : partitions){
+        
+        vector <pair <pair<int,int>, vector<int>>> new_intervals;
+        if (contig.second.size() > 0){
+
+            vector <int> group = contig.second[0].second;
+            int coordinate_start = contig.second[0].first.first;
+            int coordinate_end = contig.second[0].first.second;
+            for (int interval = 1 ; interval < contig.second.size() ; interval ++){
+                //check if this interval can be merged with the previous one
+                vector<int> groupThere = contig.second[interval].second;
+                //stitch !
+                unordered_map<int, set<int>> stitchLeft = stitch(group, groupThere, contig.second[interval].first.first);
+
+                //if the fit is obvious, merge
+                unordered_map <int,set<int>> stitches;
+                for (auto s : stitchLeft){
+                    stitches[s.first] = s.second;
+                }
+
+                //make sure all contigs on the left and right are stitched
+                set<int> all_contigs_left;
+                for (int a : group){
+                    all_contigs_left.emplace(a);
+                }
+                all_contigs_left.erase(-1);
+                all_contigs_left.erase(-2);
+
+                set<int> all_contigs_right;
+                for (int a : groupThere){
+                    all_contigs_right.emplace(a);
+                }
+                all_contigs_right.erase(-1);
+                all_contigs_right.erase(-2);
+
+                for (auto s : stitchLeft){
+                    if (s.second.size() == 0){
+                        stitchLeft[s.first] = all_contigs_left;
+                    }
+                }
+
+                //check if all contigs on the left of the junction are stitched
+                set <int> stitchedContigs;
+                for (auto s : stitches){
+                    for (int neighbor : s.second){
+                        stitchedContigs.emplace(neighbor);
+                    }
+                }
+                for (auto contig : all_contigs_left){
+                    if (stitchedContigs.find(contig) == stitchedContigs.end()){
+                        for (auto s : stitchLeft){
+                            stitches[s.first].emplace(contig);
+                        }
+                    }
+                }
+
+                //check if all the stitches are trivial
+                bool trivial = true;
+                unordered_map<int, int> conversion;
+                set<int> alreadySeen;
+                for (auto s : stitches){
+                    if (s.second.size() > 1){
+                        trivial = false;
+                    }
+                    else{
+                        if (alreadySeen.find(*s.second.begin()) != alreadySeen.end()){
+                            trivial = false;
+                        }
+                        else{
+                            alreadySeen.emplace(*s.second.begin());
+                        }
+                        conversion[*s.second.begin()] = s.first;
+                    }
+                }
+
+                if (!trivial){
+                    new_intervals.push_back(make_pair(make_pair(coordinate_start, coordinate_end), group));
+                    group = groupThere;
+                    coordinate_start = contig.second[interval].first.first;
+                    coordinate_end = contig.second[interval].first.second;
+                }
+                else{
+                    coordinate_end = contig.second[interval].first.second;
+                    for (auto read = 0 ; read < group.size() ; read  ++){
+                        if (group[read] < 0 && groupThere[read] > -1){
+                            group[read] = conversion[groupThere[read]];
+                        }
+                    }
+                }
+
+            }
+            new_intervals.push_back(make_pair(make_pair(coordinate_start, coordinate_end), group));
+        }
+        else {
+            new_intervals = contig.second;
+        }
+        new_partitions[contig.first] = new_intervals;
+    }
+    partitions = new_partitions;
+}
+
+
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
@@ -1111,6 +1226,9 @@ int main(int argc, char *argv[])
     //now parse the split file
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > partitions;
     parse_split_file(split_file, allreads, allOverlaps, partitions);
+
+    //first merge the intervals that can be merged
+    merge_intervals(partitions);
 
     cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);

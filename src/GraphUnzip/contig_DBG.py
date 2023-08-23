@@ -382,8 +382,8 @@ def DBG_long_reads(segments, names, copiesnumber, gafFile):
     paths = []
     for line in lines:
         #split the line on '>' and '<' to get the path
-        contigs = re.split('[><]' , line)
-        orientations = "".join(re.findall("[<>]", line))
+        contigs = re.split('[><]' , line[1])
+        orientations = "".join(re.findall("[<>]", line[-1]))
         del contigs[0] #because the first element is always ''
 
         path = []

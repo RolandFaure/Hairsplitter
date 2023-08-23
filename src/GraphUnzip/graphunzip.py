@@ -382,7 +382,7 @@ def main():
             print("\n*Untangling the graph using long reads*\n")
             # rename = True
             if multiploid :
-                segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
+                # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
                 segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
             else :
                 segments = simple_unzip(segments, names, lrFile)

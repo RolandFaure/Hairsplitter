@@ -15,6 +15,7 @@ from input_output import read_GAF
 from input_output import read_TSV
 import time
 from copy import deepcopy
+import sys
 
 #from segment import find_this_link
 
@@ -144,8 +145,8 @@ def determine_haploid_contigs(lines, segments, names) :
     
     for line in lines :
         
-        contigs = re.split('[><]' , line)
-        orientations = "".join(re.findall("[<>]", line))
+        contigs = re.split('[><]' , line[1])
+        orientations = "".join(re.findall("[<>]", line[1]))
         del contigs[0] #because the first element is always ''
     
         for c, contig in enumerate(contigs) :
@@ -197,14 +198,13 @@ def determine_haploid_contigs(lines, segments, names) :
 #output : the completed bridges list, with for each haploid contig a list of what was found left and right of the contig. 
 def inventoriate_bridges(lines, bridges, minimum_supported_links, haploidContigsNames, longContigs, names, segments) :
     
-    
     for l, line in enumerate(lines) :      
                     
         if (l+1) % 1000 == 0 :
             print("Inventoried ", l+1, " long reads over ", len(lines), end = '\r')
         
-        contigs = re.split('[><]' , line)
-        orientations = "".join(re.findall("[<>]", line))
+        contigs = re.split('[><]' , line[1])
+        orientations = "".join(re.findall("[<>]", line[1]))
         del contigs[0] #because the first element is always ''
         
         #first go through the alignment to make sure it is possible on the gfa
@@ -214,9 +214,14 @@ def inventoriate_bridges(lines, bridges, minimum_supported_links, haploidContigs
                 or1 = '<>'.index(orientations[c-1])
                 or2 = '><'.index(orientations[c])
                 #check if the link actually exists (it should, if the aligner did its job correctly, but apparently sometimes SPAligner behaves strangely)
+
                 if -1 == sg.find_this_link(segments[names[contig]], or2, segments[names[contigs[c-1]]].links[or1], segments[names[contigs[c-1]]].otherEndOfLinks[or1]) :
+                    print("here are all the links of ", contigs[c-1], " : ", [i.names for i in segments[names[contigs[c-1]]].links[or1]], " ", \
+                          segments[names[contigs[c-1]]].otherEndOfLinks[or1])
+                    print ("Here is the gaf line : ", line)
                     print ("WARNING: discrepancy between what's found in the alignment files and the inputted GFA graph. Link ", contigs[c-1:c+1], orientations[c-1:c+1], " not found in the gfa")
                     possible = False
+                    sys.exit(1)
                     
         #then, only inventoriate the bridge if it is possible with respect to the graph     
         if  possible :

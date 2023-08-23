@@ -20,13 +20,18 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file);
 void rename_reads(std::string &fasta_file, std::string &prefix);
 
 std::string consensus_reads(
-    std::string const &backbone, 
+    std::string &backbone, 
+    std::string &full_backbone, 
+    int start_pos_on_full_backbone,
+    int sizeOfWindow,
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string &outFolder,
     std::string &techno,
     std::string &MINIMAP, 
     std::string &RACON);
+
+bool check_alignment(std::string &paf_file);
 
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 
