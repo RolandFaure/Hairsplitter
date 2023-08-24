@@ -44,6 +44,8 @@ void output_GAF(
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>  > >> &partitions,
     std::string outputGAF);
 
+void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int>  > >> &partitions);
+
 #endif
 
 

@@ -993,6 +993,7 @@ void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &
 //output : a new gfa file with all contigs splitted
 void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_reads, string fileOut, vector<Link> &allLinks)
 {
+
     ofstream out(fileOut);
     for (auto r : backbone_reads){
         if (allreads[r].name != "delete_me"){

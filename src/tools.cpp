@@ -425,6 +425,87 @@ void rename_reads(std::string &fasta_file, std::string &prefix){
 }
 
 /**
+ * @brief creates a consensus sequence using medaka
+ * 
+ * @param backbone sequence to be polished
+ * @param polishingReads reads to polish it
+ * @param id thread id to be sure intermediate files do not get mixed up with other threads
+ * @param outFolder tmp folder to store intermediate files
+ * @return std::string 
+ */
+std::string consensus_reads_medaka(
+    std::string const &backbone, 
+    std::vector <std::string> &polishingReads, 
+    std::string &id,
+    std::string outFolder){
+
+    outFolder += "/";
+    //output all polishing reads in a file
+    std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
+    for (int read =0 ; read < polishingReads.size() ; read++){
+        polishseqs << ">"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
+    }
+    polishseqs.close();
+
+    //output the backbone in a file
+    std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
+    outseq << ">seq\n" << backbone;
+    outseq.close();
+
+    //run medaka
+    string com = "medaka_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"unpolished_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 2>"+ outFolder +"trash.txt";
+    auto med_res = system(com.c_str());
+    if (med_res != 0){
+        //remove the medaka folder
+        string command = "rm -r "+ outFolder +"medaka_"+id;
+        auto rm = system(command.c_str());
+        if (rm != 0){
+            cout << "ERROR rm failed, while running " << command << endl;
+            exit(1);
+        }
+        return "";
+        // cout << "ERROR medaka failed, while running " << com << endl;
+        // exit(1);
+    }
+
+    //get the result
+    std::ifstream consensus(outFolder +"medaka_"+id+"/consensus.fasta");
+    if (!consensus){
+        cout << "problem reading files in tools.cpp wiwio, while trying to read " << outFolder +"medaka_"+id+"/consensus.fasta" << endl;
+        throw std::invalid_argument( "File could not be read" );
+    }
+
+    string line;
+    bool nextLine = false;
+    string newcontig = "";
+    while(getline(consensus, line)){
+        if (line[0] != '>' && nextLine){
+            newcontig = line; //there should be only one contig, which is what was just assembled
+            break;
+        }
+        else if (line[0] == '>'){
+            nextLine = true;
+        }
+    }
+
+    consensus.close();
+
+    //remove all the temporary files
+    std::remove((outFolder+"unpolished_"+id+".fasta").c_str());
+    std::remove((outFolder+"reads_"+id+".fasta").c_str());
+    //remove the medaka folder
+    string command = "rm -r "+ outFolder +"medaka_"+id;
+    auto rm = system(command.c_str());
+    if (rm != 0){
+        cout << "ERROR rm failed, while running " << command << endl;
+        exit(1);
+    }
+
+
+    return newcontig;
+}
+
+/**
  * @brief assebmles the reads using wtdbg2
  * 
  * @param backbone 

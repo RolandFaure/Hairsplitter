@@ -431,7 +431,12 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
-                        newcontig = consensus_reads(toPolish, full_backbone, interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
+                        // newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder);
+                        // if (newcontig == ""){
+                            newcontig = consensus_reads(toPolish, full_backbone, 
+                                interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
+                        // }
+                        
                         // string samtools = "samtools";
                         // string wtdbg2 = "/home/rfaure/Documents/software/wtdbg2/wtdbg2";
                         // newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON, samtools, wtdbg2 );
@@ -648,6 +653,7 @@ void modify_GFA(
             }
         }
     }
+
     std::ofstream o("output.txt");
     o << log_text << endl;
 }

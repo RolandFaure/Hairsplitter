@@ -471,6 +471,7 @@ int main(int argc, char *argv[]){
     //choosing size of window: compute the mean length of the 1000 first reads
     int numberOfReadsHere = 0;
     int sumLength = 0;
+    int numberOfReadsAbove4000 = 0;
     for (auto c : readLimits){
         for (auto r : c){
             numberOfReadsHere++;
@@ -485,10 +486,10 @@ int main(int argc, char *argv[]){
     }
     double meanLength = sumLength / double(numberOfReadsHere);
     int sizeOfWindow = 2000;
-    if (meanLength < 4000 && meanLength > 2000){
+    if (numberOfReadsAbove4000 < 20 && meanLength < 4000 && meanLength > 2000){
         sizeOfWindow = 1000;
     }
-    else if (meanLength < 2000){
+    else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
         sizeOfWindow = 500;
     }
 

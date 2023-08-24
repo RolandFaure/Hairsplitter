@@ -200,13 +200,6 @@ void output_new_vcf_file(
     ofstream out(output_file);
     ifstream in(vcf_in);
 
-    //print all the new_snps_positions
-    for (auto contig : new_snp_positions){
-        for (auto pos : contig.second){
-            cout << contig.first << "\t" << pos << "\n";
-        }
-    }
-
     //go through all the lines and output only the ones which positions are in the new snps
     std::string line;
     while (std::getline(in, line)){

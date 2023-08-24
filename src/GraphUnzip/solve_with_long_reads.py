@@ -216,12 +216,12 @@ def inventoriate_bridges(lines, bridges, minimum_supported_links, haploidContigs
                 #check if the link actually exists (it should, if the aligner did its job correctly, but apparently sometimes SPAligner behaves strangely)
 
                 if -1 == sg.find_this_link(segments[names[contig]], or2, segments[names[contigs[c-1]]].links[or1], segments[names[contigs[c-1]]].otherEndOfLinks[or1]) :
-                    print("here are all the links of ", contigs[c-1], " : ", [i.names for i in segments[names[contigs[c-1]]].links[or1]], " ", \
-                          segments[names[contigs[c-1]]].otherEndOfLinks[or1])
-                    print ("Here is the gaf line : ", line)
-                    print ("WARNING: discrepancy between what's found in the alignment files and the inputted GFA graph. Link ", contigs[c-1:c+1], orientations[c-1:c+1], " not found in the gfa")
-                    possible = False
-                    sys.exit(1)
+                    # print("here are all the links of ", contigs[c-1], " : ", [i.names for i in segments[names[contigs[c-1]]].links[or1]], " ", \
+                    #       segments[names[contigs[c-1]]].otherEndOfLinks[or1])
+                    # print ("Here is the gaf line : ", line)
+                    # print ("WARNING: discrepancy between what's found in the alignment files and the inputted GFA graph. Link ", contigs[c-1:c+1], orientations[c-1:c+1], " not found in the gfa")
+                    possible = False 
+                    # sys.exit(1)
                     
         #then, only inventoriate the bridge if it is possible with respect to the graph     
         if  possible :

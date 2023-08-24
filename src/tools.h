@@ -33,6 +33,12 @@ std::string consensus_reads(
 
 bool check_alignment(std::string &paf_file);
 
+std::string consensus_reads_medaka(
+    std::string const &backbone, 
+    std::vector <std::string> &polishingReads, 
+    std::string &id,
+    std::string outFolder);
+
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
