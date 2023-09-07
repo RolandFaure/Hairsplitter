@@ -5,6 +5,7 @@
 #include <sstream> //for parsing strings
 #include <string>
 #include <omp.h> //for efficient parallelization
+#include <set>
 
 #include "input_output.h"
 
@@ -17,6 +18,18 @@ using robin_hood::unordered_map;
 using std::pair;
 using std::make_pair;
 
+
+string convert_base_to_triplet(int base){
+
+    base -= 33;
+    char middle = "ACGT-"[base%5];
+    base /= 5;
+    char first = "ACGT-"[base%5];
+    base /= 5;
+    char last = "ACGT-"[base%5];
+    
+    return string(1,first)+string(1,middle)+string(1,last);
+}
 
 /**
  * @brief Generates the MSA of all reads against a backbone
@@ -497,7 +510,12 @@ void call_variants(
         }
         std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<unsigned char, int>& a, const pair<unsigned char, int>& b) {return a.second > b.second;});
 
-        // cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << (int) content_sorted[0].first << " " << (int) content_sorted[1].first << " " << (int) content_sorted[2].first << endl;
+        // if (position == 551 ){//&& allreads[contig].name == "edge_2"){
+        //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
+        //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
+        //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
+        //     cout << "with frequencies : " << content_sorted[0].second << " " << content_sorted[1].second << " " << content_sorted[2].second << " " << content_sorted[3].second<< endl;
+        // }
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
             && content_sorted[0].first%5 != content_sorted[1].first%5 //the central base differs

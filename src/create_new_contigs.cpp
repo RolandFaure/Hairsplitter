@@ -170,6 +170,8 @@ void modify_GFA(
     string &techno,
     string &MINIMAP, 
     string &RACON,
+    string &path_to_python,
+    string &path_src,
     bool DEBUG)
     {
 
@@ -374,27 +376,27 @@ void modify_GFA(
                 }
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
-                //taking exactly the right portion of read we need
                 int numberOfClusters = 0;
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] > -1){
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
                         int clust = interval.second[r];
-                        int limitLeft = max(0,allOverlaps[allreads[backbone].neighbors_[r]].position_1_1-20); //the limit of the read that we should use with a little margin for a clean polish
-                        int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
+                        string clippedRead = allreads[idxRead].sequence_.str();
+                        // int limitLeft = max(0,allOverlaps[allreads[backbone].neighbors_[r]].position_1_1-20); //the limit of the read that we should use with a little margin for a clean polish
+                        // int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
 
-                        string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
+                        // string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
                         
                         // cout << "cliipplling read: " << allreads[idxRead].name << " " << limitLeft << " " << limitRight << " " 
                         //     << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allreads[idxRead].sequence_.size() << endl;
 
-                        if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
-                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
-                        }
-                        else{
-                            clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).reverse_complement().str();
-                        }
+                        // if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
+                        //     clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
+                        // }
+                        // else{
+                        //     clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).reverse_complement().str();
+                        // }
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
                             readsPerPart[clust] = {clippedRead};
@@ -421,7 +423,7 @@ void modify_GFA(
                     int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
                     
                     int overhangLeft = min(interval.first.first, overhang);
-                    int overhangRight = min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang);
+                    int overhangRight = max(0,min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang));
                     string full_backbone =  allreads[backbone].sequence_.str();
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
                     string toPolish = full_backbone.substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
@@ -431,10 +433,10 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
-                        // newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder);
+                        newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, path_to_python, path_src);
                         // if (newcontig == ""){
-                            newcontig = consensus_reads(toPolish, full_backbone, 
-                                interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
+                            // newcontig = consensus_reads(toPolish, full_backbone, 
+                            //     interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
                         // }
                         
                         // string samtools = "samtools";
@@ -455,6 +457,7 @@ void modify_GFA(
                         int posOnNewContig = result.startLocations[0];
                         int posStartOnNewContig = 0;
                         int posEndOnNewContig = 0;
+                        // cout << "fqjdk " << posOnNewContig << " " << overhangLeft << " " << overhangRight << " " << toPolish.size() << endl;
                         for (char c : cigar){
                             if (c == 'M'){
                                 posOnToPolish++;
@@ -1199,9 +1202,9 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
-    if (argc != 14){
+    if (argc != 15){
         std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> "
-                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polish_everything> <path_to_minimap> <path-to-racon> <debug>" << std::endl;
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-python> <debug>" << std::endl;
         cout << argc << endl;
         return 1;
     }
@@ -1217,7 +1220,11 @@ int main(int argc, char *argv[])
     bool polish = bool(stoi(argv[10]));
     string MINIMAP = argv[11];
     string RACON = argv[12];
-    bool DEBUG = bool(stoi(argv[13]));
+    string path_to_python = argv[13];
+    bool DEBUG = bool(stoi(argv[14]));
+    string argv0 = argv[0];
+    //strip the '/build/create_new_contigs' from the end of argv0 to obtain the path to the src folder
+    string path_to_src = argv0.substr(0,argv0.size()-25);
 
 
     vector <Link> allLinks;
@@ -1240,7 +1247,8 @@ int main(int argc, char *argv[])
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
 
     cout << " - Creating the new contigs" << endl;
-    modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, tmpFolder, error_rate, polish, technology, MINIMAP, RACON, DEBUG);
+    modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
+        tmpFolder, error_rate, polish, technology, MINIMAP, RACON, path_to_python, path_to_src, DEBUG);
     output_GFA(allreads, backbone_reads, output_graph, allLinks);
 
     return 0;

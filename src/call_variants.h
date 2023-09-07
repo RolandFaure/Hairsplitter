@@ -30,6 +30,7 @@ void call_variants(
     float &meanError, 
     std::string &tmpFolder,
     std::string &outputFile,
+    std::string &vcfFile,
     bool DEBUG);
 
 #endif

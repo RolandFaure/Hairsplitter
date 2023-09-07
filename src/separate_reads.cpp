@@ -1,6 +1,8 @@
 #include "separate_reads.h"
 #include "cluster_graph.h"
 
+#include "input_output.h"
+
 #include <iostream>
 #include <fstream> //for reading files
 #include <sstream> //for parsing strings
@@ -442,6 +444,96 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     return re_clustered;
 }
 
+/**
+ * @brief Aggregate many clusterings into one, merging the clusters that are too close to each other
+ * 
+ * @param snps 
+ * @param localClusters 
+ * @param strengthened_adjacency_matrix 
+ * @param mask_at_this_position 
+ * @param haplotypes 
+ * @param errorRate 
+ */
+void finalize_clustering( 
+    std::vector<Column> &snps,  
+    vector<vector<int>> &localClusters, 
+    vector<vector<int>> &strengthened_adjacency_matrix, 
+    vector<bool> &mask_at_this_position,
+    vector<int> &haplotypes,
+    float errorRate){
+ 
+    vector<int> new_clusters = merge_clusterings(localClusters, strengthened_adjacency_matrix, mask_at_this_position);
+    vector<int> clusteredReads = new_clusters;
+
+    // find all clusters that are too small and flag them as a -1 cluster, so they can be rescued later
+    unordered_map<int, int> clusterSizes;
+    for (auto r = 0 ; r < clusteredReads.size() ; r++){
+        if (mask_at_this_position[r] == false){
+            clusteredReads[r] = -2;
+        }
+        else{
+            clusterSizes[clusteredReads[r]] += 1;
+        }
+    }
+    for (auto r = 0 ; r < clusteredReads.size() ; r++){
+
+        float minSizeOfCluster = min(float(5.0),max(float(3.0), errorRate*100)); //with HiFi reads, we can find clusters of size 3
+
+        if (clusterSizes[clusteredReads[r]] < minSizeOfCluster && clusteredReads[r] != -2){
+            clusteredReads[r] = -1;
+        }
+    }
+
+    // vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
+    vector<int> mergedHaplotypes = clusteredReads;
+    //re-number the clusters
+    unordered_map<int, int> clusterToHaplotype;
+    int haplotype = 0;
+    for (auto r = 0 ; r < mergedHaplotypes.size() ; r++){
+        if (mergedHaplotypes[r] > -1){
+            if (clusterToHaplotype.find(mergedHaplotypes[r]) == clusterToHaplotype.end()){
+                clusterToHaplotype[mergedHaplotypes[r]] = haplotype;
+                haplotype++;
+            }
+            mergedHaplotypes[r] = clusterToHaplotype[mergedHaplotypes[r]];
+        }
+    }
+
+    // cout << "merged haploitypes : " << endl;
+    // for (auto h : mergedHaplotypes){
+    //     if (h > -1){
+    //         cout << h << " ";
+    //     }
+    // }
+    // cout << endl;
+
+    //clustered reads represent subsets of reads that have never been separated in no partition
+    //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
+    //however, they should not be actually separated in snps: merge them
+
+    haplotypes = chinese_whispers(strengthened_adjacency_matrix, mergedHaplotypes, mask_at_this_position);
+
+    //re-number the haplotypes
+    unordered_map<int, int> haplotypeToIndex;
+    haplotypeToIndex[-1] = -1; 
+    if (snps.size() == 0){
+        haplotypeToIndex[-1] = 0; 
+    }
+    haplotypeToIndex[-2] = -2;
+    int index_h = 0;
+    for (auto h : haplotypes){
+        if (haplotypeToIndex.find(h) == haplotypeToIndex.end()){
+            haplotypeToIndex[h] = index_h;
+            index_h += 1;
+        }
+    }
+    for (auto r = 0 ; r < haplotypes.size() ; r++){
+        haplotypes[r] = haplotypeToIndex[haplotypes[r]];
+    }
+
+    merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position);
+}
+
 int main(int argc, char *argv[]){
     if (argc < 5){
         cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> " << endl;
@@ -486,12 +578,12 @@ int main(int argc, char *argv[]){
     }
     double meanLength = sumLength / double(numberOfReadsHere);
     int sizeOfWindow = 2000;
-    if (numberOfReadsAbove4000 < 20 && meanLength < 4000 && meanLength > 2000){
-        sizeOfWindow = 1000;
-    }
-    else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
-        sizeOfWindow = 500;
-    }
+    // if (numberOfReadsAbove4000 < 20 && meanLength < 4000 && meanLength > 2000){
+    //     sizeOfWindow = 1000;
+    // }
+    // else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
+    //     sizeOfWindow = 500;
+    // }
 
     //separate the reads on each contig parralelly
     omp_set_num_threads(num_threads);
@@ -512,7 +604,7 @@ int main(int argc, char *argv[]){
 
         list_similarities_and_differences_between_reads(snps, sims_and_diffs);
 
-        // cout << "similrities and differences computed between reads 0 and other" << endl;
+        // cout << "similrities and differences computed" << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
@@ -587,6 +679,8 @@ int main(int argc, char *argv[]){
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
+            outputGraph(strengthened_adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+
             // cout << "here are all the interesting positions" << endl;
             // for (auto p : interestingPositions){
             //     cout << p << " ";
@@ -620,76 +714,9 @@ int main(int argc, char *argv[]){
                 }         
             }
 
-            vector<int> new_clusters = merge_clusterings(localClusters, strengthened_adjacency_matrix, mask_at_this_position);
-            vector<int> clusteredReads = new_clusters;
-
-            // find all clusters that are too small and flag them as a -1 cluster, so they can be rescued later
-            unordered_map<int, int> clusterSizes;
-            for (auto r = 0 ; r < clusteredReads.size() ; r++){
-                if (mask_at_this_position[r] == false){
-                    clusteredReads[r] = -2;
-                }
-                else{
-                    clusterSizes[clusteredReads[r]] += 1;
-                }
-            }
-            for (auto r = 0 ; r < clusteredReads.size() ; r++){
-
-                float minSizeOfCluster = min(float(5.0),max(float(3.0), errorRate*100)); //with HiFi reads, we can find clusters of size 3
-
-                if (clusterSizes[clusteredReads[r]] < minSizeOfCluster && clusteredReads[r] != -2){
-                    clusteredReads[r] = -1;
-                }
-            }
-
-            // vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
-            vector<int> mergedHaplotypes = clusteredReads;
-            //re-number the clusters
-            unordered_map<int, int> clusterToHaplotype;
-            int haplotype = 0;
-            for (auto r = 0 ; r < mergedHaplotypes.size() ; r++){
-                if (mergedHaplotypes[r] > -1){
-                    if (clusterToHaplotype.find(mergedHaplotypes[r]) == clusterToHaplotype.end()){
-                        clusterToHaplotype[mergedHaplotypes[r]] = haplotype;
-                        haplotype++;
-                    }
-                    mergedHaplotypes[r] = clusterToHaplotype[mergedHaplotypes[r]];
-                }
-            }
-
-            // cout << "merged haploitypes : " << endl;
-            // for (auto h : mergedHaplotypes){
-            //     if (h > -1){
-            //         cout << h << " ";
-            //     }
-            // }
-            // cout << endl;
-
-            //clustered reads represent subsets of reads that have never been separated in no partition
-            //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
-            //however, they should not be actually separated in snps: merge them
-
-            vector<int> haplotypes = chinese_whispers(strengthened_adjacency_matrix, mergedHaplotypes, mask_at_this_position);
-
-            //re-number the haplotypes
-            unordered_map<int, int> haplotypeToIndex;
-            haplotypeToIndex[-1] = -1; 
-            if (snps.size() == 0){
-                haplotypeToIndex[-1] = 0; 
-            }
-            haplotypeToIndex[-2] = -2;
-            int index_h = 0;
-            for (auto h : haplotypes){
-                if (haplotypeToIndex.find(h) == haplotypeToIndex.end()){
-                    haplotypeToIndex[h] = index_h;
-                    index_h += 1;
-                }
-            }
-            for (auto r = 0 ; r < haplotypes.size() ; r++){
-                haplotypes[r] = haplotypeToIndex[haplotypes[r]];
-            }
-
-            merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position);
+            vector<int> haplotypes;
+            finalize_clustering(snps, localClusters, strengthened_adjacency_matrix, mask_at_this_position, haplotypes, errorRate);
+            
             if (debug){
                 cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
                 int n = 0;
@@ -707,6 +734,7 @@ int main(int argc, char *argv[]){
             }
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));
         }
+        //recursively go through all the windows once again, seeing if a window can be inspired by its neighbors
         
         //append threadedReads to file
         #pragma omp critical

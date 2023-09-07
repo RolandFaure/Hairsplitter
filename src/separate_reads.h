@@ -31,6 +31,14 @@ void create_read_graph(
     std::vector< std::vector<int>> &adjacency_matrix,
     float &errorRate);
 
+void finalize_clustering( 
+    std::vector<Column> &snps,  
+    std::vector<std::vector<int>> &localClusters, 
+    std::vector<std::vector<int>> &strengthened_adjacency_matrix, 
+    std::vector<bool> &mask_at_this_position,
+    std::vector<int> &haplotypes,
+    float errorRate);
+
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask);
 

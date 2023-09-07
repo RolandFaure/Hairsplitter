@@ -127,12 +127,12 @@ def parse_args_unzip() :
         help="""(Hi-C only)[default] Proposes the best untangling it can get (can be misled by approximate coverage information). Use this option if the contig coverage information of the graph can be trusted""",
     )
 
-    groupBehavior.add_argument(
-        "-m",
-        "--meta",
-        action="store_true",
-        help="""Use this option if the graph is metagenomic, to prevent HairSplitter making dubious assumptions about the coverage""",
-    )
+    # groupBehavior.add_argument(
+    #     "-m",
+    #     "--meta",
+    #     action="store_true",
+    #     help="""Use this option if the graph is metagenomic, to prevent HairSplitter making dubious assumptions about the coverage""",
+    # )
     
     groupBehavior.add_argument(
         "-e",
@@ -294,7 +294,7 @@ def main():
         reliableCoverage = not args.conservative
         exhaustive = args.exhaustive
 
-        multiploid = args.meta
+        # multiploid = args.meta
         
         #clean = args.clean
         
@@ -374,18 +374,18 @@ def main():
         ##Moving to the actual unzipping of the graph
         
         supported_links2 = sparse.lil_matrix((len(names)*2, len(names)*2)) #supported links considering the topography of the graph
-        if multiploid :
-            refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
+        # if multiploid :
+        #     refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
 
         #As a first step, use only the long reads, if available
         if uselr :
             print("\n*Untangling the graph using long reads*\n")
             # rename = True
-            if multiploid :
-                # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
-                segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
-            else :
-                segments = simple_unzip(segments, names, lrFile)
+            # if multiploid :
+            #     # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
+            #     segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
+            # else :
+            segments = simple_unzip(segments, names, lrFile)
 
             if merge :
                 print("Merging contigs that can be merged...")

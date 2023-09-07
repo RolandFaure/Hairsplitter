@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 
 using std::cout;
 using std::endl;
@@ -182,10 +183,11 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
     int i = 0;
     while (getline(fasta, line)){
         if (line[0] == '>'){
+            //split line on the first space
+            name = line.substr(1, line.find(' ')-1);
             if (i != 0){
                 gfa << "S\t" << name << "\t" << seq << endl;
             }
-            string name = line.substr(1);
         }
         else{
             seq += line;
@@ -437,7 +439,9 @@ std::string consensus_reads_medaka(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
-    std::string outFolder){
+    std::string outFolder,
+    std::string &path_to_python,
+    std::string &path_src){
 
     outFolder += "/";
     //output all polishing reads in a file
@@ -445,6 +449,8 @@ std::string consensus_reads_medaka(
     for (int read =0 ; read < polishingReads.size() ; read++){
         polishseqs << ">"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
     }
+    //add the backbone to the reads
+    polishseqs << ">seq\n" << backbone;
     polishseqs.close();
 
     //output the backbone in a file
@@ -452,20 +458,77 @@ std::string consensus_reads_medaka(
     outseq << ">seq\n" << backbone;
     outseq.close();
 
-    //run medaka
-    string com = "medaka_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"unpolished_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 2>"+ outFolder +"trash.txt";
-    auto med_res = system(com.c_str());
-    if (med_res != 0){
-        //remove the medaka folder
-        string command = "rm -r "+ outFolder +"medaka_"+id;
-        auto rm = system(command.c_str());
-        if (rm != 0){
-            cout << "ERROR rm failed, while running " << command << endl;
-            exit(1);
+    //create a bam file with the reads aligned on the backbone and index it
+    string comMap = "minimap2 -ax map-pb -r2k "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta 2>"+ outFolder +"trash.txt "
+        +"| samtools sort >"+ outFolder +"mapped_"+id+".bam && samtools index "+ outFolder +"mapped_"+id+".bam 2>"+ outFolder +"trash.txt";
+    auto map = system(comMap.c_str());
+    if (map != 0){
+        cout << "ERROR minimap2 yuq fd failed, while running " << comMap << endl;
+        exit(1);
+    }
+
+    //now create a first rough polish using a basic pileup
+    // Build the command to run haplodmf_count_freqs.py
+    string command;
+    command =  path_to_python + " " + path_src + "/haplodmf_count_freqs.py " + outFolder +"mapped_"+id+".bam " + outFolder +"acgt_"+id+".txt 2>"+ outFolder +"trash.txt";    
+    // cout << "Running " << command << endl;
+    
+    // Run the command
+    int return_code = system(command.c_str());
+    
+    if (return_code != 0) {
+        cout << "Error running command: " << command << endl;
+        exit(1);
+    }
+
+    string file_acgt = outFolder +"acgt_"+id+".txt";
+    ifstream infile(file_acgt);
+    string line;
+    vector<string> seq_temp;
+    getline(infile, line); // Skip the header line
+    string h = "";
+
+    while (getline(infile, line)) {
+        std::istringstream iss(line);
+        string contig, pos, reads_all, deletions, As, Cs, Gs, Ts;
+        iss >> contig >> pos >> reads_all >> deletions >> As >> Cs >> Gs >> Ts;
+
+        int A = std::atoi(As.c_str());
+        int C = std::atoi(Cs.c_str());
+        int G = std::atoi(Gs.c_str());
+        int T = std::atoi(Ts.c_str());
+        int del = std::atoi(deletions.c_str());
+        int depth = std::atoi(reads_all.c_str());
+
+        // Assuming your logic for consensus calculation remains the same
+        if (del * 2 <= depth) { // You can adjust this condition as needed
+            int max_base_count = std::max ({A, C, G, T});
+            if (A == max_base_count) {
+                h += 'A';
+            } else if (C == max_base_count) {
+                h += 'C';
+            } else if (G == max_base_count) {
+                h += 'G';
+            } else {
+                h += 'T';
+            }
         }
-        return "";
-        // cout << "ERROR medaka failed, while running " << com << endl;
-        // exit(1);
+    }
+
+    infile.close();
+
+    //write the consensus in a file
+    std::ofstream consensus_file(outFolder+"consensus_"+id+".fasta");
+    consensus_file << ">seq\n" << h;
+    consensus_file.close();
+
+    //run medaka on the consensus
+    string com = "medaka_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"consensus_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 -f -x 2>"+ outFolder +"trash.txt";
+    // cout << "Running in tools.cpp yyxk" << com << endl;
+    auto med_res = system(com.c_str());
+    if (med_res != 0){        
+        cout << "ERROR medaka failed, while running " << com << endl;
+        exit(1);
     }
 
     //get the result
@@ -475,7 +538,6 @@ std::string consensus_reads_medaka(
         throw std::invalid_argument( "File could not be read" );
     }
 
-    string line;
     bool nextLine = false;
     string newcontig = "";
     while(getline(consensus, line)){
@@ -494,13 +556,14 @@ std::string consensus_reads_medaka(
     std::remove((outFolder+"unpolished_"+id+".fasta").c_str());
     std::remove((outFolder+"reads_"+id+".fasta").c_str());
     //remove the medaka folder
-    string command = "rm -r "+ outFolder +"medaka_"+id;
+    command = "rm -r "+ outFolder +"medaka_"+id;
     auto rm = system(command.c_str());
     if (rm != 0){
         cout << "ERROR rm failed, while running " << command << endl;
         exit(1);
     }
 
+    // cout << "medaka done in tools.cpp\n" << newcontig << endl;
 
     return newcontig;
 }

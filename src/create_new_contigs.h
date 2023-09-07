@@ -30,6 +30,8 @@ void modify_GFA(
     std::string &techno,
     std::string &MINIMAP, 
     std::string &RACON,
+    std::string &path_to_python,
+    std::string &path_src,
     bool DEBUG);
 
 std::unordered_map<int, std::set<int>> stitch(std::vector<int> &par, std::vector<int> &neighbor, int position);

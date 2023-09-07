@@ -115,12 +115,12 @@ HairSplitter is organized as series of modules, some of these modules being of i
 6. *Improving contiguity* Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
  
 # Citation
- A preprint will very soon be available online. Until then, you can cite the poster presented at _Genome Informatics 2022_ (https://hal.science/hal-03817928/document):
- ``
-Roland Faure, Jean-François Flot, Dominique Lavenier. Hairsplitter: Separating noisy long reads into
-an unknown number of haplotypes. Genome Informatics 2022, Sep 2022, London / Virtual, United
-Kingdom. pp.1-1. hal-03817928
- ``
+ A preprint will very soon be available online. Until then, you can cite the [proceedings of the JOBIM conference](jobim2023.sciencesconf.org/data/pages/proceedings.pdf), page 124:
+```
+HairSplitter: separating strains in metagenome assemblies with long reads
+Roland Faure, Jean-Francois Flot, Dominique Lavenier
+JOBIM 2023 proceedings, p.124-131
+```
  
  
 

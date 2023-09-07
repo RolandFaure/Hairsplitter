@@ -17,6 +17,7 @@ set(TARGET_H
     sequence.h
     tools.h
     Partition.h
+    basic_pileup.h
     clean_graph.h
     cluster_graph.h
     clipp.h
@@ -37,6 +38,7 @@ set(TARGET_SRC
     sequence.cpp
     tools.cpp
     Partition.cpp
+    basic_pileup.cpp
     clean_graph.cpp
     cluster_graph.cpp
     call_variants.cpp
@@ -100,6 +102,15 @@ target_compile_options (call_variants PRIVATE -std=c++17)
 target_compile_options (call_variants PRIVATE -O3)
 target_compile_options (call_variants PRIVATE -march=x86-64)
 
+file (GLOB SOURCE_BASIC_PILEUP "basic_pileup.cpp" "input_output.cpp" "robin_hood.h" "tools.cpp" "read.cpp" "sequence.cpp" "Partition.cpp")
+add_executable(basic_pileup ${SOURCE_BASIC_PILEUP})
+target_compile_options (basic_pileup PRIVATE -g)
+target_compile_options (basic_pileup PRIVATE -lm)
+target_compile_options (basic_pileup PRIVATE -fopenmp)
+target_compile_options (basic_pileup PRIVATE -std=c++17)
+target_compile_options (basic_pileup PRIVATE -O3)
+target_compile_options (basic_pileup PRIVATE -march=x86-64)
+
 file (GLOB SOURCE_FILTER_VARIANTS "filter_variants.cpp" "input_output.cpp" "robin_hood.h" "tools.cpp" "read.cpp" "sequence.cpp" "Partition.cpp")
 add_executable(filter_variants ${SOURCE_FILTER_VARIANTS} edlib/src/edlib.cpp)
 target_include_directories(filter_variants PRIVATE edlib/include)
@@ -130,11 +141,11 @@ target_compile_options (create_new_contigs PRIVATE -std=c++17)
 target_compile_options (create_new_contigs PRIVATE -O3)
 target_compile_options (create_new_contigs PRIVATE -march=x86-64)
 
-
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     # target_link_libraries(Hairsplitter PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(call_variants PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(basic_pileup PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(filter_variants PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(separate_reads PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(create_new_contigs PRIVATE OpenMP::OpenMP_CXX)

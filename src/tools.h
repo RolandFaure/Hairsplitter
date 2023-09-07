@@ -29,7 +29,9 @@ std::string consensus_reads(
     std::string &outFolder,
     std::string &techno,
     std::string &MINIMAP, 
-    std::string &RACON);
+    std::string &RACON,
+    std::string &path_to_python,
+    std::string &path_src);
 
 bool check_alignment(std::string &paf_file);
 
@@ -37,7 +39,9 @@ std::string consensus_reads_medaka(
     std::string const &backbone, 
     std::vector <std::string> &polishingReads, 
     std::string &id,
-    std::string outFolder);
+    std::string outFolder,
+    std::string &path_to_python,
+    std::string &path_src);
 
 std::string consensus_reads_wtdbg2(
     std::string const &backbone, 

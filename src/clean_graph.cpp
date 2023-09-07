@@ -149,7 +149,7 @@ void clean_graph(
     //align the assembly against itself using minimap2
     string samFile = outFolder+"/tmp/assembly_against_itself.sam";
     
-    string command = path_to_minimap + " -t "+std::to_string(num_threads)+" -ax asm5 --no-long-join -N 2 "+fastaFile+" "+fastaFile+" > "+samFile + " 2> "+outFolder+"/tmp/minimap2.log";
+    string command = path_to_minimap + " -t "+std::to_string(num_threads)+" -ax ava-pb -X "+fastaFile+" "+fastaFile+" > "+samFile + " 2> "+outFolder+"/tmp/minimap2.log";
     auto minimaprun = system(command.c_str());
     if (minimaprun != 0){
         std::cerr << "Error running minimap2 in clean_graph.cpp: IOUX.\n" << command << std::endl;
@@ -351,8 +351,6 @@ void clean_graph(
         }
     }
 }
-
-
 
 
 

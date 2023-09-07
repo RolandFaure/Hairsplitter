@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
-    parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
+    # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
@@ -38,13 +38,14 @@ def parse_args():
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
+    parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
     parser.add_argument("-v", "--version", help="Print version and exit", action="store_true")
 
     return parser.parse_args()
 
-def check_dependencies(tmp_dir, minimap2, racon, samtools, path_to_src):
+def check_dependencies(tmp_dir, minimap2, racon, samtools, path_to_src, path_to_python):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     mini_run = os.system(minimap2 + com)
@@ -62,7 +63,13 @@ def check_dependencies(tmp_dir, minimap2, racon, samtools, path_to_src):
         print("ERROR: samtools could not run. Check the path to the executable. (command line tried by HairSplitter: "+samtools+com+")")
         sys.exit(1)
 
-    command = "python "+path_to_src+"GraphUnzip/graphunzip.py --help > "+tmp_dir+"/trash.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    command = path_to_python + " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    python_run = os.system(command)
+    if python_run != 0:
+        print("ERROR: python could not run. Check the path to the executable. (command line tried by HairSplitter: "+command+")")
+        sys.exit(1)
+
+    command = path_to_python + " " + path_to_src+"GraphUnzip/graphunzip.py --help > "+tmp_dir+"/trash.txt 2> "+tmp_dir+"/dependancies_log.txt"
     graphunzip_run = os.system(command)
     if graphunzip_run != 0:
         print("ERROR: graphunzip could not run, probably because of a missing python package (check "+tmp_dir+"/dependancies_log.txt).\nCommand line tried by HairSplitter: "+command)
@@ -77,6 +84,7 @@ def main():
     path_to_minimap2 = args.path_to_minimap2
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
+    path_to_python = args.path_to_python
 
     reads_on_asm = tmp_dir + "/reads_on_asm.sam"
 
@@ -107,7 +115,7 @@ def main():
         sys.exit(1)
 
     #check the dependencies
-    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_racon, args.path_to_samtools, path_to_src)
+    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_racon, args.path_to_samtools, path_to_src, path_to_python)
 
 
     # run the pipeline
@@ -286,7 +294,7 @@ def main():
             can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
 
     print("\n===== STAGE 6: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
-    #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <debug>" 
+    #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <python> <debug>" 
     
     #write in the log file the time at which the new contigs creation starts
     f = open(logFile, "a")
@@ -311,6 +319,7 @@ def main():
         + polish_everything + " " \
         + path_to_minimap2 + " " \
         + args.path_to_racon + " " \
+        + path_to_python + " " \
         + flag_debug
     print(" Running : ", command)
     res_create_new_contigs = os.system(command)
@@ -338,10 +347,10 @@ def main():
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
     meta = " --meta"
-    if args.multiploid :
-        meta = ""
+    # if args.multiploid :
+    #     meta = ""
 
-    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + meta + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
+    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
     print( " - Running GraphUnzip with command line:\n     ", command, "\n   The log of GraphUnzip is written on ",tmp_dir+"/logGraphUnzip.txt\n")
     resultGU = os.system(command)
     if resultGU != 0 :

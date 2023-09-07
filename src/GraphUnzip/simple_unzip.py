@@ -192,31 +192,46 @@ def simple_unzip(segments, names, gafFile) :
             #see if it should be duplicated
             if len(segment.links[0]) > 1 or len(segment.links[1]) > 1 : 
 
+                # print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
+
                 #list the paths going through the contig
                 pairs = {}
                 pair_to_paths = {}
                 for p in on_which_paths_is_this_contig[segment] :
-                    # if segment.names == ['NC_038882.1_8000_4'] :
+                    # if segment.names == ['NC_038882.1_9000_1'] :
                     #     print("ciciuddou ", paths[p[0]], " ", p[1], " ", len(path)-1)
+                    if len(paths[p[0]]) == 0 :
+                        continue
                     path = paths[p[0]]
-                    if p[1] > 0 and p[1] < len(path)-1 : #we want paths that go through the contigs
+                    deadendleft = False
+                    deadendright = False
+                    contigs = path.get_contigs()
+                    orientations = path.get_orientations()
+                    # print("path ", p, " ", path)
+                    # print(paths[5])
+                    # print(paths[6])
+                    if p[1] == 0 and (len(segment.links[0]) == 0 and orientations[p[1]] == 1) or (len(segment.links[1]) == 0 and orientations[p[1]] == 0) :
+                        deadendleft = True
+                    if p[1] == len(path)-1 and (len(segment.links[0]) == 0 and orientations[p[1]] == 0) or (len(segment.links[1]) == 0 and orientations[p[1]] == 1) :
+                        deadendright = True
+                    if (p[1] > 0 or deadendleft) and (p[1] < len(path)-1 or deadendright): #we want paths that go through the contigs, except if the contig is a dead end
                         #find the two links that are supported by this path
-                        contigs = path.get_contigs()
-                        orientations = path.get_orientations()
-
-                        contig_left = contigs[p[1]-1]
-                        end_left = orientations[p[1]-1]
-                        index_left = sg.find_this_link(contig_left, end_left, segment.links[1-orientations[p[1]]], segment.otherEndOfLinks[1-orientations[p[1]]])
-                        if index_left == -1 : #could happen if it was an esoteric link
-                            continue
-                            # print("ERROR: From semgent ", segment.names, " ", 1-orientations[p[1]] , ", did not find ", contig_left.names, " ", end_left, " among ", \
-                            #       [(segment.links[1-orientations[p[1]]][i].names, segment.otherEndOfLinks[1-orientations[p[1]]][i]) for i in range(len(segment.links[1-orientations[p[1]]]))], \
-                            #       " ", path)
-                            # sys.exit()
-
-                        contig_right = contigs[p[1]+1]
-                        end_right = 1-orientations[p[1]+1]
-                        index_right = sg.find_this_link(contig_right, end_right, segment.links[orientations[p[1]]], segment.otherEndOfLinks[orientations[p[1]]])
+                        index_left = -2
+                        if p[1] > 0 :
+                            contig_left = contigs[p[1]-1]
+                            end_left = orientations[p[1]-1]
+                            index_left = sg.find_this_link(contig_left, end_left, segment.links[1-orientations[p[1]]], segment.otherEndOfLinks[1-orientations[p[1]]])
+                            if index_left == -1 : #could happen if it was an esoteric link
+                                continue
+                                # print("ERROR: From semgent ", segment.names, " ", 1-orientations[p[1]] , ", did not find ", contig_left.names, " ", end_left, " among ", \
+                                #       [(segment.links[1-orientations[p[1]]][i].names, segment.otherEndOfLinks[1-orientations[p[1]]][i]) for i in range(len(segment.links[1-orientations[p[1]]]))], \
+                                #       " ", path)
+                                # sys.exit()
+                        index_right = -2
+                        if p[1] < len(path)-1 :
+                            contig_right = contigs[p[1]+1]
+                            end_right = 1-orientations[p[1]+1]
+                            index_right = sg.find_this_link(contig_right, end_right, segment.links[orientations[p[1]]], segment.otherEndOfLinks[orientations[p[1]]])
 
                         pair = (index_left, index_right)
                         # if segment.names == ['edge_4_5000_1'] :
@@ -241,8 +256,8 @@ def simple_unzip(segments, names, gafFile) :
                 #         print("idc : ", paths[i[0]])
 
                 # print(segment.names, " ", pairs)
-                if segment.names == ['edge_4_5000_1'] :
-                    print("Pairs off ccncnc : ", pairs)
+                # if segment.names == ['edge_4_5000_1'] :
+                #     print("Pairs off ccncnc : ", pairs)
 
                 #test if the pairs are enough to support a duplication
                 new_pairs = {}
@@ -250,9 +265,9 @@ def simple_unzip(segments, names, gafFile) :
                 best_pair_for_each_right_link = [(-1,(-1,-1)) for i in segment.links[1]]
 
                 for p in pairs.keys() :
-                    if best_pair_for_each_left_link[p[0]][0] < pairs[p] :
+                    if p[0] > -1 and best_pair_for_each_left_link[p[0]][0] < pairs[p] :
                         best_pair_for_each_left_link[p[0]] = (pairs[p], p)
-                    if best_pair_for_each_right_link[p[1]][0] < pairs[p] :
+                    if p[1] > -1 and best_pair_for_each_right_link[p[1]][0] < pairs[p] :
                         best_pair_for_each_right_link[p[1]] = (pairs[p], p)
 
                 for p in pairs.keys() :
@@ -270,24 +285,30 @@ def simple_unzip(segments, names, gafFile) :
                 all_links_right = [False for i in range(len(segment.links[1]))]
 
                 for pair in pairs.keys() :
-                    all_links_left[pair[0]] = True
-                    all_links_right[pair[1]] = True
+                    if pair[0] > -1 :
+                        all_links_left[pair[0]] = True
+                    if pair[1] > -1 :
+                        all_links_right[pair[1]] = True
 
                 # segment_to_duplicate = all([i for i in all_links_right+all_links_left])
                 # segment_to_duplicate = True #this means that a link that is not supported by a path will be deleted
                 segment_to_duplicate = any([pairs[p]>=3 for p in pairs.keys()])
 
-                if segment_to_duplicate and len(pairs) > 0:# and segment.names == ['edge_79@0@0'] :
+                if segment_to_duplicate and len(pairs) > 0 :#and segment.names == ['NC_038882.1_9000_0'] :
                     for pair in pairs.keys() :
+                        # print("On contig ", segment.names, " a pair is ", pair[0], " ", pair[1], " ", pairs[pair] )
                         # print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names, " ", pairs[pair] )
 
                         #create a new segment
                         new_segment = sg.Segment(segment.names, segment.orientations, segment.lengths, segInsideCIGARs=segment.insideCIGARs)
-                        sg.add_link(segment.links[0][pair[0]], segment.otherEndOfLinks[0][pair[0]], new_segment, 0, CIGAR = segment.CIGARs[0][pair[0]])
-                        sg.add_link(segment.links[1][pair[1]], segment.otherEndOfLinks[1][pair[1]], new_segment, 1, CIGAR = segment.CIGARs[1][pair[1]])
+                        if pair[0] >= 0 :
+                            sg.add_link(segment.links[0][pair[0]], segment.otherEndOfLinks[0][pair[0]], new_segment, 0, CIGAR = segment.CIGARs[0][pair[0]])
+                        if pair[1] >= 0 :
+                            sg.add_link(segment.links[1][pair[1]], segment.otherEndOfLinks[1][pair[1]], new_segment, 1, CIGAR = segment.CIGARs[1][pair[1]])
 
+                        # print("Pair to duplicate : ", pair, " ", pair_to_paths[pair])
                         for pa in pair_to_paths[pair] :
-                            # if pa[0] == 31624:
+                            # if pa[0] == 6 :
                             #     print("1055 is heer e ", paths[pa[0]], " ", segment.ID, " ", new_segment.ID, " ", [i.ID for i in paths[pa[0]].get_contigs()])
                             paths[pa[0]].replace(segment, new_segment)
 
@@ -299,6 +320,8 @@ def simple_unzip(segments, names, gafFile) :
                     # for p in paths :
                     for p in on_which_paths_is_this_contig[segment] :
                         path = paths[p[0]]
+                        if (p[1] == 0 and deadendleft) or (p[1] == len(path)-1 and deadendright) :
+                            continue
                         # if segment.names == ['edge_389@0_0_2'] or True:
                         # # if pa == 31624 :
                         #     print("On contig ", segment.names, " the pairs are ", [(segment.links[0][pair[0]].names, segment.links[1][pair[1]].names) for pair in pairs.keys()] )
