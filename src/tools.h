@@ -10,6 +10,8 @@
 #include "Partition.h"
 
 std::string convert_cigar(std::string &cigar);
+std::string convert_cigar2(std::string &cigar);
+
 std::string reverse_complement(std::string &seq);
 void print_alignment(std::string &ref, std::string &read, std::string &cigar, int start, int end);
 int compute_edit_distance(std::string &cigar, std::string &ref, std::string &read, int start, int end);
@@ -25,6 +27,8 @@ std::string consensus_reads(
     int start_pos_on_full_backbone,
     int sizeOfWindow,
     std::vector <std::string> &polishingReads, 
+    std::vector <std::string> &fullReads,
+    std::vector <std::pair<std::string,int>> &CIGARs,
     std::string &id,
     std::string &outFolder,
     std::string &techno,
@@ -40,6 +44,8 @@ std::string consensus_reads_medaka(
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string outFolder,
+    std::string &MEDAKA,
+    std::string &SAMTOOLS,
     std::string &path_to_python,
     std::string &path_src);
 

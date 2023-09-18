@@ -21,22 +21,21 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 ### Quick conda dependancies
 
-You can create and activate a conda environment with all dependencies installed by typing: 
+The recommended way to install HairSplitter is to create and activate a conda environment with all dependencies: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter minimap2 racon samtools cmake gxx gcc python scipy numpy
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 racon samtools medaka
 conda activate hairsplitter
 ```
 
 ### List of dependencies
 
 - [minimap2](https://github.com/lh3/minimap2)
-- [racon](https://github.com/isovic/racon)
+- [racon](https://github.com/isovic/racon) and/or [medaka](https://github.com/nanoporetech/medaka)
 - [samtools](www.htslib.org)
-- [pysam](https://pypi.org/project/pysam/)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
 
-If Minimap2, Racon or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon` or `--path-to-samtools` options.
+If Minimap2, Racon, Medaka or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon`, `path-to-medaka` or `--path-to-samtools` options.
  
 ## Download & Compilation
 

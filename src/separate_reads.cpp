@@ -307,7 +307,6 @@ void create_read_graph(
 
     set<int> listOfGroups;
     int max_cluster = 0;
-    unordered_map<int, int> indexOfGroups;
 
     for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
         if (mask[read1]){
@@ -418,7 +417,7 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
         }
     }
 
-    unordered_map<double, int> clusters_aggregated_map;
+    std::unordered_map<double, int> clusters_aggregated_map;
     vector<int> cluster_aggregated_ints;
     int index = 0;
     for (auto i = 0 ; i < clusters_aggregated.size() ; i++){
@@ -568,6 +567,9 @@ int main(int argc, char *argv[]){
         for (auto r : c){
             numberOfReadsHere++;
             sumLength += r.second-r.first+1;
+            if (r.second-r.first+1 > 4000){
+                numberOfReadsAbove4000++;
+            }
             if (numberOfReadsHere > 1000){
                 break;
             }
@@ -578,12 +580,12 @@ int main(int argc, char *argv[]){
     }
     double meanLength = sumLength / double(numberOfReadsHere);
     int sizeOfWindow = 2000;
-    // if (numberOfReadsAbove4000 < 20 && meanLength < 4000 && meanLength > 2000){
-    //     sizeOfWindow = 1000;
-    // }
-    // else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
-    //     sizeOfWindow = 500;
-    // }
+    if (numberOfReadsAbove4000 < 20 && meanLength < 4000 && meanLength > 2000){
+        sizeOfWindow = 1000;
+    }
+    else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
+        sizeOfWindow = 500;
+    }
 
     //separate the reads on each contig parralelly
     omp_set_num_threads(num_threads);
@@ -595,16 +597,16 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        // #pragma omp critical (cout)
-        // {
-        //     cout << "separating reads on contig " << name_of_contigs[n] << "\r";
-        // }
+        #pragma omp critical (cout)
+        {
+            cout << "separating reads on contig " << name_of_contigs[n] << "\r";
+        }
 
         vector<vector<pair<int,int>>> sims_and_diffs (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
 
         list_similarities_and_differences_between_reads(snps, sims_and_diffs);
 
-        // cout << "similrities and differences computed" << endl;
+        cout << "similrities and differences computed" << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
@@ -664,6 +666,7 @@ int main(int argc, char *argv[]){
             }
 
             suspectPostitionIdx++; //suspectPostitionIdx is now the first position after the window
+            cout << "fqljsd creating graph " << endl;
 
             vector<vector<int>> adjacency_matrix (mask_at_this_position.size(), vector<int>(mask_at_this_position.size(), 0));
             create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix, errorRate);
@@ -674,18 +677,22 @@ int main(int argc, char *argv[]){
             auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
             strengthened_adjacency_matrix = adjacency_matrix;
 
+            cout << "fioid u clustering graph " << endl;
+
             vector<vector<int>> allclusters_debug;
             vector<int> clusteredReads1 = chinese_whispers(strengthened_adjacency_matrix, clustersStart, mask_at_this_position);
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
-            outputGraph(strengthened_adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            outputGraph(adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
 
             // cout << "here are all the interesting positions" << endl;
             // for (auto p : interestingPositions){
             //     cout << p << " ";
             // }
             // cout << endl;
+            cout << "runnignd cw again and again" << endl;
 
             for (auto snp : snps){
                 if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow){

@@ -53,6 +53,18 @@ void keep_only_robust_variants(
     float mean_error,
     int num_threads);
 
+float generate_msa(
+    long int bbcontig, 
+    std::vector <Overlap> &allOverlaps, 
+    std::vector <Read> &allreads, 
+    std::vector<Column> &snps, 
+    robin_hood::unordered_map<int, int> &insertionPos,
+    int backboneReadIndex, 
+    std::unordered_map <int, std::vector<std::pair<int,int>>> &readLimits, 
+    std::string &newref,
+    std::string &tmpFolder,
+    bool DEBUG);
+
 distancePartition distance(Partition &par1, Column &par2, char ref_base);
 distancePartition distance(Partition &par1, Partition &par2, int threshold_p);
 float computeChiSquare(distancePartition dis);

@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.3.4"
-__date__ = "2023-08-23"
+__version__ = "1.4.0"
+__date__ = "2023-09-18"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -29,14 +29,16 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
+    parser.add_argument("-p", "--polisher", help="[racon,medaka,auto] medaka is more accurate but much slower. auto uses medaka on genomes <100kb, racon elsewhise [auto]", default="auto")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
-    parser.add_argument("-p", "--polish-everything", help="Polish every contig with racon, even those ", action="store_true")
+    parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
+    parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
@@ -45,7 +47,7 @@ def parse_args():
 
     return parser.parse_args()
 
-def check_dependencies(tmp_dir, minimap2, racon, samtools, path_to_src, path_to_python):
+def check_dependencies(tmp_dir, minimap2, racon, medaka, polisher, samtools, path_to_src, path_to_python):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     mini_run = os.system(minimap2 + com)
@@ -53,10 +55,19 @@ def check_dependencies(tmp_dir, minimap2, racon, samtools, path_to_src, path_to_
         print("ERROR: minimap2 could not run. Check the path to the executable. (command line tried by HairSplitter: "+minimap2+com+")")
         sys.exit(1)
 
-    racon_run = os.system(racon + com)
-    if racon_run != 0:
-        print("ERROR: racon could not run. Check the path to the executable. (command line tried by HairSplitter: "+racon+com+")")
-        sys.exit(1)
+    if polisher != "medaka" :
+        racon_run = os.system(racon + com)
+        if racon_run != 0:
+            print("ERROR: racon could not run. Check the path to the executable. (command line tried by HairSplitter: "+racon+com+")\n",
+                  "If you want to use medaka, force the use of medaka through the --polisher option.")
+            sys.exit(1)
+
+    if polisher != "racon" :
+        medaka_run = os.system(medaka + com)
+        if medaka_run != 0:
+            print("ERROR: medaka could not run. Check the path to the executable. (command line tried by HairSplitter: "+medaka+com+")\n",
+                  "If you want to use racon, force the use of racon through the --polisher option.")
+            sys.exit(1)
 
     samtools_run = os.system(samtools + com)
     if samtools_run != 0:
@@ -85,6 +96,11 @@ def main():
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
     path_to_python = args.path_to_python
+
+    polisher = args.polisher.lower()
+    if polisher != "racon" and polisher != "medaka" and polisher != "auto":
+        print("ERROR: polisher must be either racon, medaka or auto")
+        sys.exit(1)
 
     reads_on_asm = tmp_dir + "/reads_on_asm.sam"
 
@@ -115,8 +131,7 @@ def main():
         sys.exit(1)
 
     #check the dependencies
-    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_racon, args.path_to_samtools, path_to_src, path_to_python)
-
+    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
 
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
@@ -198,7 +213,7 @@ def main():
     else :
         techno_flag = "-x map-ont"
 
-    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -t "+ str(nb_threads) +" > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
+    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a -N 1 -t "+ str(nb_threads) +" > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
     print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
     res_minimap = os.system(command)
     if res_minimap != 0 :
@@ -249,27 +264,27 @@ def main():
     f.write("STAGE 3: Error rate estimated from the alignment, error rate is "+str(error_rate))
     f.close()
 
-    print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
+    # print("\n===== STAGE 4: Filtering variants   [", datetime.datetime.now() ,"]\n")
 
-    #write in the log file the time at which the filtering starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 4: Filtering variants   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
+    # #write in the log file the time at which the filtering starts
+    # f = open(logFile, "a")
+    # f.write("\n==== STAGE 4: Filtering variants   ["+str(datetime.datetime.now())+"]\n")
+    # f.close()
 
-    command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
-        + " " + tmp_dir + "/filtered_variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/variants_filtered.vcf"
-    print(" - Filtering variants")
-    print(" Running: ", command)
-    res_filter_variants = os.system(command)
-    if res_filter_variants != 0:
-        print("ERROR: filter_variants failed. Was trying to run: " + command)
-        sys.exit(1)
+    # command = path_to_src + "build/filter_variants " + tmp_dir + "/variants.col " + str(error_rate) + " " + str(nb_threads) + " " + flag_debug \
+    #     + " " + tmp_dir + "/filtered_variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/variants_filtered.vcf"
+    # print(" - Filtering variants")
+    # print(" Running: ", command)
+    # res_filter_variants = os.system(command)
+    # if res_filter_variants != 0:
+    #     print("ERROR: filter_variants failed. Was trying to run: " + command)
+    #     sys.exit(1)
 
-    #write in the log file that variant filtering went smoothly
-    f = open(logFile, "a")
-    f.write("STAGE 4: Variant filtering computed, filter_variants exited successfully. Filtered variants are stored in "+tmp_dir+"/variants_filtered.vcf \
-            and "+tmp_dir+"/filtered_variants.col")
-    f.close()
+    # #write in the log file that variant filtering went smoothly
+    # f = open(logFile, "a")
+    # f.write("STAGE 4: Variant filtering computed, filter_variants exited successfully. Filtered variants are stored in "+tmp_dir+"/variants_filtered.vcf \
+    #         and "+tmp_dir+"/filtered_variants.col")
+    # f.close()
 
     print("\n===== STAGE 5: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
 
@@ -279,7 +294,7 @@ def main():
     f.close()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
-    command = path_to_src + "build/separate_reads " + tmp_dir + "/filtered_variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
+    command = path_to_src + "build/separate_reads " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
         + " " + tmp_dir + "/reads_haplo.gro"
     print(" - Separating reads by haplotype of origin")
     print(" Running: ", command)
@@ -300,6 +315,12 @@ def main():
     f = open(logFile, "a")
     f.write("\n==== STAGE 6: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
     f.close()
+
+    if polisher == "auto" :
+        if os.path.getsize(args.assembly) < 1000000 and args.technology == "ont" :
+            polisher = "medaka"
+        else :
+            polisher = "racon"
     
     gaffile = tmp_dir + "/reads_on_new_contig.gaf"
     zipped_GFA = tmp_dir + "/zipped_assembly.gfa"
@@ -311,14 +332,18 @@ def main():
         + readsFile + " " \
         + str(error_rate) + " " \
         + tmp_dir + "/reads_haplo.gro " \
+        + reads_on_asm + " " \
         + tmp_dir + " " \
         + str(nb_threads) + " " \
         + technology + " " \
         + zipped_GFA + " " \
         + gaffile +  " " \
+        + polisher + " " \
         + polish_everything + " " \
         + path_to_minimap2 + " " \
         + args.path_to_racon + " " \
+        + args.path_to_medaka + " " \
+        + args.path_to_samtools + " " \
         + path_to_python + " " \
         + flag_debug
     print(" Running : ", command)

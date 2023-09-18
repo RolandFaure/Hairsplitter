@@ -15,6 +15,7 @@ using std::ifstream;
 using std::ofstream;
 using std::min;
 using std::max;
+using std::pair;
 
 //input : a CIGAR
 //output : an alignment string where 1 letter = 1 base. i.e. 5M1D1M -> MMMMMIM
@@ -34,6 +35,29 @@ std::string convert_cigar(std::string &cigar){
             num = "";
         }
     }
+
+    return res;
+}
+
+//output : a CIGAR
+//input : an alignment string where 1 letter = 1 base. i.e. 5M1D1M -> MMMMMIM
+std::string convert_cigar2(std::string &cigar){
+
+    string res;
+    int number = 0;
+    char current = ' ';
+    for (auto c : cigar){
+        if (c == current || current == ' '){
+            number++;
+            current = c;
+        }
+        else{
+            res += std::to_string(number) + current;
+            number = 1;
+            current = c;
+        }
+    }
+    res += std::to_string(number) + current;
 
     return res;
 }
@@ -209,6 +233,8 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param start_pos_on_full_backbone the position of the backbone on the full backbone
  * @param sizeOfWindow the size of the window of the backbones
  * @param polishingReads list of reads to polish it
+ * @param fullReads the full reads, to be used if the reads do not align well on the backbone
+ * @param CIGARs list of CIGARs of the alignment of the read on the backbone
  * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @param techno the sequencing technology used to generate the reads (ont, pacbio, hifi)
@@ -216,7 +242,21 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param RACON path to the racon executable
  * @return polished sequence 
  */
-string consensus_reads(string &backbone, string &full_backbone, int start_pos_on_full_backbone, int sizeOfWindow, vector <string> &polishingReads, string &id, string &outFolder, string& techno, string &MINIMAP, string &RACON){
+string consensus_reads(
+    string &backbone, 
+    string &full_backbone, 
+    int start_pos_on_full_backbone, 
+    int sizeOfWindow, 
+    vector <string> &polishingReads,
+    vector <string> &fullReads,
+    vector <pair<string,int>> &CIGARs,
+    string &id, 
+    string &outFolder, 
+    string& techno, 
+    string &MINIMAP, 
+    string &RACON,
+    string &path_to_python,
+    std::string &path_src){
     
     if (polishingReads.size() == 0){
         return backbone;
@@ -232,85 +272,98 @@ string consensus_reads(string &backbone, string &full_backbone, int start_pos_on
     }
 
     std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
-    outseq << ">seq\n" << backbone;
+    outseq << ">seq\n" << backbone << endl;
     outseq.close();
 
     std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
     for (int read =0 ; read < polishingReads.size() ; read++){
-        polishseqs << ">read"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
+        if (polishingReads[read].size() > 100){
+            polishseqs << ">read"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
+        }
     }
     polishseqs.close();
 
-    // assemble de novo using wtdbg2
-    /*
-    string comAsm = "/home/rfaure/Documents/software/wtdbg2/wtdbg2 -e 5 -l 1000 -L 3000 -S 1 -R -o tmp/wtdbg2"+id+" -i tmp/reads_"+id+".fasta 2>tmp/trash.txt";
-    system(comAsm.c_str());
-
-    string cons_wtdbg2 = "/home/rfaure/Documents/software/wtdbg2/wtpoa-cns -i tmp/wtdbg2"+id+".ctg.lay.gz -fo tmp/dbg.raw"+id+".fa 2>tmp/trash.txt";
-    int res_wtdbg2 = system(cons_wtdbg2.c_str());
-
-    if (res_wtdbg2){
-        // polish consensus, not necessary if you want to polish the assemblies using other tools
-        string comMap = "minimap2 -ax map-pb -r2k tmp/dbg.raw"+id+".fa tmp/reads_"+id+".fasta 2>tmp/trash.txt | samtools sort >tmp/dbg"+id+".bam 2>tmp/trash.txt";
-        system(comMap.c_str());
-
-        string comSamtools = "samtools view -F0x900 tmp/dbg"+id+".bam 2>tmp/trash.txt | /home/rfaure/Documents/software/wtdbg2/wtpoa-cns -d tmp/dbg.raw"+id+".fa -i - -fo tmp/dbg.cns"+id+".fa 2>tmp/trash.txt";
-        system(comSamtools.c_str());
-
-        string comUnfold = "awk '{if(\">\" == substr($1,1,1)){ printf \"\\n\"; print;} else printf $1;}' tmp/dbg.cns"+id+".fa > tmp/consensus"+id+".fa  2>tmp/trash.txt";
-        system(comUnfold.c_str());
-
-        //now read the consensus and return it
-        std::ifstream in("tmp/consensus"+id+".fa");
-        string consensus;
-        string line;
-        while (std::getline(in, line)){
-            if (line[0] != '>'){
-                consensus += line;
-            }
-        }
-        in.close();
-        return consensus;
-    }
-
-    else{
-    */
 
     string technoFlag;
-    if (techno == "ont"){
+    if (techno == "ont" && false){ //minimap with setting ont can be absolutely terrible in the case of a long homopolymer
         technoFlag = " -x map-ont ";
     }
-    else if (techno == "pacbio"){
+    else if (techno == "pacbio" || true){
         technoFlag = " -x map-pb ";
     }
     else if (techno == "hifi"){
         technoFlag = " -x map-hifi ";
     }
 
-    string com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
-    string commandMap = MINIMAP + com; 
-    auto map = system(commandMap.c_str());
-    if (map != 0){
-        cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+    // string com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
+    // string commandMap = MINIMAP + com; 
+    // auto map = system(commandMap.c_str());
+    // if (map != 0){
+    //     cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+    //     exit(1);
+    // }
+
+    //create a sam file from the CIGARs and the reads
+    std::ofstream sam(outFolder+"mapped_"+id+".sam");
+    sam << "@HD\tVN:1.6\tSO:coordinate" << endl;
+    sam << "@SQ\tSN:seq\tLN:" << backbone.size() << endl;
+    for (int read = 0 ; read < polishingReads.size() ; read++){
+        if (polishingReads[read].size() > 100){
+            sam << "read" << read << "\t0\tseq\t"<< CIGARs[read].second <<"\t60\t" << CIGARs[read].first << "\t*\t0\t0\t" << polishingReads[read] << "\t*\tAS:i:0\tXS:i:0" << endl;
+        }   
+    }
+    sam.close();
+
+    //sort and index mapped_id.sam
+    string command = "samtools sort "+ outFolder +"mapped_"+id+".sam > "+ outFolder +"mapped_"+id+".bam && samtools index "+ outFolder +"mapped_"+id+".bam";
+    auto sort = system(command.c_str());
+    if (sort != 0){
+        cout << "ERROR samtools sort failed, while running " << command << endl;
+        exit(1);
+    }
+
+    //run a basic consensus
+    //use quasitools : "quasitools consensus -p 100 hs/tmp/mapped_0.bam hs/tmp/unpolished_0.fasta > hs/tmp/consensus_0.fasta && mv hs/tmp/consensus_0.fasta hs/tmp/polished_0.fasta"
+    command =  "samtools consensus "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
+    // cout << "Running " << command << endl;
+    auto res_cons = system(command.c_str());
+    if (res_cons != 0){
+        cout << "ERROR basic_consensus failed, while running " << command << endl;
+        exit(1);
+    }
+
+    //then map all the reads on unpolsihed.fasta to obtain a new mapped.sam
+    string com = " -a -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+    command = MINIMAP + com;
+    auto map2 = system(command.c_str());
+    if (map2 != 0){
+        cout << "ERROR minimap2 failed, while running " << command << endl;
         exit(1);
     }
 
     //check that the alignment of the reads were correct, otherwise change the backbone
-    string nameOfFile = outFolder +"mapped_"+id+".paf";
+    string nameOfFile = outFolder +"mapped_"+id+".sam";
     bool bbaligns = true;
     int alternativeBackbone = 0;
     while (!check_alignment(nameOfFile) && alternativeBackbone < polishingReads.size()){ //this means that no reads aligned really well in the first 5 reads
+        // cout << "in toolsl qfhggfqsft taking another ref " << endl;
         bbaligns = false;
         //realign taking the first read as a backbone
         backbone = polishingReads[alternativeBackbone];
         alternativeBackbone++;
 
-        std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
+        std::ofstream outseq(outFolder+"consensus_"+id+".fasta");
         outseq << ">seq\n" << backbone;
         outseq.close();
 
-        com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
-        commandMap = MINIMAP + com;
+        std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
+        for (int read =0 ; read < fullReads.size() ; read++){
+            polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
+        }
+        polishseqs.close();
+
+        string com = " -a -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+        string commandMap = MINIMAP + com;
         auto map = system(commandMap.c_str());
         if (map != 0){
             cout << "ERROR minimap2 failed, while running " << commandMap << endl;
@@ -326,7 +379,7 @@ string consensus_reads(string &backbone, string &full_backbone, int start_pos_on
 
     // cout << "minimap2 done in tools , ran command " << commandMap << endl;
 
-    com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".paf "+ outFolder +"unpolished_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
+    com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".sam "+ outFolder +"consensus_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
     if (polishres != 0){
@@ -390,10 +443,10 @@ string consensus_reads(string &backbone, string &full_backbone, int start_pos_on
     // cout << backbone.substr(100,150) << endl;
 
     //remove all the temporary files
-    std::remove((outFolder+"unpolished_"+id+".fasta").c_str());
-    std::remove((outFolder+"reads_"+id+".fasta").c_str());
-    std::remove((outFolder+"mapped_"+id+".paf").c_str());
-    std::remove((outFolder+"polished_"+id+".fasta").c_str());
+    // std::remove((outFolder+"unpolished_"+id+".fasta").c_str());
+    // std::remove((outFolder+"reads_"+id+".fasta").c_str());
+    // std::remove((outFolder+"mapped_"+id+".sam").c_str());
+    // std::remove((outFolder+"polished_"+id+".fasta").c_str());
     std::remove((outFolder+"trash.txt").c_str());
     
     return new_seq;
@@ -440,6 +493,8 @@ std::string consensus_reads_medaka(
     std::vector <std::string> &polishingReads, 
     std::string &id,
     std::string outFolder,
+    std::string &MEDAKA,
+    std::string &SAMTOOLS,
     std::string &path_to_python,
     std::string &path_src){
 
@@ -460,7 +515,7 @@ std::string consensus_reads_medaka(
 
     //create a bam file with the reads aligned on the backbone and index it
     string comMap = "minimap2 -ax map-pb -r2k "+ outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta 2>"+ outFolder +"trash.txt "
-        +"| samtools sort >"+ outFolder +"mapped_"+id+".bam && samtools index "+ outFolder +"mapped_"+id+".bam 2>"+ outFolder +"trash.txt";
+        +"| "+ SAMTOOLS + " sort >"+ outFolder +"mapped_"+id+".bam && "+ SAMTOOLS + " index "+ outFolder +"mapped_"+id+".bam 2>"+ outFolder +"trash.txt";
     auto map = system(comMap.c_str());
     if (map != 0){
         cout << "ERROR minimap2 yuq fd failed, while running " << comMap << endl;
@@ -470,60 +525,18 @@ std::string consensus_reads_medaka(
     //now create a first rough polish using a basic pileup
     // Build the command to run haplodmf_count_freqs.py
     string command;
-    command =  path_to_python + " " + path_src + "/haplodmf_count_freqs.py " + outFolder +"mapped_"+id+".bam " + outFolder +"acgt_"+id+".txt 2>"+ outFolder +"trash.txt";    
+    command =  path_to_python + " " + path_src + "/haplodmf_count_freqs.py " + outFolder +"mapped_"+id+".bam " + outFolder +"consensus_"+id+".fasta 2>"+ outFolder +"trash.txt";    
     // cout << "Running " << command << endl;
     
     // Run the command
     int return_code = system(command.c_str());
-    
     if (return_code != 0) {
         cout << "Error running command: " << command << endl;
         exit(1);
     }
 
-    string file_acgt = outFolder +"acgt_"+id+".txt";
-    ifstream infile(file_acgt);
-    string line;
-    vector<string> seq_temp;
-    getline(infile, line); // Skip the header line
-    string h = "";
-
-    while (getline(infile, line)) {
-        std::istringstream iss(line);
-        string contig, pos, reads_all, deletions, As, Cs, Gs, Ts;
-        iss >> contig >> pos >> reads_all >> deletions >> As >> Cs >> Gs >> Ts;
-
-        int A = std::atoi(As.c_str());
-        int C = std::atoi(Cs.c_str());
-        int G = std::atoi(Gs.c_str());
-        int T = std::atoi(Ts.c_str());
-        int del = std::atoi(deletions.c_str());
-        int depth = std::atoi(reads_all.c_str());
-
-        // Assuming your logic for consensus calculation remains the same
-        if (del * 2 <= depth) { // You can adjust this condition as needed
-            int max_base_count = std::max ({A, C, G, T});
-            if (A == max_base_count) {
-                h += 'A';
-            } else if (C == max_base_count) {
-                h += 'C';
-            } else if (G == max_base_count) {
-                h += 'G';
-            } else {
-                h += 'T';
-            }
-        }
-    }
-
-    infile.close();
-
-    //write the consensus in a file
-    std::ofstream consensus_file(outFolder+"consensus_"+id+".fasta");
-    consensus_file << ">seq\n" << h;
-    consensus_file.close();
-
     //run medaka on the consensus
-    string com = "medaka_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"consensus_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 -f -x 2>"+ outFolder +"trash.txt";
+    string com = MEDAKA + "_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"consensus_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 -f -x 2>"+ outFolder +"trash.txt >" +outFolder +"trash.txt" ;
     // cout << "Running in tools.cpp yyxk" << com << endl;
     auto med_res = system(com.c_str());
     if (med_res != 0){        
@@ -540,6 +553,7 @@ std::string consensus_reads_medaka(
 
     bool nextLine = false;
     string newcontig = "";
+    string line;
     while(getline(consensus, line)){
         if (line[0] != '>' && nextLine){
             newcontig = line; //there should be only one contig, which is what was just assembled
@@ -797,27 +811,69 @@ bool check_alignment(std::string &paf_file){
     string line;
     int read = 0;
     int aligned = 0;
-    while (getline(in, line)){
-        //look at the 12th field of the line
-        read += 1;
-        short fieldnumber = 0;
-        string field;
-        std::istringstream line2(line);
-        string quality;
-        while (getline(line2, field, '\t'))
-        {
-            if (fieldnumber == 11){
-                quality = field;
+    //if it is a paf file 
+    if (paf_file.substr(paf_file.size()-4,4) == ".paf"){ 
+        while (getline(in, line)){
+            //look at the 12th field of the line
+            read += 1;
+            short fieldnumber = 0;
+            string field;
+            std::istringstream line2(line);
+            string quality;
+            while (getline(line2, field, '\t'))
+            {
+                if (fieldnumber == 11){
+                    quality = field;
+                }
+                fieldnumber+= 1;
             }
-            fieldnumber+= 1;
-        }
-        if (quality == "60"){
-            aligned += 1;
-        }
-        if (read == 6){
-            break;
+            if (quality == "60"){
+                aligned += 1;
+            }
+            if (read == 6){
+                break;
+            }
         }
     }
+    //if it is a sam file
+    else if (paf_file.substr(paf_file.size()-4,4) == ".sam"){
+        while (getline(in, line)){
+            //if there are more than 70% M the read is aligned
+            read += 1;
+            short fieldnumber = 0;
+            string field;
+            std::istringstream line2(line);
+            string cigar;
+            while (getline(line2, field, '\t'))
+            {
+                if (fieldnumber == 5){
+                    cigar = field;
+                }
+                fieldnumber+= 1;
+            }
+            int M = 0;
+            string number = "";
+            int cigar_size = 0;
+            for (auto c : cigar){
+                if (c == 'M'){
+                    M += std::atoi(number.c_str());
+                    cigar_size += std::atoi(number.c_str());
+                    number = "";
+                }
+                else if (c == 'I' || c == 'D'){
+                    cigar_size += std::atoi(number.c_str());
+                    number = "";
+                }
+                else{
+                    number += c;
+                }
+            }
+            if (M > 0.7*cigar_size){
+                aligned += 1;
+            }
+        }
+    }
+
     return (aligned >= 2);
 }
 

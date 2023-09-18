@@ -166,10 +166,13 @@ void modify_GFA(
     int num_threads,
     string &outFolder, 
     float errorRate,
+    std::string &polisher,
     bool polish,
     string &techno,
     string &MINIMAP, 
     string &RACON,
+    string &MEDAKA,
+    string &SAMTOOLS,
     string &path_to_python,
     string &path_src,
     bool DEBUG)
@@ -197,6 +200,10 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
+        // if (allreads[backbones_reads[b]].name != "edge_111@0"){ //DEBUG
+        //     cout << "continuuinng" << endl;
+        //     continue;
+        // }
 
         local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
@@ -305,20 +312,6 @@ void modify_GFA(
                     //     } 
                     //     cout << endl;
                     // }
-
-                    //     cout << "here are partitions[backbone][n-1].second.first and partitions[backbone][n].second.first : " << endl;
-                    //     for (auto a : partitions[backbone][n-1].second.first){
-                    //         cout << a+1 << " ";
-                    //     }
-                    //     cout << endl;
-                    //     for (auto a : partitions[backbone][n].second.first){
-                    //         cout << a+1 << " ";
-                    //     }
-                    //     cout << endl;
-                    //     while (true)
-                    //     {
-                    //         /* code */
-                    //     }
                         
                     // }
                 }
@@ -354,23 +347,16 @@ void modify_GFA(
                 //         }
                 //     }
                 //     cout << endl;
-                //     for (auto i = 0 ; i < partitions[backbone][n-1].second.first.size() ; i++ ){
-                //         if (partitions[backbone][n-1].second.first[i] != -2){
-                //             cout << partitions[backbone][n-1].second.first[i]  << " ";
-                //         }
-                //     }
-                //     cout << endl;
-                //     cout << "and there are the stitches : " << endl;
-                //     for (auto s : stitches[n]) {
-                //         cout << s.first << " : ";
-                //         for (auto bb : s.second){
-                //             cout << bb  << ",";
-                //         }
-                //         cout << endl;
-                //     }
                 // }
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
+                unordered_map<int, vector<string>> fullReadsPerPart; //list of all reads of each part
+                unordered_map<int, vector<pair<string, int>>> CIGARsPerPart; //list of all CIGARS of each part and the starting position
+                int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
+                int overhangLeft = min(interval.first.first, overhang);
+                int overhangRight = max(0,min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang));
+                int leftToPolish = max(0, interval.first.first - overhangLeft);
+                int rightToPolish = min(int(allreads[backbone].sequence_.size())-1, interval.first.second + overhangRight +1);
                 if (omp_get_thread_num() == 0 && DEBUG){
                     cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
                 }
@@ -379,10 +365,79 @@ void modify_GFA(
                 int numberOfClusters = 0;
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] > -1){
+
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
                         int clust = interval.second[r];
-                        string clippedRead = allreads[idxRead].sequence_.str();
+                        // string clippedRead = allreads[idxRead].sequence_.str();
+                        //extract the part of the read that is on the interval and the part of the CIGAR that is on the interval
+                        int posOnRead = 0;
+                        int posOnCIGAR = 0;
+                        int startPosition = allOverlaps[allreads[backbone].neighbors_[r]].position_2_1+1; //that's for the sam file
+                        startPosition = max(1, startPosition - leftToPolish);
+                        int posOnInterval = allOverlaps[allreads[backbone].neighbors_[r]].position_2_1;
+                        // posOnInterval = 0;
+                        int posOnReadStart = -1;
+                        int posOnReadEnd = -1;
+                        int posOnCIGARStart = -1;
+                        int posOnCIGAREnd = -1;
+                        string converted_cigar = convert_cigar(allOverlaps[allreads[backbone].neighbors_[r]].CIGAR);
+                        for (char c : converted_cigar){
+
+                            posOnCIGAR++;
+                            if (c == 'S' || c == 'H'){ //get to the beginning of the read
+                                posOnRead++;
+                                continue;
+                            }
+            
+                            if (posOnReadStart == -1 && posOnInterval >= leftToPolish){
+                                cout << "bingo posOnReadStart " << posOnRead << " " << posOnCIGAR << " " << posOnInterval << " " << leftToPolish << endl;
+                                posOnReadStart = posOnRead;
+                                posOnCIGARStart = posOnCIGAR-1;
+                            }
+                            if (posOnReadEnd == -1 && posOnInterval == rightToPolish){ 
+                                posOnReadEnd = posOnRead;
+                                posOnCIGAREnd = posOnCIGAR-1;
+                                break;
+                            }
+
+                
+                            if (c == 'M'){
+                                posOnRead++;
+                                posOnInterval++;
+                            }
+                            else if (c == 'D'){
+                                posOnInterval++;
+                            }
+                            else if (c == 'I'){
+                                posOnRead++;
+                            }
+                        }
+
+                        if (posOnReadEnd == -1){
+                            posOnReadEnd = posOnRead;
+                            posOnCIGAREnd = posOnCIGAR;
+                        }
+
+                        if (posOnReadStart > posOnReadEnd || posOnReadStart == -1){ //can happen when within a deletion
+                            interval.second[r] = -2;
+                            continue;
+                        }
+
+                        cout << "overlap : " << allreads[idxRead].name << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 << endl;
+                        cout << "fsljd iid " << leftToPolish << " " << rightToPolish << endl;
+                        cout << "foiupo q " << posOnReadStart << " " << posOnReadEnd << " " << posOnCIGARStart << " " << posOnCIGAREnd << endl;
+                
+                        string seq = allreads[idxRead].sequence_.str();
+                        if (!allOverlaps[allreads[backbone].neighbors_[r]].strand){
+                            seq = allreads[idxRead].sequence_.reverse_complement().str();
+                        }
+                        string clippedRead = seq.substr(posOnReadStart, posOnReadEnd-posOnReadStart);
+                        string clippedCIGAR = converted_cigar.substr(posOnCIGARStart, posOnCIGAREnd-posOnCIGARStart);
+
+                        clippedCIGAR = convert_cigar2(clippedCIGAR); //convert back MMMDDMM -> 3M2D2M
+                        // cout << "fjkld " << allOverlaps[allreads[backbone].neighbors_[r]].CIGAR << endl;
+
                         // int limitLeft = max(0,allOverlaps[allreads[backbone].neighbors_[r]].position_1_1-20); //the limit of the read that we should use with a little margin for a clean polish
                         // int limitRight = min(allOverlaps[allreads[backbone].neighbors_[r]].position_1_2+20, int(allreads[idxRead].sequence_.size()));
 
@@ -400,17 +455,23 @@ void modify_GFA(
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
                             readsPerPart[clust] = {clippedRead};
+                            fullReadsPerPart[clust] = {allreads[idxRead].sequence_.str()};
+                            CIGARsPerPart[clust] = {make_pair(clippedCIGAR, startPosition)};
                             if (clust >= 0){
                                 numberOfClusters++;
                             }
                         }
                         else {
                             readsPerPart[clust].push_back(clippedRead);
+                            fullReadsPerPart[clust].push_back(allreads[idxRead].sequence_.str());
+                            CIGARsPerPart[clust].push_back(make_pair(clippedCIGAR, startPosition));
                         }
                     }
                 }
                 if (readsPerPart.size() == 0 && interval.second.size() > 0 && interval.second[0] <= -1){
                     readsPerPart[-1] = {}; //so that it defaults back to the consensus
+                    fullReadsPerPart[-1] = {};
+                    CIGARsPerPart[-1] = {};
                 }
                 // cout << endl;
 
@@ -420,20 +481,30 @@ void modify_GFA(
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads[backbone].depth);
 
                 for (auto group : readsPerPart){
-                    int overhang = 150; //margin we're taking at the ends of the contig t get a good polishing of first and last bases
                     
-                    int overhangLeft = min(interval.first.first, overhang);
-                    int overhangRight = max(0,min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang));
                     string full_backbone =  allreads[backbone].sequence_.str();
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
-                    string toPolish = full_backbone.substr(max(0, interval.first.first - overhangLeft), overhangLeft) 
+                    string toPolish = full_backbone.substr(max(0, interval.first.first - overhangLeft), min(overhangLeft, interval.first.first)) 
                         + full_backbone.substr(interval.first.first, interval.first.second-interval.first.first)
-                        + full_backbone.substr(interval.first.second, overhangRight);
+                        + full_backbone.substr(interval.first.second, min(overhangRight+1, int(allreads[backbone].sequence_.size())-interval.first.second-1));
+
 
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
-                        newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, path_to_python, path_src);
+                        if (polisher == "medaka"){
+                            newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, MEDAKA, SAMTOOLS, path_to_python, path_src);
+                        }
+                        else{
+                            cout << "polishing with racon iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
+                            newcontig = consensus_reads(toPolish, full_backbone, 
+                                interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
+                                    thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+                            // if (interval.first.first == 38000 && group.first == 1){
+                            //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
+                            //     exit(1);
+                            // }
+                        }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
                             //     interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
@@ -1108,10 +1179,8 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
             for (int interval = 1 ; interval < contig.second.size() ; interval ++){
                 //check if this interval can be merged with the previous one
                 vector<int> groupThere = contig.second[interval].second;
-                //stitch !
-                unordered_map<int, set<int>> stitchLeft = stitch(group, groupThere, contig.second[interval].first.first);
 
-                //if the fit is obvious, merge
+                unordered_map<int, set<int>> stitchLeft = stitch(group, groupThere, contig.second[interval].first.first);
                 unordered_map <int,set<int>> stitches;
                 for (auto s : stitchLeft){
                     stitches[s.first] = s.second;
@@ -1171,6 +1240,9 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
                         conversion[*s.second.begin()] = s.first;
                     }
                 }
+                if (alreadySeen.size() < all_contigs_left.size() || all_contigs_left.size() != all_contigs_right.size()){
+                    trivial = false;
+                }
 
                 if (!trivial){
                     new_intervals.push_back(make_pair(make_pair(coordinate_start, coordinate_end), group));
@@ -1202,9 +1274,10 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
-    if (argc != 15){
-        std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> "
-                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-python> <debug>" << std::endl;
+    if (argc != 17){
+        std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
+                << "<path-to-python> <debug>" << std::endl;
         cout << argc << endl;
         return 1;
     }
@@ -1212,20 +1285,25 @@ int main(int argc, char *argv[])
     string reads_file = argv[2];
     float error_rate = stof(argv[3]);
     string split_file = argv[4];
-    string tmpFolder = argv[5];
-    int num_threads = stoi(argv[6]);
-    string technology = argv[7];
-    string output_graph = argv[8];
-    string outputGAF = argv[9];
-    bool polish = bool(stoi(argv[10]));
-    string MINIMAP = argv[11];
-    string RACON = argv[12];
-    string path_to_python = argv[13];
-    bool DEBUG = bool(stoi(argv[14]));
+    string sam_file = argv[5];
+    string tmpFolder = argv[6];
+    int num_threads = stoi(argv[7]);
+    string technology = argv[8];
+    string output_graph = argv[9];
+    string outputGAF = argv[10];
+    string polisher = argv[11];
+    bool polish = stoi(argv[12]);
+    string MINIMAP = argv[13];
+    string RACON = argv[14];
+    string MEDAKA = argv[15];
+    string SAMTOOLS = argv[16];
+    string path_to_python = argv[17];
+    bool DEBUG = stoi(argv[18]);
+
+
     string argv0 = argv[0];
     //strip the '/build/create_new_contigs' from the end of argv0 to obtain the path to the src folder
     string path_to_src = argv0.substr(0,argv0.size()-25);
-
 
     vector <Link> allLinks;
     std::vector <Overlap> allOverlaps;
@@ -1235,10 +1313,12 @@ int main(int argc, char *argv[])
 
     parse_reads(reads_file, allreads, indices);
     parse_assembly(original_assembly, allreads, indices, backbone_reads, allLinks);
+    parse_SAM(sam_file, allOverlaps, allreads, indices);
 
     //now parse the split file
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > partitions;
     parse_split_file(split_file, allreads, allOverlaps, partitions);
+
 
     //first merge the intervals that can be merged
     merge_intervals(partitions);
@@ -1248,7 +1328,7 @@ int main(int argc, char *argv[])
 
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
-        tmpFolder, error_rate, polish, technology, MINIMAP, RACON, path_to_python, path_to_src, DEBUG);
+        tmpFolder, error_rate, polisher, polish, technology, MINIMAP, RACON, MEDAKA, SAMTOOLS, path_to_python, path_to_src, DEBUG);
     output_GFA(allreads, backbone_reads, output_graph, allLinks);
 
     return 0;

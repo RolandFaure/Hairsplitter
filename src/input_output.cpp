@@ -276,6 +276,8 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
         throw std::invalid_argument( "Input file '"+fileSAM +"' could not be read" );
     }
 
+    int extensionRight = -1; //that is to deal with circular contigs, for which a second alignment could be valid
+    int extensionLeft = -1;
     string line;
     long int linenumber = 0;
     while(getline(in, line)){
@@ -323,7 +325,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 1){ //this is the flag
                     flag = stoi(field);
-                    if (flag%8 >= 4 || flag%512 >= 256){ //this means that 1) the reads does not map well or 2) this is a secondary alignment 3) flag>2048 is a supplementary alignment but can just be the follow-up of the first alignment
+                    if (flag%8 >= 4){ //this means that 1) the reads does not map well 
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -461,7 +463,11 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     allgood = false;
                     //cout << "inpout outpout qkdldkj c " << line << endl;
                 }
-                else{
+                else if(flag%512 >= 256 || flag >= 2048){ //i.e. secondary alignment
+                    allgood=false;
+                }
+
+                if (allgood){
 
                     Overlap overlap;
                     overlap.sequence1 = sequence1;

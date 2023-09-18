@@ -6,6 +6,8 @@
 #include <string>
 #include <omp.h> //for efficient parallelization
 #include <set>
+#include <cmath>
+
 
 #include "input_output.h"
 
@@ -451,7 +453,7 @@ float generate_msa(
  * @param meanError error rate of the reads
  * @param tmpFolder folder to write the temporary files
  */
-void call_variants(
+vector<Column> call_variants(
     std::vector<Column> &snps, 
     std::vector <Read> &allreads,
     std::vector <Overlap> &allOverlaps, 
@@ -460,12 +462,7 @@ void call_variants(
     std::vector<size_t> &suspectPostitions, 
     float &meanError,
     std::string &tmpFolder,
-    std::string &outputFile,
-    std::string &vcfFile,
     bool DEBUG){
-
-    std::ofstream out(outputFile, std::ios_base::app);
-    std::ofstream vcf(vcfFile, std::ios_base::app);
 
     vector<int> suspectPositions;
     vector<Column> suspiciousColumns;
@@ -510,7 +507,12 @@ void call_variants(
         }
         std::sort(content_sorted.begin(), content_sorted.end(), [](const pair<unsigned char, int>& a, const pair<unsigned char, int>& b) {return a.second > b.second;});
 
-        // if (position == 551 ){//&& allreads[contig].name == "edge_2"){
+        if (content_sorted.size() > 1){
+            snps[position].ref_base = content_sorted[0].first;
+            snps[position].second_base = content_sorted[1].first;
+            snps[position].pos = position;
+        }
+        // if (position == 654 ){//&& allreads[contig].name == "edge_2"){
         //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
         //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
         //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
@@ -559,11 +561,623 @@ void call_variants(
         }
     }
 
-    #pragma omp critical
-    {
-        auto coverage = depthOfCoverage / ref.size();
+    allreads[contig].depth = depthOfCoverage/ref.size();
+    return suspiciousColumns;
+}
+
+/**
+ * @brief Keep only robust variants, i.e. variants that occur on several different positions in the contig
+ * 
+ * @param snps_in Input snps
+ * @param snps_out Filtered snps
+ * @param num_threads 
+ */
+void keep_only_robust_variants(
+    std::vector<Column> &msa,
+    std::vector<Column>  &snps_in, 
+    std::vector<Column>  &snps_out, 
+    float mean_error,
+    std::vector <Partition> &parts){
+
+    snps_out = vector<Column>();
+
+    // cout << "filtering contqoflmj ig " << n << endl;
+
+    vector<Partition> partitions;
+    int lastposition = -5;
+
+    //iterate over all SNPs in the contig
+    for (auto snp : snps_in){
+        //go through the partitions to see if this suspicious position looks like smt we've seen before
+        if (snp.pos - lastposition <= 5){
+            continue;
+        }
+        bool found = false;
+        auto position = snp.pos;
+        for (auto p = 0 ; p < partitions.size() ; p++){
+            //if the partition is too far away, do not bother comparing
+            if (std::abs(snp.pos-partitions[p].get_right())>50000){
+                continue;
+            }
+            distancePartition dis = distance(partitions[p], snp, snp.ref_base);
+            auto comparable = dis.n00 + dis.n11 + + dis.n01 + dis.n10;
+
+            //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
+            if (dis.n01 < 0.1 * (dis.n00+dis.n01) && dis.n10 < 0.1 * (dis.n11+dis.n10) && comparable >= snp.readIdxs.size()/2){
+            
+                found = true;
+                // if (p == 94){
+                //     cout << "quaomugj emja aaa " << position << " " << endl;
+                //     // partitions[p].print();
+                //     // for (auto r : dis.partition_to_augment.content){
+                //     //     cout << r;
+                //     // }
+                //     // cout << endl;
+                //     int idx = 0;
+                //     for (auto r : debug_reads_of_interest){
+                //         while(idx < dis.partition_to_augment.readIdxs.size() && dis.partition_to_augment.readIdxs[idx] < r){
+                //             idx++;
+                //         }
+                //         if (idx < dis.partition_to_augment.readIdxs.size() && dis.partition_to_augment.readIdxs[idx] == r){
+                //             cout << dis.partition_to_augment.content[idx];
+                //         }
+                //         else{
+                //             cout << " ";
+                //         }
+                //     }
+                //     cout << endl;
+                // }
+                partitions[p].augmentPartition(dis.partition_to_augment, position);
+
+                break;
+            }
+        }
+        if (!found){    // the second condition is here to create partitions only at specific spots of the backbone
+            partitions.push_back(Partition(snp, position, snp.ref_base));
+        }
+        else{
+            lastposition = snp.pos;      //two suspect positions next to each other can be artificially correlated through alignement artefacts
+        }
+    }
+
+    if (partitions.size() == 0){ //there are no position of interest
+        return;
+    }
+    
+    float threshold = std::min(4, std::max(2, (int) (mean_error*100)));
+
+    vector<Partition> listOfFinalPartitions;
+    for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
+
+        // if (partitions[p1].number() > 5){
+        //     cout << "iqdoudofq non informative partition : "  << p1 << " " << snps.size()<< endl;
+        //     partitions[p1].print();
+        // }
+        
+        if (partitions[p1].number() > threshold && partitions[p1].isInformative(false, mean_error)){
+
+            bool different = true;
+            
+            for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
+
+                distancePartition dis = distance(listOfFinalPartitions[p2], partitions[p1], 2);
+
+                if (dis.augmented 
+                    && (dis.n00+dis.n11 > 5*(dis.n01+dis.n10) || dis.n10 + dis.n01 > 5*(dis.n00+dis.n11))
+                    && dis.n10 < std::max(2,2*dis.n01) && dis.n01 < std::max(2,2*dis.n10)){
+                    Partition newPart = listOfFinalPartitions[p2];
+
+                    newPart.mergePartition(partitions[p1], dis.phased);
+
+                    // newPart.print();
+                    // for (auto r = 0 ; r < newPart.getPartition().size() ; r++){
+                    //     if (newPart.getPartition()[r] == 1){// newPart.getReads()[r] == 496){
+                    //         cout << newPart.getReads()[r] << " " << newPart.getPartition()[r] << ":" << newPart.getMore()[r] << ":" << newPart.getLess()[r] << " ";
+                    //     }
+                    // }
+                    // cout << endl;
+                    
+                    // exit(1);
+
+                    //see if confidence is improved by merging the two partitions, meaning differences were shaky
+                    if (dis.n01+dis.n10 < 0.1*(dis.n00+dis.n11) || newPart.compute_conf() > listOfFinalPartitions[p2].compute_conf()){
+
+                        listOfFinalPartitions[p2].mergePartition(partitions[p1], dis.phased);
+                        different = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (different){
+                listOfFinalPartitions.push_back(partitions[p1]);
+            }
+        }
+    }
+
+    // print the final partitions
+    // cout << "final partitions : " << endl;
+    // for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
+    //     cout << "partition " << p << " : " << endl;
+    //     listOfFinalPartitions[p].print();
+    // }
+    // exit(1);
+
+    //list the interesting positions
+    float chisquare_sum = 0;
+    int number_of_interesting_positions = 0;
+    for (auto snp : snps_in){
+        // cout << "suspecct possisssiion : " << snp.pos << endl;
+        // print_snp(snp);
+        for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
+            distancePartition dis = distance(listOfFinalPartitions[p], snp, snp.ref_base);
+
+            // cout << "distance between " << snp.pos << endl;
+            // // listOfFinalPartitions[p].print();
+            // // print_snp(snp);
+            // cout << " is " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << " " << " " << 0.5*snp.content.size() << computeChiSquare(dis)<< endl;
+
+            float chisqu = computeChiSquare(dis);
+            if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
+                && chisqu > 15){
+
+                snps_out.push_back(snp);
+                chisquare_sum += chisqu;
+                number_of_interesting_positions += 1;
+                break;
+            }
+        }
+    }
+
+    double mean_chisquare = chisquare_sum/number_of_interesting_positions; //now see if there aren't a few position we missed
+    int idxSnps = 0;
+    vector<Column> snps_out_tmp = snps_out;
+    snps_out = vector<Column>();
+
+    for (auto position = 0 ; position < msa.size() ; position++){
+        if (idxSnps < snps_out_tmp.size() && snps_out_tmp[idxSnps].pos == position){ //this was already suspicious
+            snps_out.push_back(snps_out_tmp[idxSnps]);
+            idxSnps++;
+        }
+        else{  //now see if this should be rescued
+            if (msa[position].ref_base %5 !=  msa[position].second_base%5 //the central base differs
+            && ((msa[position].second_base - '!')%5 != 4 || (msa[position].second_base/5%5 != msa[position].ref_base%5 && msa[position].second_base/25%5 != msa[position].ref_base%5) )) //don't call indels that are adjacent to homopolymers, it's the best way to call false positives
+            {
+                for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
+                    distancePartition dis = distance(listOfFinalPartitions[p], msa[position], msa[position].ref_base);
+                    // if (position == 502) {
+                    //     cout << "dfjlkiox " << dis.n10 << " " << dis.n00 << " " << dis.n01 << " " << dis.n11 << " " << computeChiSquare(dis) << " " << mean_chisquare << endl;
+                    //     // print_snp(msa[position]);
+                    //     exit(1);
+                    // }
+                    if (computeChiSquare(dis) > std::min(mean_chisquare, 20.0)){
+                        snps_out.push_back(msa[position]);
+                        // cout << "fkldjsqdsmlj new sus pos : " << position << " " << computeChiSquare(dis) << endl;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // cout << "number of intesdresting positions : " << snps_out[n].size() << endl;
+    parts = listOfFinalPartitions;
+}
+
+/**
+ * @brief Compute the distance from the partition to the column
+ * 
+ * @param par1 
+ * @param par2 
+ * @param ref corresponding reference base
+ * @return distancePartition (n00, n01, n10, n11, phased, partition_to_augment)
+ */
+distancePartition distance(Partition &par1, Column &par2, char ref_base){
+
+    /*
+    when computing the distance, there is not 5 letters but 2 : the two alleles, which are the two most frequent letters
+    */
+    distancePartition res;
+    res.augmented = true;
+    vector <int> idxs1 = par1.getReads();
+    vector<short> part1 = par1.getPartition();
+    vector<float> confs1 = par1.getConfidence();
+    vector<int> more1 = par1.getMore();
+    vector<int> less1 = par1.getLess();
+
+    vector <unsigned int> idxs2 = par2.readIdxs;
+    vector <unsigned char> part2 = par2.content;
+    
+    float numberOfBases = 0;
+
+    unordered_map<unsigned char, int> content2;
+
+    auto n2 = 0;
+    auto n1 = 0;
+    for (auto r : idxs2){
+        while (n1 < idxs1.size() && idxs1[n1] < idxs2[n2]){
+            n1++;
+        }
+        if (n1 >= idxs1.size()){
+            break;
+        }
+        if ( idxs1[n1] == idxs2[n2] && part1[n1] != -2){
+            if (content2.find(part2[n2]) == content2.end()){
+                content2[part2[n2]] = 0;
+            }
+            numberOfBases+=1;
+            content2[part2[n2]] += 1;
+        }
+        n2++;
+    }
+
+    if (numberOfBases == 0){ //not comparable
+        res.n00 = 0;
+        res.n01 = 0;
+        res.n10 = 0;
+        res.n11 = 0;
+        res.solid10 = 0;
+        res.solid11 = 0;
+        res.solid00 = 0;
+        res.solid01 = 0;
+        res.augmented = false;
+        return res;
+    }
+
+    //determine first and second most frequent bases in par2
+    
+    unsigned char mostFrequent = ref_base;
+    auto maxFrequence = content2[ref_base];
+    //now find the second most frequent base
+    unsigned char secondFrequent = ' ';
+    int maxFrequence2 = -1;
+    for (auto c : content2){
+        if (ref_base != c.first) {
+            if (c.second > maxFrequence2){
+                secondFrequent = c.first;
+                maxFrequence2 = c.second;
+            }
+        }
+    }
+
+    int matches00 = 0;
+    int matches01 = 0;
+    int matches10 = 0;
+    int matches11 = 0;
+    int solid11 = 0;
+    int solid10 = 0;
+    int solid01 = 0;
+    int solid00 = 0;
+    Column newPartition;
+
+    newPartition.readIdxs = {};
+    for (auto ci = 0 ; ci < par2.content.size() ; ci++){
+        unsigned char c = par2.content[ci];
+        if (c == mostFrequent){
+            newPartition.readIdxs.push_back(par2.readIdxs[ci]);
+            newPartition.content.push_back('A');
+
+        }
+        else if (c == secondFrequent){
+            newPartition.readIdxs.push_back(par2.readIdxs[ci]);
+            newPartition.content.push_back('a');
+        }
+        else{
+            newPartition.readIdxs.push_back(par2.readIdxs[ci]);
+            newPartition.content.push_back(' ');
+        }
+    }
+
+    // cout << " idx1ss : " << endl;
+    // for (auto i = 0 ; i < idxs1.size() ; i++){
+    //     if (part1[i] != -2){
+    //         cout << idxs1[i] << " ";
+    //     }
+    // }
+    // cout << "\n";
+    // cout << " idx2ss : " << endl;
+    // for (auto i : par2.readIdxs){
+    //     cout << i << " ";
+    // }
+    // cout << "\n";
+
+    string debug1 = "";
+    string debug2 = "";
+    n1 = 0;
+    auto it1 = idxs1.begin();
+    n2 = 0;
+    auto it2 = par2.readIdxs.begin();
+    while (it1 != idxs1.end() && it2 != par2.readIdxs.end()){
+
+        if (*it1 == *it2){
+            ++it1;
+            ++it2;
+
+            if (par2.content[n2] == mostFrequent){
+
+                if (part1[n1] == 1){
+                    matches11 += 1;
+                    debug1 += "1";
+                    debug2 += par2.content[n2];
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid11 += 1;
+                    }
+                }
+                else if (part1[n1] == -1){
+                    matches01 += 1;
+                    debug1 += "0";
+                    debug2 += par2.content[n2];
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid01 += 1;
+                    }
+                }
+            }
+            else if (par2.content[n2] == secondFrequent){
+
+                if (part1[n1] == 1){
+                    matches10 += 1;
+                    debug1 += "1";
+                    debug2 += par2.content[n2];
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid10 += 1;
+                    }
+                }
+                else if (part1[n1] == -1){
+                    matches00 += 1;
+                    debug1 += "0";
+                    debug2 += par2.content[n2];
+                    if (less1[n1] <= 1 && more1[n1] >= 3){
+                        solid00 += 1;
+                    }
+                }
+            }
+            // cout << "nt1 " << n1 << " " << part1[n1] << " n2 " << n2 << " " << part2[n2] << " "<< *it1 <<  "\n";
+            n1++;
+            n2++;
+        }
+        else if (*it2 > *it1){
+            ++it1;
+            n1++;
+        }
+        else{
+            ++it2;
+            n2++;
+        }
+    }
+
+    res.n00 = matches00;
+    res.n01 = matches01;
+    res.n10 = matches10;
+    res.n11 = matches11;
+    res.solid10 = solid10;
+    res.solid11 = solid11;
+    res.solid00 = solid00;
+    res.solid01 = solid01;
+    res.phased = 1;
+    res.secondBase = secondFrequent;
+    res.partition_to_augment = newPartition;
+    //cout << "Computing..." << maxScore << " " << par1.size()-res.nonComparable << " " << res.nmismatch << endl;
+
+    // cout << "fqiopudpc \n" << debug1 << "\n" << debug2 << "\n";
+
+    return res;
+}
+
+/**
+ * @brief comparing how close two partitions are
+ * 
+ * @param par1 
+ * @param par2 
+ * @param threshold_p number of highly diverging reads to consider the partitions different
+ * @return distancePartition 
+ */
+distancePartition distance(Partition &par1, Partition &par2, int threshold_p){
+    /*
+    Two metrics are used to compare two partition : the chi to see if the two partition correlate when they are small
+                                                    the p when the partitions are bigger and you can do probabilities on them
+    */
+    int numberOfComparableBases = 0;
+
+    float chi = 0;
+
+    vector<int> idx1 = par1.getReads();
+    vector<int> idx2 = par2.getReads();
+
+    vector<short> part1 = par1.getPartition();
+    vector<short> part2 = par2.getPartition();
+
+    vector<int> more1 = par1.getMore();
+    vector<int> less1 = par1.getLess();
+
+    vector<int> more2 = par2.getMore();
+    vector<int> less2 = par2.getLess();
+
+    int scores [2] = {0,0}; //the scores when directing mostFrequent on either mostfrequent2 or secondFrequent2
+    short ndivergentPositions[2] = {0,0}; //number of positions where these two partitions could not have been so different by chance
+    short nNotSurePositions[2] = {0,0}; //number of positions where the partitions disagree even though one of them was pretty sure
+    //remember all types of matches for the chi square test
+    int matches00[2] = {0,0};
+    int matches01[2] = {0,0};
+    int matches10[2] = {0,0};
+    int matches11[2] = {0,0};
+
+    int r1 = 0;
+    int r2 = 0;
+    while (r1 < idx1.size() && r2 < idx2.size()){
+        if (idx1[r1]< idx2[r2]){
+            r1++;
+        }
+        else if (idx2[r2] < idx1[r1]){
+            r2++;
+        }
+        else if (more1[r1] > 1 && more2[r2] > 1){
+
+            numberOfComparableBases += 1;
+
+            float threshold1 = 0.5*(more1[r1]+less1[r1]) + 3*sqrt((more1[r1]+less1[r1])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
+            float threshold2 = 0.5*(more2[r2]+less2[r2]) + 3*sqrt((more2[r2]+less2[r2])*0.5*(1-0.5)); //to check if we deviate significantly from the "random read", that is half of the time in each partition
+
+            if (part2[r2] == 1){
+
+                if (part1[r1] == 1){
+                    scores[0] += 1;
+                    scores[1] -= 1;
+                    matches11[0] += 1;
+                    matches10[1] += 1;
+
+                    //if both positions are certain, this may be bad
+                    if (more1[r1] > threshold1 && more2[r2] > threshold2){
+                        ndivergentPositions[1] += 1;
+                    }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[1] += 1;
+                    }
+                }
+                else if (part1[r1] == -1){
+                    scores[0] -= 1;
+                    scores[1] += 1;
+                    matches01[0] += 1;
+                    matches00[1] += 1;
+
+                    //if both positions are certain, this may be bad
+                    if (more1[r1] > threshold1 && more2[r2] > threshold2){
+                        ndivergentPositions[0] += 1;
+                    }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[0] += 1;
+                    }
+                }
+            }
+            else if (part2[r2] == -1){
+
+                if (part1[r1] == 1){
+                    scores[0] -= 1;
+                    scores[1] += 1;
+                    matches10[0] += 1;
+                    matches11[1] += 1;
+
+                    //if both positions are certain, this may be bad
+                    if (more1[r1] > threshold1 && more2[r2] > threshold2){
+                        ndivergentPositions[0] += 1;
+                    }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[0] += 1;
+                    }
+                }
+                else if (part1[r1] == -1){
+                    scores[0] += 1;
+                    scores[1] -= 1;
+                    matches00[0] += 1;
+                    matches01[1] += 1;
+
+                    //if both positions are certain, this may be bad
+                    if (more1[r1] > threshold1 && more2[r2] > threshold2){
+                        ndivergentPositions[1] += 1;
+                    }
+                    if (more1[r1] > threshold1 || more2[r2] > threshold2){
+                        nNotSurePositions[1] += 1;
+                    }
+                }
+            }
+
+            r1++;
+            r2++;
+        }
+        else{
+            r1++;
+            r2++;
+        }
+    }
+
+
+    distancePartition res;
+    res.augmented = true;
+
+    //check if there are too many unenxplainable positions
+    if ((ndivergentPositions[0] >= threshold_p && ndivergentPositions[1] >= threshold_p) || (nNotSurePositions[0] >= 5 && nNotSurePositions[1] >= 5) || numberOfComparableBases == 0){
+        // cout << "Should not merge those two partitions ! " << endl;
+        res.augmented = false;
+    }
+
+    /*
+    now there aren't too many unexplainable postions. 
+    However, that could be due to little partitions on which we could not do stats. For those, do a chi-square
+    */
+
+    //now look at the best scores
+
+    int maxScore = scores[0];
+    int maxScoreIdx = 0; //can be either 0 or 1
+    
+    if (scores[1] > maxScore){
+        maxScore = scores[1];
+        maxScoreIdx = 1;
+    }
+
+    res.n00 = matches00[maxScoreIdx];
+    res.n01 = matches01[maxScoreIdx];
+    res.n10 = matches10[maxScoreIdx];
+    res.n11 = matches11[maxScoreIdx];
+    res.phased = -2*maxScoreIdx + 1; // worth -1 or 1
+
+    return res ;
+}
+
+/**
+ * @brief Compute the chi-square test with one degree of freedom
+ * 
+ * @param dis 
+ * @return float 
+ */
+float computeChiSquare(distancePartition dis){
+
+    int n = dis.n00 + dis.n01 + dis.n10 + dis.n11;
+    if (n == 0){
+        return 0;
+    }
+    float pmax1 = float(dis.n10+dis.n11)/n;
+    float pmax2 = float(dis.n01+dis.n11)/n;
+    //now a few exceptions when chisquare cannot be computed
+    if (pmax1*(1-pmax1) == 0 && pmax2*(1-pmax2) == 0){
+        return -1;
+    }
+    if (pmax1*pmax2*(1-pmax1)*(1-pmax2) == 0){ //if there is only one base in one partition, it can't be compared
+        return 0;
+    }
+
+    // cout << "ps : " << pmax1 << ", " << pmax2 << endl;
+    // cout << "expected/obtained : " << dis.n00 << "/"<<(1-pmax1)*(1-pmax2)*n << " ; " << dis.n01 << "/"<<(1-pmax1)*pmax2*n
+    // << " ; " << dis.n10 << "/" << pmax1*(1-pmax2)*n << " ; " << dis.n11 << "/" << pmax1*pmax2*n << endl;
+    //chi square test with 1 degree of freedom
+    float res;
+    res = pow((dis.n00-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
+        + pow((dis.n01-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
+        + pow((dis.n10-pmax1*(1-pmax2)*n),2)/(pmax1*(1-pmax2)*n)
+        + pow((dis.n11-pmax1*pmax2*n),2)/(pmax1*pmax2*n);
+
+    return res;
+}
+
+/**
+ * @brief output the variants in a .col and a .vcf file
+ * 
+ * @param variants map associating the index of the contig to the list of variants on this contig
+ * @param allreads vector containing all the reads (including the contigs)
+ * @param allOverlaps vector containing all the overlaps
+ * @param col_file output file for the variants in .col format
+ * @param vcf_file output file for the variants in vcf format
+ */
+void output_files(std::unordered_map<int, std::vector<Column>> &variants, std::vector<Overlap> &allOverlaps, std::vector<Read> &allreads, std::string col_file, std::string vcf_file){
+
+    std::ofstream out(col_file);
+    std::ofstream vcf(vcf_file);
+    
+    for (auto c : variants){
+        long int contig = c.first;
+        vector<Column> suspiciousColumns = c.second;
+
         //output the suspect positions
-        out << "CONTIG\t" << allreads[contig].name << "\t" << allreads[contig].sequence_.size() << "\t" << coverage << "\n";
+        out << "CONTIG\t" << allreads[contig].name << "\t" << allreads[contig].sequence_.size() << "\t" << allreads[contig].depth << "\n";
         for (long int n : allreads[contig].neighbors_){
             out << "READ\t" << allreads[ allOverlaps[n].sequence1 ].name 
                 << "\t" << allOverlaps[n].position_1_1 << "\t" << allOverlaps[n].position_1_2 
@@ -643,11 +1257,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    cout << " - Calling variants on each contig using basic pileup\n";
+    cout << " - Calling variants on each contig\n";
 
     int index = 0;
     float totalErrorRate = 0;
     int numberOfContigsWHereErrorRateIsComputed = 0;
+    std::unordered_map<int, vector<Column>> variants;
 
     omp_set_num_threads(num_threads);
     #pragma omp parallel
@@ -656,7 +1271,7 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name != "edge_8@00"){ //for debugging purposes
+            if (allreads[contig].name != "edge_522@00"){ //for debugging purposes
 
                 // if (DEBUG){
                 //     #pragma omp critical
@@ -692,7 +1307,19 @@ int main(int argc, char *argv[])
                 //call variants
 
                 vector<size_t> suspectPostitions;
-                call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, file_out, vcfFile, DEBUG);
+                vector<Column> variants_here = call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, DEBUG);
+
+                //filter the variants
+                vector<Column> filteredSnps;
+                vector<Partition> partitions;
+                keep_only_robust_variants(snps, variants_here, filteredSnps, meanDistance, partitions);
+
+                // //now do a second round variant calling to rescue the positions that the first round missed
+                // if (partitions.size() > 0){
+                //     vector<Column> variants_here2 = rescue_snps(snps, meanDistance, partitions, suspectPostitions);
+                // }
+
+                variants[contig] = filteredSnps;
 
                 //free up memory by deleting the sequence of the reads used there
                 for (auto n : allreads[contig].neighbors_){
@@ -715,6 +1342,9 @@ int main(int argc, char *argv[])
     errorRateFile.open(error_rate_out);
     errorRateFile << totalErrorRate/numberOfContigsWHereErrorRateIsComputed << endl;
     errorRateFile.close();
+
+    //output the variants
+    output_files(variants, allOverlaps, allreads, file_out, vcfFile);
 
     return 0;
 
