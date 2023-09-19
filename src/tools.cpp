@@ -323,8 +323,7 @@ string consensus_reads(
     }
 
     //run a basic consensus
-    //use quasitools : "quasitools consensus -p 100 hs/tmp/mapped_0.bam hs/tmp/unpolished_0.fasta > hs/tmp/consensus_0.fasta && mv hs/tmp/consensus_0.fasta hs/tmp/polished_0.fasta"
-    command =  "samtools consensus "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
+    command = "samtools consensus "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
     // cout << "Running " << command << endl;
     auto res_cons = system(command.c_str());
     if (res_cons != 0){
@@ -525,7 +524,8 @@ std::string consensus_reads_medaka(
     //now create a first rough polish using a basic pileup
     // Build the command to run haplodmf_count_freqs.py
     string command;
-    command =  path_to_python + " " + path_src + "/haplodmf_count_freqs.py " + outFolder +"mapped_"+id+".bam " + outFolder +"consensus_"+id+".fasta 2>"+ outFolder +"trash.txt";    
+    command = SAMTOOLS + " consensus " + outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
+    // command =  path_to_python + " " + path_src + "/haplodmf_count_freqs.py " + outFolder +"mapped_"+id+".bam " + outFolder +"acgt_"+id+".txt 2>"+ outFolder +"trash.txt";    
     // cout << "Running " << command << endl;
     
     // Run the command
@@ -534,6 +534,8 @@ std::string consensus_reads_medaka(
         cout << "Error running command: " << command << endl;
         exit(1);
     }
+
+
 
     //run medaka on the consensus
     string com = MEDAKA + "_consensus -i "+ outFolder +"reads_"+id+".fasta -d "+ outFolder +"consensus_"+id+".fasta -o "+ outFolder +"medaka_"+id+" -t 1 -f -x 2>"+ outFolder +"trash.txt >" +outFolder +"trash.txt" ;

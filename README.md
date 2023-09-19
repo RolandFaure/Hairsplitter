@@ -21,9 +21,9 @@ A conda package is in preparation but is not available yet. For now, it is neces
 
 ### Quick conda dependancies
 
-The recommended way to install HairSplitter is to create and activate a conda environment with all dependencies: 
+The recommended way to install HairSplitter is to create and activate a conda/mamba environment with all dependencies: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 racon samtools medaka
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 racon htslib==1.16 samtools medaka
 conda activate hairsplitter
 ```
 

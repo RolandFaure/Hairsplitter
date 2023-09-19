@@ -391,7 +391,7 @@ void modify_GFA(
                             }
             
                             if (posOnReadStart == -1 && posOnInterval >= leftToPolish){
-                                cout << "bingo posOnReadStart " << posOnRead << " " << posOnCIGAR << " " << posOnInterval << " " << leftToPolish << endl;
+                                // cout << "bingo posOnReadStart " << posOnRead << " " << posOnCIGAR << " " << posOnInterval << " " << leftToPolish << endl;
                                 posOnReadStart = posOnRead;
                                 posOnCIGARStart = posOnCIGAR-1;
                             }
@@ -424,9 +424,9 @@ void modify_GFA(
                             continue;
                         }
 
-                        cout << "overlap : " << allreads[idxRead].name << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 << endl;
-                        cout << "fsljd iid " << leftToPolish << " " << rightToPolish << endl;
-                        cout << "foiupo q " << posOnReadStart << " " << posOnReadEnd << " " << posOnCIGARStart << " " << posOnCIGAREnd << endl;
+                        // cout << "overlap : " << allreads[idxRead].name << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 << endl;
+                        // cout << "fsljd iid " << leftToPolish << " " << rightToPolish << endl;
+                        // cout << "foiupo q " << posOnReadStart << " " << posOnReadEnd << " " << posOnCIGARStart << " " << posOnCIGAREnd << endl;
                 
                         string seq = allreads[idxRead].sequence_.str();
                         if (!allOverlaps[allreads[backbone].neighbors_[r]].strand){
@@ -492,11 +492,12 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
+                        cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
+
                         if (polisher == "medaka"){
                             newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, MEDAKA, SAMTOOLS, path_to_python, path_src);
                         }
                         else{
-                            cout << "polishing with racon iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
@@ -540,7 +541,7 @@ void modify_GFA(
                             else if (c == 'I'){
                                 posOnToPolish++;
                             }
-                            if (posOnToPolish == overhangLeft){
+                            if (posOnToPolish == overhangLeft+1){
                                 posStartOnNewContig = posOnNewContig;
                             }
                             if (posOnToPolish == toPolish.size()-overhangRight){
@@ -1274,7 +1275,7 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
-    if (argc != 17){
+    if (argc != 19){
         std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
                 <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
                 << "<path-to-python> <debug>" << std::endl;

@@ -362,14 +362,14 @@ void create_read_graph(
 
             int nb_of_neighbors = 0;
             float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
-            float distance_threshold_above_which_two_reads_should_be_linked= 1;
+            float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
             }
 
             for (auto neighbor : smallest){
                 if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
-                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second > distance_threshold_above_which_two_reads_should_be_linked)
+                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
                     && mask[neighbor.first]){
                     nb_of_neighbors++;
                     
@@ -459,7 +459,9 @@ void finalize_clustering(
     vector<vector<int>> &strengthened_adjacency_matrix, 
     vector<bool> &mask_at_this_position,
     vector<int> &haplotypes,
-    float errorRate){
+    float errorRate,
+    int posstart,
+    int posend){
  
     vector<int> new_clusters = merge_clusterings(localClusters, strengthened_adjacency_matrix, mask_at_this_position);
     vector<int> clusteredReads = new_clusters;
@@ -483,7 +485,6 @@ void finalize_clustering(
         }
     }
 
-    // vector<int> mergedHaplotypes = merge_wrongly_split_haplotypes(clusteredReads, snps, chunk, interestingPositions, adjacency_matrix, sizeOfWindow);
     vector<int> mergedHaplotypes = clusteredReads;
     //re-number the clusters
     unordered_map<int, int> clusterToHaplotype;
@@ -530,7 +531,311 @@ void finalize_clustering(
         haplotypes[r] = haplotypeToIndex[haplotypes[r]];
     }
 
-    merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position);
+    merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position); //by disturbing the CW clustering
+    haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_adjacency_matrix, posstart, posend); //by looking at the actual reads
+}
+
+/**
+ * 
+ * @brief Checks if the separation of some clusters is never justified by snps and if so, merges them
+ * 
+ * @param clusteredReads First separation of the reads
+ * @param snps Vector of columns containing the snps
+ * @param chunk To look only at the interesting snps
+ * @param suspectPostitions To look only at the interesting snps
+ * @param sizeOfWindow To look only at the interesting snps
+ * @return std::vector<int> 
+ */
+
+std::vector<int> merge_wrongly_split_haplotypes(
+    std::vector<int> &clusteredReads, 
+    std::vector<Column> &snps,  
+    std::vector<std::vector<int>> &adjacencyMatrix,
+    int posstart,
+    int posend){
+
+    set<int> listOfGroups;
+    int max_cluster = 0;
+    unordered_map<int, int> indexOfGroups;
+
+    int index = 0;
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        if (clusteredReads[read] > -1){
+            listOfGroups.emplace(clusteredReads[read]);
+            if (indexOfGroups.find(clusteredReads[read]) == indexOfGroups.end()){
+                indexOfGroups[clusteredReads[read]] = index;
+                index++;
+            }
+        }
+    }
+    vector<vector<int>> imcompatibilities (listOfGroups.size(), vector<int> (listOfGroups.size(), 0));
+    vector<vector<int>> pos_of_last_incompatibilities (listOfGroups.size(), vector<int> (listOfGroups.size(), -10));
+
+    if (listOfGroups.size() <= 1){
+        vector <int> one_cluster (clusteredReads.size(), 0);
+        for (auto r = 0 ; r < clusteredReads.size() ; r++){
+            if (clusteredReads[r] == -2){
+                one_cluster[r] = -2;
+            }
+        }
+        return one_cluster;
+    }
+
+    //vector associating to each read how many times it is excluded from each cluster
+    vector < unordered_map<int, int> > with_which_clusters_goes_this_read (clusteredReads.size());
+    vector < int > on_how_many_snps_is_this_read_defined (clusteredReads.size(), 0);
+    //fill the vector with 0s
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        for (auto group : listOfGroups){
+            with_which_clusters_goes_this_read[read][group] = 0;
+        }
+    }
+
+    for (auto snp : snps){
+        if (snp.pos >= posstart && snp.pos < posend){
+
+            //what bases occur in which cluster ?
+            unordered_map<int,unsigned char> cluster_to_majority_base;
+            unordered_map<int,unordered_map<unsigned char,int>> bases_in_each_cluster;
+            unordered_map<int,int> nb_bases_in_each_cluster;
+            unordered_map<unsigned char,int> bases_in_total;
+            for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
+                int read = snp.readIdxs[r];
+                unsigned char base = snp.content[r];
+                int cluster = clusteredReads[read];
+                if (cluster > -1){
+                    if (bases_in_each_cluster.find(cluster) == bases_in_each_cluster.end()){
+                        bases_in_each_cluster[cluster] = unordered_map<unsigned char,int>();
+                    }
+                    if (bases_in_each_cluster[cluster].find(base) == bases_in_each_cluster[cluster].end()){
+                        bases_in_each_cluster[cluster][base] = 0;
+                    }
+                    if (bases_in_total.find(base) == bases_in_total.end()){
+                        bases_in_total[base] = 0;
+                    }
+                    bases_in_total[base]++;
+                    bases_in_each_cluster[cluster][base]++;
+                    nb_bases_in_each_cluster[cluster]++;
+                }
+            }
+            
+            //count the majority base of each cluster at this position
+            set <unsigned char> maxbases;
+            for (auto cluster : bases_in_each_cluster){
+                int secondMax = 0;
+                int max = 0; //at leash 60% the bases need to agree
+                char maxBase = ' ';
+                for (auto base : cluster.second){
+                    if (base.second >= max){
+                        maxBase = base.first;
+                        secondMax = max;
+                        max = base.second;
+                    }
+                    else if (base.second > secondMax){
+                        secondMax = base.second;
+                    }
+                }
+                if (secondMax*2 > max || nb_bases_in_each_cluster[cluster.first]*0.5 > max){
+                    maxBase = ' ';
+                    // cout << "secondMax: " << secondMax << " max: " << max << endl;
+                    // cout << "bases_in_each_cluster[cluster.first] :" << endl;
+                    // for (auto base : bases_in_each_cluster[cluster.first]){
+                    //     cout << base.first << " " << base.second << endl;
+                    // }
+                }
+                cluster_to_majority_base[cluster.first] = maxBase;
+                if (maxBase != ' '){
+                    maxbases.emplace(maxBase);
+                }
+            }
+            if (maxbases.size() <= 1){
+                continue;
+            }
+
+            // if (chunk == 14){
+            //     cout << "chqhiuà " << position << endl;
+            //     vector<bool> no_mask(clusteredReads.size(), true);
+            //     print_snp(snps[position],no_mask);
+            // }
+
+            for (auto group1 : listOfGroups){
+                for (auto group2 : listOfGroups){
+                    if (cluster_to_majority_base[group1] != ' ' && cluster_to_majority_base[group2] != ' ' && group1 > group2){
+                        if (cluster_to_majority_base[group1] != cluster_to_majority_base[group2] && snp.pos - pos_of_last_incompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] > 10){ //>5 to make sure it's not two close snps
+
+                            // if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] <= 1){
+                            //     cout << "fqdsttewlj sep reads are incompatible " << group1 << " " << group2 << " " << snp.pos << " " << "ACGT-"[cluster_to_majority_base[group1]%5]
+                            //          << " " << "ACGT-"[cluster_to_majority_base[group2]%5] << endl;
+                            // }
+
+                            imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] += 1;
+                            imcompatibilities[indexOfGroups[group2]][indexOfGroups[group1]] += 1;
+
+                            pos_of_last_incompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] = snp.pos;
+                            pos_of_last_incompatibilities[indexOfGroups[group2]][indexOfGroups[group1]] = snp.pos;
+
+                            // if (group1 == 7 && group2 == 94){
+                            //     cout << "incompatibility btw " << group1 << " and " << group2  << "at position " << position << endl;
+                            //     cout << cluster_to_majority_base[group1] << " " << cluster_to_majority_base[group2] << endl;
+                            //     cout << "bases in each cluster group1 " << endl;
+                            //     for (auto base : bases_in_each_cluster[group1]){
+                            //         cout << base.first << " " << base.second << endl;
+                            //     }
+                            //     cout << "bases in each cluster group2 " << endl;
+                            //     for (auto base : bases_in_each_cluster[group2]){
+                            //         cout << base.first << " " << base.second << endl;
+                            //     }
+                            //     cout << "eecddxww " << endl;
+                            //     int nr = 0;
+                            //     for (auto r = 0 ; r < snps[position].readIdxs.size() ; r++){
+                            //         int read = snps[position].readIdxs[r];
+                            //         while (nr < read){
+                            //             if (clusteredReads[nr] >= 0){
+                            //                 cout << " ";
+                            //             }
+                            //             nr += 1;
+                            //         }
+                            //         if (clusteredReads[nr] >= 0){
+                            //             unsigned char c = snps[position].content[r];
+                            //             if (c > 126){
+                            //                 cout << (unsigned char) (c - 80);
+                            //             }
+                            //             else{
+                            //                 cout << (unsigned char) c;
+                            //             }
+                            //         }
+                            //         nr += 1;
+                            //     }
+                            //     cout << endl;
+                            // }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // cout << "imcompatibilities computed : " << endl;
+    // for (auto group1 : listOfGroups){
+    //     for (auto group2 : listOfGroups){
+    //         if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]]){
+    //             cout << "incompatiebility btw " << group1 << " and " << group2 << endl;
+    //         }
+    //     }
+    //     cout << endl;
+    // }
+
+    // list all the distances between different clusters
+    std::map < pair<int, int>, double > number_of_links_between_the_two_clusters;
+    unordered_map <int,int> number_of_links_in_each_cluster;
+    for (auto read1 = 0 ; read1 < adjacencyMatrix.size() ; read1++){
+        for (auto read2 = 0 ; read2 < adjacencyMatrix.size() ; read2++){
+            if (adjacencyMatrix[read1][read2]){
+                int cluster1 = clusteredReads[read1];
+                int cluster2 = clusteredReads[read2];
+                if (cluster1 != cluster2){
+                    if (number_of_links_between_the_two_clusters.find(make_pair(cluster1, cluster2)) == number_of_links_between_the_two_clusters.end()){
+                        number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)] = 0;
+                    }
+                    number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)]++;
+                    
+                }
+                if (number_of_links_in_each_cluster.find(cluster1) == number_of_links_in_each_cluster.end()){
+                    number_of_links_in_each_cluster[cluster1] = 0;
+                }
+                number_of_links_in_each_cluster[cluster1]++;
+            }
+        }
+    }
+    for (auto link : number_of_links_between_the_two_clusters){
+        // cout << "qfiodududu " << link.second << " " << number_of_links_in_each_cluster[link.first.first] << endl;
+        number_of_links_between_the_two_clusters[link.first] = link.second / number_of_links_in_each_cluster[link.first.first];
+    }
+    // pairs of clusters by closeness
+    vector < pair < pair<int, int>, double > > sorted_links;
+    for (auto link : number_of_links_between_the_two_clusters){
+        sorted_links.emplace_back(link);
+    }
+    sort(sorted_links.begin(), sorted_links.end(), [](const pair < pair<int, int>, double > &a, const pair < pair<int, int>, double > &b){
+        return a.second > b.second;
+    });
+
+
+    //now that all the incompatibilities are computed, we can merge the clusters or not
+    unordered_map <int, int> old_group_to_new_group;
+    for (auto group : listOfGroups){
+        old_group_to_new_group[group] = group;
+    }
+    old_group_to_new_group[-1] = -1;
+    old_group_to_new_group[-2] = -2;
+
+    for (auto pair_of_clusters : sorted_links){
+        if (pair_of_clusters.second > 0.01){
+            int cluster1 = pair_of_clusters.first.first;
+            int cluster2 = pair_of_clusters.first.second;
+
+            if (old_group_to_new_group[cluster1] == old_group_to_new_group[cluster2]){ //have already been merged through another cluster
+                continue;
+            }
+            //check if there are no incompatibilities between the two clusters
+            // cout << "looking if i can merge " << cluster1 << " and " << cluster2 << endl;
+            bool incompatibility = false;
+            for (auto group1 : listOfGroups){
+                if (old_group_to_new_group[group1] == old_group_to_new_group[cluster1]){
+                    for (auto group2 : listOfGroups){
+                        if (old_group_to_new_group[group2] == old_group_to_new_group[cluster2]){
+                            if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] > 1 ){ //if there is only one incompatible snp, it might be an error
+                                // cout << "incompatiebility btw " << group1 << " and " << group2 << " " << imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] << endl;
+                                // cout << "merging " << cluster1 << " and " << cluster2 << " would create an incompatibility" << endl;
+                                incompatibility = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!incompatibility){
+                // cout << "merging wiydiu  " << cluster1 << " and " << cluster2 << endl;
+                for (auto group2 : listOfGroups){
+                    if (old_group_to_new_group[group2] == old_group_to_new_group[cluster2]){
+                        old_group_to_new_group[group2] = old_group_to_new_group[cluster1];
+                    }
+                }
+            }
+        }
+    }
+
+    //re-nomber the clusters
+    unordered_map <int, int> new_group_to_index;
+    int new_group_index = 0;
+    for (auto group : listOfGroups){
+        if (new_group_to_index.find(old_group_to_new_group[group]) == new_group_to_index.end()){
+            new_group_to_index[old_group_to_new_group[group]] = new_group_index;
+            new_group_index++;
+        }
+    }
+    for (auto group : listOfGroups){
+        old_group_to_new_group[group] = new_group_to_index[old_group_to_new_group[group]];
+    }
+
+    // cout << "old_group_to_new_group ddrr :" << endl;
+    // for (auto group : listOfGroups){
+    //     cout << group << " " << old_group_to_new_group[group] << endl;
+    // }
+    // cout << "new_groups ddrr :" << endl;
+    // for (auto new_group : new_groups){
+    //     for (auto group : new_group){
+    //         cout << group << " ";
+    //     }
+    //     cout << endl;
+    // }
+
+    vector <int> new_clustered_reads (clusteredReads.size(), -1);
+    for (auto read = 0 ; read < clusteredReads.size() ; read++){
+        new_clustered_reads[read] = old_group_to_new_group[clusteredReads[read]];
+    }
+
+    return new_clustered_reads;
+
 }
 
 int main(int argc, char *argv[]){
@@ -666,7 +971,7 @@ int main(int argc, char *argv[]){
             }
 
             suspectPostitionIdx++; //suspectPostitionIdx is now the first position after the window
-            cout << "fqljsd creating graph " << endl;
+            // cout << "fqljsd creating graph " << endl;
 
             vector<vector<int>> adjacency_matrix (mask_at_this_position.size(), vector<int>(mask_at_this_position.size(), 0));
             create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix, errorRate);
@@ -692,7 +997,7 @@ int main(int argc, char *argv[]){
             //     cout << p << " ";
             // }
             // cout << endl;
-            cout << "runnignd cw again and again" << endl;
+            // cout << "runnignd cw again and again" << endl;
 
             for (auto snp : snps){
                 if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow){
@@ -722,11 +1027,10 @@ int main(int argc, char *argv[]){
             }
 
             vector<int> haplotypes;
-            finalize_clustering(snps, localClusters, strengthened_adjacency_matrix, mask_at_this_position, haplotypes, errorRate);
+            finalize_clustering(snps, localClusters, strengthened_adjacency_matrix, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
             
             if (debug){
                 cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
-                int n = 0;
                 for (auto h : haplotypes){
                     if (h > -1){
                         // cout << n << ":" <<h << " ";
@@ -735,10 +1039,15 @@ int main(int argc, char *argv[]){
                     // else{
                     //     cout << "*";
                     // }
-                    n += 1;
                 }
                 cout << endl;
+                // for (auto h = 0 ; h < haplotypes.size() ; h++){
+                //     if (haplotypes[h] == 4){
+                //         cout << "haplotype 4 : " << names_of_reads[n][h] << endl;
+                //     }
+                // }
             }
+
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));
         }
         //recursively go through all the windows once again, seeing if a window can be inspired by its neighbors

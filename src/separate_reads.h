@@ -37,7 +37,16 @@ void finalize_clustering(
     std::vector<std::vector<int>> &strengthened_adjacency_matrix, 
     std::vector<bool> &mask_at_this_position,
     std::vector<int> &haplotypes,
-    float errorRate);
+    float errorRate,
+    int posstart,
+    int posend);
+
+std::vector<int> merge_wrongly_split_haplotypes(
+    std::vector<int> &clusteredReads, 
+    std::vector<Column> &snps, 
+    std::vector<std::vector<int>> &adjacencyMatrix,
+    int posstart,
+    int posend);
 
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask);

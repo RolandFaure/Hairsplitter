@@ -66,7 +66,7 @@ def check_dependencies(tmp_dir, minimap2, racon, medaka, polisher, samtools, pat
         medaka_run = os.system(medaka + com)
         if medaka_run != 0:
             print("ERROR: medaka could not run. Check the path to the executable. (command line tried by HairSplitter: "+medaka+com+")\n",
-                  "If you want to use racon, force the use of racon through the --polisher option.")
+                  "You can force the use of Racon instead, through the --polisher option.")
             sys.exit(1)
 
     samtools_run = os.system(samtools + com)

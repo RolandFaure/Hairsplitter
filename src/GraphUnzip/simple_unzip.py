@@ -2,6 +2,7 @@ import re
 import sys
 import segment as sg
 from input_output import read_GAF
+from copy import deepcopy
 
 class Path :
 
@@ -102,8 +103,28 @@ def simple_unzip(segments, names, gafFile) :
     read_GAF(gafFile, 0, 0, lines)
     print("Finished going through the gaf file.")
 
+    #count the number of dead ends in the graph
+    nbOfDeadEnds = 0
+    for segment in segments :   
+        for end in range(2) :
+            if len(segment.links[end]) == 0 :
+                nbOfDeadEnds += 1
+    old_segments = deepcopy(segments)
+
     #get rid of the links that are not in the gaf file
     segments = remove_unsupported_links(segments, names, lines)
+
+    #count the number of dead ends in the graph now
+    nbOfDeadEndsNow = 0
+    for segment in segments :
+        for end in range(2) :
+            if len(segment.links[end]) == 0 :
+                nbOfDeadEndsNow += 1
+
+    #if too many dead ends where created, it means that the graph cannot be untangled properly
+    if nbOfDeadEndsNow > len(segments)/2 and nbOfDeadEndsNow > nbOfDeadEnds * 2 :
+        print("WARNING: the graph cannot be untangled properly. That is probably because the reads are too short. The result remains valid, albeit less contiguous.")
+        return old_segments
 
     on_which_paths_is_this_contig = {}
     for s in segments :
