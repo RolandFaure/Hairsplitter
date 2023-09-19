@@ -982,15 +982,15 @@ int main(int argc, char *argv[]){
             auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
             strengthened_adjacency_matrix = adjacency_matrix;
 
-            cout << "fioid u clustering graph " << endl;
+            // cout << "fioid u clustering graph " << endl;
 
             vector<vector<int>> allclusters_debug;
             vector<int> clusteredReads1 = chinese_whispers(strengthened_adjacency_matrix, clustersStart, mask_at_this_position);
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
-            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            outputGraph(adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            // outputGraph(adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
 
             // cout << "here are all the interesting positions" << endl;
             // for (auto p : interestingPositions){

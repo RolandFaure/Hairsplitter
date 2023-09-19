@@ -109,7 +109,7 @@ def simple_unzip(segments, names, gafFile) :
         for end in range(2) :
             if len(segment.links[end]) == 0 :
                 nbOfDeadEnds += 1
-    old_segments = deepcopy(segments)
+    old_segments = segments.copy()
 
     #get rid of the links that are not in the gaf file
     segments = remove_unsupported_links(segments, names, lines)

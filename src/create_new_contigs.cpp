@@ -492,7 +492,7 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
 
-                        cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
+                        // cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
 
                         if (polisher == "medaka"){
                             newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, MEDAKA, SAMTOOLS, path_to_python, path_src);

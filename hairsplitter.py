@@ -29,12 +29,12 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
-    parser.add_argument("-p", "--polisher", help="[racon,medaka,auto] medaka is more accurate but much slower. auto uses medaka on genomes <100kb, racon elsewhise [auto]", default="auto")
+    parser.add_argument("-p", "--polisher", help="{racon,medaka,auto} medaka is more accurate but much slower. auto uses medaka on genomes <100kb, racon elsewhise [auto]", default="auto")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
-    parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those ", action="store_true")
+    parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
@@ -87,6 +87,10 @@ def check_dependencies(tmp_dir, minimap2, racon, medaka, polisher, samtools, pat
         sys.exit(1)
 
 def main():
+
+    if sys.argv[1] == "-v" or sys.argv[1] == "--version":
+        print("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__)
+        sys.exit(0)
 
     args = parse_args()
     nb_threads = args.threads
@@ -206,7 +210,7 @@ def main():
     print(" - Aligning the reads on the assembly")
     techno_flag = ""
     technology = args.technology.lower()
-    if technology == "pacbio" :
+    if technology == "pacbio" or technology == "pb":
         techno_flag = "-x map-pb"
     elif technology == "hifi" :
         techno_flag = "-x map-hifi"
