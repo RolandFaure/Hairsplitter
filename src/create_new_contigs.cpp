@@ -200,10 +200,10 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
-        if (allreads[backbones_reads[b]].name != "contig_177@0"){ //DEBUG
-            // cout << "continuuinng" << endl;
-            continue;
-        }
+        // if (allreads[backbones_reads[b]].name != "contig_39@0"){ //DEBUG
+        //     // cout << "continuuinng" << endl;
+        //     continue;
+        // }
 
         local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
@@ -470,12 +470,12 @@ void modify_GFA(
                         fullReadsPerPart[-1] = {};
                         CIGARsPerPart[-1] = {};
                     }
-                    else{
-                        for (int clust : existingparts){ //the partitions exist but with no reads
-                            readsPerPart[clust] = {}; //so that it defaults back to the consensus
-                            fullReadsPerPart[clust] = {};
-                            CIGARsPerPart[clust] = {};
-                        }
+                }
+                for (int clust : existingparts){ //the partitions exist but with no reads
+                    if (readsPerPart.find(clust) == readsPerPart.end()){
+                        readsPerPart[clust] = {}; //so that it defaults back to the consensus
+                        fullReadsPerPart[clust] = {};
+                        CIGARsPerPart[clust] = {};
                     }
                 }
                 // cout << endl;
@@ -487,9 +487,11 @@ void modify_GFA(
                     
                     string full_backbone =  allreads[backbone].sequence_.str();
                     //toPolish should be polished with a little margin on both sides to get cleanly first and last base
+                    // cout << "fdqiouoipue " << interval.first.first << " " << interval.first.second << " " << full_backbone.size() <<  endl;
                     string toPolish = full_backbone.substr(max(0, interval.first.first - overhangLeft), min(overhangLeft, interval.first.first)) 
                         + full_backbone.substr(interval.first.first, interval.first.second-interval.first.first)
                         + full_backbone.substr(interval.first.second, min(overhangRight+1, int(allreads[backbone].sequence_.size())-interval.first.second-1));
+                    // cout << "cwyiyuiw" << endl;
 
 
                     string newcontig = "";
@@ -497,16 +499,16 @@ void modify_GFA(
 
                         // cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
                         if (group.second.size() == 0){
-                            newcontig = toPolish;
+                            newcontig = "";
                         }
                         if (polisher == "medaka"){
                             newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, MEDAKA, SAMTOOLS, path_to_python, path_src);
                         }
                         else{
                             newcontig = toPolish; //DEBUG
-                            // newcontig = consensus_reads(toPolish, full_backbone, 
-                            //     interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
-                            //         thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+                            newcontig = consensus_reads(toPolish, full_backbone, 
+                                interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
+                                    thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
                             // if (interval.first.first == 38000 && group.first == 1){
                             //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
                             //     exit(1);
@@ -556,7 +558,9 @@ void modify_GFA(
                             // cout << "indices: " << posOnToPolish << " " << posOnNewContig << endl;
                         }
                         
+                        // cout << "fdkl qd fsqdfdsq" << endl;
                         newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
+                        // cout << "kmljlkmjlkjijkl" << endl;
                         edlibFreeAlignResult(result);   
                     }
                     else {
