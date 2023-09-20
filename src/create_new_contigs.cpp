@@ -200,10 +200,10 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
-        // if (allreads[backbones_reads[b]].name != "edge_111@0"){ //DEBUG
-        //     cout << "continuuinng" << endl;
-        //     continue;
-        // }
+        if (allreads[backbones_reads[b]].name != "contig_177@0"){ //DEBUG
+            // cout << "continuuinng" << endl;
+            continue;
+        }
 
         local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
@@ -223,6 +223,7 @@ void modify_GFA(
                 dont_recompute_contig = true;
             }
         }
+
         if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0 && !dont_recompute_contig){
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
@@ -357,18 +358,20 @@ void modify_GFA(
                 int overhangRight = max(0,min(int(allreads[backbone].sequence_.size())-interval.first.second-1, overhang));
                 int leftToPolish = max(0, interval.first.first - overhangLeft);
                 int rightToPolish = min(int(allreads[backbone].sequence_.size())-1, interval.first.second + overhangRight +1);
-                if (omp_get_thread_num() == 0 && DEBUG){
+                if ((omp_get_thread_num() == 0 && DEBUG) || true){
                     cout << "in interval " << interval.first.first << " <-> " << interval.first.second << endl;
                 }
                 local_log_text += " - Between positions " + to_string(interval.first.first) + " and " + to_string(interval.first.second) + " of the contig, I've created these contigs:\n";
 
                 int numberOfClusters = 0;
+                set<int> existingparts;
                 for (int r = 0 ; r < interval.second.size(); r++){
                     if (interval.second[r] > -1){
 
                         auto idxRead = allOverlaps[allreads[backbone].neighbors_[r]].sequence1;
 
                         int clust = interval.second[r];
+                        existingparts.emplace(clust);
                         // string clippedRead = allreads[idxRead].sequence_.str();
                         //extract the part of the read that is on the interval and the part of the CIGAR that is on the interval
                         int posOnRead = 0;
@@ -443,15 +446,8 @@ void modify_GFA(
 
                         // string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
                         
-                        // cout << "cliipplling read: " << allreads[idxRead].name << " " << limitLeft << " " << limitRight << " " 
+                        // cout << "cliipplling read: " << allreads[idxRead].name << " " << posOnReadStart << " " << posOnReadEnd << " " 
                         //     << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " << allreads[idxRead].sequence_.size() << endl;
-
-                        // if (allOverlaps[allreads[backbone].neighbors_[r]].strand){
-                        //     clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).str();
-                        // }
-                        // else{
-                        //     clippedRead = allreads[idxRead].sequence_.subseq(limitLeft, limitRight-limitLeft+1).reverse_complement().str();
-                        // }
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
                             readsPerPart[clust] = {clippedRead};
@@ -469,14 +465,21 @@ void modify_GFA(
                     }
                 }
                 if (readsPerPart.size() == 0 && interval.second.size() > 0 && interval.second[0] <= -1){
-                    readsPerPart[-1] = {}; //so that it defaults back to the consensus
-                    fullReadsPerPart[-1] = {};
-                    CIGARsPerPart[-1] = {};
+                    if (existingparts.size() == 0){
+                        readsPerPart[-1] = {}; //so that it defaults back to the consensus
+                        fullReadsPerPart[-1] = {};
+                        CIGARsPerPart[-1] = {};
+                    }
+                    else{
+                        for (int clust : existingparts){ //the partitions exist but with no reads
+                            readsPerPart[clust] = {}; //so that it defaults back to the consensus
+                            fullReadsPerPart[clust] = {};
+                            CIGARsPerPart[clust] = {};
+                        }
+                    }
                 }
                 // cout << endl;
-
                 vector<int> futureHangingLinks;
-
 
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads[backbone].depth);
 
@@ -493,14 +496,17 @@ void modify_GFA(
                     if (numberOfClusters > 1 || polish){
 
                         // cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << toPolish.size() << endl;
-
+                        if (group.second.size() == 0){
+                            newcontig = toPolish;
+                        }
                         if (polisher == "medaka"){
                             newcontig = consensus_reads_medaka(toPolish, group.second, thread_id, outFolder, MEDAKA, SAMTOOLS, path_to_python, path_src);
                         }
                         else{
-                            newcontig = consensus_reads(toPolish, full_backbone, 
-                                interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
-                                    thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+                            newcontig = toPolish; //DEBUG
+                            // newcontig = consensus_reads(toPolish, full_backbone, 
+                            //     interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
+                            //         thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
                             // if (interval.first.first == 38000 && group.first == 1){
                             //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
                             //     exit(1);
@@ -1330,6 +1336,7 @@ int main(int argc, char *argv[])
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
         tmpFolder, error_rate, polisher, polish, technology, MINIMAP, RACON, MEDAKA, SAMTOOLS, path_to_python, path_to_src, DEBUG);
+
     output_GFA(allreads, backbone_reads, output_graph, allLinks);
 
     return 0;

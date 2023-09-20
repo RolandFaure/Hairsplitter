@@ -911,7 +911,7 @@ int main(int argc, char *argv[]){
 
         list_similarities_and_differences_between_reads(snps, sims_and_diffs);
 
-        cout << "similrities and differences computed" << endl;
+        // cout << "similrities and differences computed" << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
