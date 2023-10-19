@@ -21,6 +21,10 @@ using std::pair;
 //output : an alignment string where 1 letter = 1 base. i.e. 5M1D1M -> MMMMMIM
 std::string convert_cigar(std::string &cigar){
 
+    if (cigar == "*"){
+        return "";
+    }
+
     string res;
     string num = "";
     for (auto c : cigar){
@@ -28,7 +32,15 @@ std::string convert_cigar(std::string &cigar){
             num += c;
         }
         else{
-            int n = std::stoi(num);
+            int n = 0;
+            try {
+                n = std::stoi(num);
+            }
+            catch (...){
+                cout << "ERROR : could not convert " << cigar << " to int" << endl;
+                exit(1);
+            }
+            
             for (auto i = 0 ; i < n ; i++){
                 res += c;
             }
@@ -267,10 +279,6 @@ string consensus_reads(
         outFolder += "/";
     }
 
-    if (polishingReads.size() == 0){
-        return backbone;
-    }
-
     std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
     outseq << ">seq\n" << backbone << endl;
     outseq.close();
@@ -314,6 +322,41 @@ string consensus_reads(
     }
     sam.close();
 
+    //check that the alignment of the reads were correct, otherwise change the backbone
+    string nameOfFile = outFolder +"mapped_"+id+".sam";
+    if (!check_alignment(nameOfFile)){ //this means that no reads aligned really well, hence recompute a backbone
+
+        cout << "REassssssenmple " << endl;
+
+        string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+        string commandMap = MINIMAP + com;
+        auto map = system(commandMap.c_str());
+        if (map != 0){
+            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+            exit(1);
+        }
+
+        string newbackbone = alternative_backbone(nameOfFile, backbone);
+        std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
+        outseq << ">seq\n" << newbackbone << endl;
+        outseq.close();
+        //realign all the reads on the new backbone
+        std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
+        for (int read = 0 ; read < fullReads.size() ; read++){
+            polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
+        }
+        polishseqs.close();
+
+        com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+        commandMap = MINIMAP + com;
+        map = system(commandMap.c_str());
+        if (map != 0){
+            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+            exit(1);
+        }
+        outseq.close();
+    }
+
     //sort and index mapped_id.sam
     string command = "samtools sort "+ outFolder +"mapped_"+id+".sam > "+ outFolder +"mapped_"+id+".bam && samtools index "+ outFolder +"mapped_"+id+".bam";
     auto sort = system(command.c_str());
@@ -332,7 +375,7 @@ string consensus_reads(
     }
 
     //then map all the reads on unpolsihed.fasta to obtain a new mapped.sam
-    string com = " -a -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+    string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
     command = MINIMAP + com;
     auto map2 = system(command.c_str());
     if (map2 != 0){
@@ -340,41 +383,9 @@ string consensus_reads(
         exit(1);
     }
 
-    //check that the alignment of the reads were correct, otherwise change the backbone
-    string nameOfFile = outFolder +"mapped_"+id+".sam";
-    bool bbaligns = true;
-    int alternativeBackbone = 0;
-    while (!check_alignment(nameOfFile) && alternativeBackbone < polishingReads.size()){ //this means that no reads aligned really well in the first 5 reads
-        // cout << "in toolsl qfhggfqsft taking another ref " << endl;
-        bbaligns = false;
-        //realign taking the first read as a backbone
-        backbone = polishingReads[alternativeBackbone];
-        alternativeBackbone++;
-
-        std::ofstream outseq(outFolder+"consensus_"+id+".fasta");
-        outseq << ">seq\n" << backbone;
-        outseq.close();
-
-        std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
-        for (int read =0 ; read < fullReads.size() ; read++){
-            polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
-        }
-        polishseqs.close();
-
-        string com = " -a -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
-        string commandMap = MINIMAP + com;
-        auto map = system(commandMap.c_str());
-        if (map != 0){
-            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
-            exit(1);
-        }
-        outseq.close();
-
-    }
-
-    if (alternativeBackbone == polishingReads.size()){ //the group of reads is really weird and we cannot align them on anything coherently
-        return backbone;
-    }
+    // if (alternativeBackbone == polishingReads.size()){ //the group of reads is really weird and we cannot align them on anything coherently
+    //     return backbone;
+    // }
 
     // cout << "minimap2 done in tools , ran command " << commandMap << endl;
 
@@ -400,7 +411,8 @@ string consensus_reads(
     }
 
     string new_seq;
-    if (bbaligns){ //in the case the reads aligned well on the backbone
+    string alnfile = "mapped_"+id+".sam";
+    if (check_alignment(alnfile)){ //in the case the reads aligned well on the backbone
         //racon tends to drop the ends of the sequence, so attach them back.
         //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
         auto before_size = min(size_t(300), backbone.size());
@@ -435,6 +447,7 @@ string consensus_reads(
 
     }
     else{ // in the case we had to reassemble, it is more tricky to find the limits of the seq, so it makes no sense to align the borders
+        cout << "THE alignfdj does not check out qkljdmdjfs" << endl;
         new_seq = consensus;
     }
     
@@ -813,6 +826,8 @@ bool check_alignment(std::string &paf_file){
     string line;
     int read = 0;
     int aligned = 0;
+    string new_reference = "";
+    int nb_reads = 0;
     //if it is a paf file 
     if (paf_file.substr(paf_file.size()-4,4) == ".paf"){ 
         while (getline(in, line)){
@@ -839,43 +854,169 @@ bool check_alignment(std::string &paf_file){
     }
     //if it is a sam file
     else if (paf_file.substr(paf_file.size()-4,4) == ".sam"){
+
         while (getline(in, line)){
             //if there are more than 70% M the read is aligned
+
+            if (line[0] == '@'){
+                continue;
+            }
             read += 1;
             short fieldnumber = 0;
             string field;
             std::istringstream line2(line);
             string cigar;
+            bool big_indel = false;
+            int startPos;
             while (getline(line2, field, '\t'))
             {
                 if (fieldnumber == 5){
-                    cigar = field;
+                    cigar = convert_cigar(field);
+                }
+                if (fieldnumber == 3){
+                    startPos = std::atoi(field.c_str());
                 }
                 fieldnumber+= 1;
             }
             int M = 0;
-            string number = "";
             int cigar_size = 0;
+            int size_of_indel = 0;
             for (auto c : cigar){
                 if (c == 'M'){
-                    M += std::atoi(number.c_str());
-                    cigar_size += std::atoi(number.c_str());
-                    number = "";
+                    M += 1;
+                    cigar_size += 1;
+                    size_of_indel = 0;
                 }
                 else if (c == 'I' || c == 'D'){
-                    cigar_size += std::atoi(number.c_str());
-                    number = "";
-                }
-                else{
-                    number += c;
+                    cigar_size += 1;
+                    size_of_indel += 1;
+                    if (size_of_indel > 30){
+                        big_indel = true;
+                    }
                 }
             }
-            if (M > 0.7*cigar_size){
+            // cout << cigar << " dii" << endl;
+            if (M > 0.7*cigar_size && big_indel == false){
                 aligned += 1;
+                // cout << "alrigthrez " << startPos << endl;
+            }
+            else{
+                // cout << cigar << endl << "dfjniii noooooo " << big_indel << " " << M << " " << cigar_size << " " << startPos << endl;
+            }
+            nb_reads++;
+        }
+    }
+
+    // if (!float(aligned)/nb_reads >= 0.9){
+    //     cout << "uarepu tools aligned " << aligned << " " << nb_reads << endl;
+    //     exit(1);
+    // }
+    return (float(aligned)/nb_reads >= 0.9);
+}
+
+/**
+ * @brief Compute a new backbone stitching together reads based on the alignment of the reads on the previous backbone
+ * 
+ * @param sam_file 
+ * @param backbone 
+ * @return std::string 
+ */
+std::string alternative_backbone(std::string &sam_file, std::string &backbone){
+
+    ifstream in(sam_file);
+    string line;
+
+    vector<bool> replaced_bases(backbone.size(), false);
+    vector<string> new_ref(backbone.size(), "");
+    for (int c = 0 ; c < backbone.size() ; c++){
+        new_ref[c] = backbone[c];
+    }
+
+
+    while (getline(in, line)){
+
+        if (line[0] =='@'){
+            continue;
+        }
+
+        string field;
+        std::istringstream line2(line);
+        string cigar;
+        string seq = "";
+        bool big_indel = false;
+        int field_number = 0;
+        int start_pos = 0;
+        int flag = 0;
+        while (getline(line2, field, '\t'))
+        {
+            if (field_number == 5){
+                if (field != "*" && field.size()>2){
+                    cigar = convert_cigar(field);
+                }
+            }
+            else if (field_number == 1){
+                flag = std::atoi(field.c_str());
+            }
+            else if (field_number == 9){
+                if (flag%16 == 0){
+                    seq = field;
+                }
+                else{
+                    seq = reverse_complement(field);
+                }
+            }
+            else if (field_number == 3){
+                start_pos = std::atoi(field.c_str());
+            }
+            field_number++;
+        }
+
+        //go through the CIGAR and fill new_ref
+        int pos_on_ref = start_pos-1;
+        int pos_on_seq = 0;
+
+        for (auto c : cigar){
+            if (c == 'M'){
+                if (!replaced_bases[pos_on_ref]){
+                    new_ref[pos_on_ref] = backbone[pos_on_ref];
+                }
+                pos_on_ref++;
+                pos_on_seq++;
+            }
+            else if (c == 'I'){
+                if (!replaced_bases[pos_on_ref]){
+                    new_ref[pos_on_ref-1] += seq[pos_on_seq];
+                }
+                pos_on_seq++;
+            }
+            else if (c == 'D'){
+                if (!replaced_bases[pos_on_ref]){
+                    new_ref[pos_on_ref] = "";
+                }
+                pos_on_ref++;
+            }
+            else if (c == 'S'){
+                pos_on_seq++;
+            }
+            else if (c == 'H'){
+                pos_on_seq++;
+            }
+
+            if (pos_on_ref > 0){
+                replaced_bases[pos_on_ref-1] = true;
             }
         }
     }
 
-    return (aligned >= 2);
-}
+    //now compute the new reference as a concatenation of new_ref
+    string new_reference = "";
+    int b = 0;
+    for (auto s : new_ref){
+        if (replaced_bases[b]){
+            new_reference += s;
+        }
+        b++;
+    }
 
+    return new_reference;
+}

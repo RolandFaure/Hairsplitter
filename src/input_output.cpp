@@ -469,13 +469,30 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
 
                 if (allgood){
 
+                    //compute the length of the chunk of contig and the chunk of read that is aligned
+                    string cigar_dev = convert_cigar(cigar);
+                    int length_read = 0;
+                    int length_contig = 0;
+                    for (auto c : cigar_dev){
+                        if (c == 'M' || c == '=' || c == 'X'){
+                            length_read++;
+                            length_contig++;
+                        }
+                        else if (c == 'I'){
+                            length_read++;
+                        }
+                        else if (c == 'D'){
+                            length_contig++;
+                        }
+                    }
+
                     Overlap overlap;
                     overlap.sequence1 = sequence1;
                     overlap.sequence2 = sequence2;
                     overlap.position_1_1 = nbS_start + nbH_start; //the whole read is used
-                    overlap.position_1_2 = nbS_start + nbH_start + length1;
+                    overlap.position_1_2 = nbS_start + nbH_start + length_read;
                     overlap.position_2_1 = pos2_1-1; //-1 because the SAM file is 1-based
-                    overlap.position_2_2 = pos2_1+length1;
+                    overlap.position_2_2 = pos2_1+length_contig;
                     overlap.strand = positiveStrand;
                     overlap.CIGAR = cigar;
 

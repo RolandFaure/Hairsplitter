@@ -38,6 +38,7 @@ std::string consensus_reads(
     std::string &path_src);
 
 bool check_alignment(std::string &paf_file);
+std::string alternative_backbone(std::string &sam_file, std::string &backbone);
 
 std::string consensus_reads_medaka(
     std::string const &backbone, 

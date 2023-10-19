@@ -31,6 +31,8 @@ void modify_GFA(
     std::string &techno,
     std::string &MINIMAP, 
     std::string &RACON,
+    std::string &MEDAKA,
+    std::string &SAMTOOLS,
     std::string &path_to_python,
     std::string &path_src,
     bool DEBUG);

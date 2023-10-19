@@ -961,6 +961,10 @@ int main(int argc, char *argv[]){
             } //suspectPostitionIdx is now the first position after the window
             suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
 
+            if (suspectPostitionIdx > 0){
+                suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
+            }
+
             int idxmask = 0;
             for (auto r = 0 ; r < snps[suspectPostitionIdx].readIdxs.size() ; r++){
                 while (idxmask < snps[suspectPostitionIdx].readIdxs[r]){

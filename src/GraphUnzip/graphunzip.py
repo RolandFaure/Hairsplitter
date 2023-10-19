@@ -20,6 +20,7 @@ from contig_DBG import DBG_long_reads
 import contig_DBG
 from contig_DBG import DBG_long_reads
 from simple_unzip import simple_unzip
+from repolish import repolish_contigs
 import segment as sg
 #from segment import check_if_all_links_are_sorted
 
@@ -53,7 +54,9 @@ def parse_args_unzip() :
     
     
     groupInput.add_argument("-g", "--gfa", required = True, help="""GFA file to phase""")
- 
+    groupInput.add_argument(
+        "-r", "--fastq", required = True, help="""Fastq file of the reads"""
+    )
     groupInput.add_argument(
         "-i",
         "--HiCinteractions",
@@ -94,7 +97,7 @@ def parse_args_unzip() :
         action="store_true",
     )
     groupOther.add_argument(
-        "-r",
+        "-R",
         "--dont_rename",
         action="store_true",
         help="""Use if you don't want to name the resulting supercontigs with short names but want to keep the names of the original contigs""",
@@ -281,7 +284,7 @@ def main():
         
         outFile = args.output
         fastaFile = args.fasta_output
-        
+        fastqFile = args.fastq
         lrFile = args.longreads        
         
         interactionFileH = args.HiCinteractions
@@ -387,7 +390,7 @@ def main():
             # else :
             segments = simple_unzip(segments, names, lrFile)
 
-            if merge :
+            if merge or True:
                 print("Merging contigs that can be merged...")
                 merge_adjacent_contigs(segments)
 
@@ -411,17 +414,21 @@ def main():
             merge_adjacent_contigs(segments)
 
         elif not uselr :
-            
             print("WARNING: all interaction matrices are empty, GraphUnzip does not do anything")
         
         if args.duplicate :
             print("Duplicating reads that can be duplicated...")
             segments = duplicate_contigs(segments)
 
-            
+        # repolish the contigs with long reads
+        #compute the copiesnumber
+        print(" Repolishing the contigs we can repolish")
+        copies = sg.compute_copiesNumber(segments)
+        repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
+
         # now exporting the output  
         print("Now exporting the result")
-        io.export_to_GFA(segments, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=rename)
+        io.export_to_GFA(segments, copies, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=rename)
     
         if fastaFile != "None":
             io.export_to_fasta(segments, gfaFile, fastaFile, rename_contigs=rename)

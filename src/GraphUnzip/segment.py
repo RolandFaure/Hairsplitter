@@ -34,7 +34,10 @@ class Segment:
         self._namesOfContigs = segNamesOfContig.copy() #names are strings with which sequences are described in the GFA
         self._orientationOfContigs = segOrientationOfContigs.copy() #1 being '+' orientation, 0 the '-' orientation
         self._lengths = segLengths.copy()
+        self._reads = [[] for i in range(len(segNamesOfContig))] #to keep in mind the reads that are associated with each subcontig
+        self._sequences = [None for i in range(len(segNamesOfContig))] #to keep in mind the sequences of each subcontig, and possibly repolish them
         self._insideCIGARs = segInsideCIGARs.copy()
+
         if readCoverage != [] :
             self._depths = readCoverage.copy() #to keep in mind the read coverage of the contigs
         else :
@@ -90,6 +93,9 @@ class Segment:
     def get_copiesOfContigs(self):
         return self._copiesOfContigs
     
+    def get_sequences(self):
+        return self._sequences
+    
     def get_freezed(self):
         return self._freezed
     
@@ -101,6 +107,9 @@ class Segment:
         
     def get_depths(self):
         return self._depths
+    
+    def get_reads(self):
+        return self._reads
     
     def get_depth(self):
         sumdepth = 0
@@ -133,6 +142,13 @@ class Segment:
     
     def set_coverage(self, newCoverage) :
         self._HiCcoverage = newCoverage
+    
+    def set_sequences(self, newSequences) :
+        self._sequences = newSequences
+    
+    def add_read(self, nameOfContig, nameOfRead):
+        # print("adding ", nameOfRead, " to ", nameOfContig, " of ", self._namesOfContigs)
+        self._reads[self._namesOfContigs.index(nameOfContig)].append(nameOfRead)
 
     def set_CIGAR(self, end, otherContig, otherEnd, newCIGAR) :
         for l in range(len(self.links[end])) :

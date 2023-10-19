@@ -289,7 +289,7 @@ def get_contig_GFA(gfaFile, contig, contigOffset):
 # Input :
 #   offset file is for speeding up exportation
 #   merge_adjacent_contig is to produce a GFA with contigs merged
-def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gfa", offsetsFile = "", merge_adjacent_contigs = False, rename_contigs = False): 
+def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAssembly.gfa", offsetsFile = "", merge_adjacent_contigs = False, rename_contigs = False): 
     
     #compute the offsetfile : it will be useful for speeding up exportation. It will enable get_contig not to have to look through the whoooooole file each time to find one contig
     noOffsets = False
@@ -328,10 +328,6 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
 
 
     f = open(exportFile, "w")
-    
-
-    #compute the copiesnumber
-    copies = compute_copiesNumber(listOfSegments)
 
     #write the sequences and the links within the supercontigs
     t = time.time()
@@ -341,12 +337,17 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
             if  time.time() > t+1 :
                 t = time.time()
                 print(int(s / len(listOfSegments) * 1000) / 10, "% of sequences written", end = '\r')
+            sequences = segment.get_sequences()
+            if len(sequences) != len(segment.names) :
+                sequences = [None for i in range(len(segment.names))]
     
             for c, contig in enumerate(segment.names):
                 
                 f.write("S\t" + contig + "-" + str(segment.copiesnumber[c]) + "\t")
                 if gfaFile != "":
                     sequence, depth, extra_tags = get_contig_GFA(gfaFile, contig, line_offset[contig])
+                    if sequences[c] != None :
+                        sequence = sequences[c]
                     #print("Here is the depth I got : ", depth)
                     if extra_tags != "" :
                         extra_tags = "\t"+extra_tags
@@ -424,6 +425,10 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
                 supercontigs[segment.full_name()] = "supercontig_"+ str(s)
             
         for s, segment in enumerate(listOfSegments):
+
+            sequences = segment.get_sequences()
+            if len(sequences) != len(segment.names) :
+                sequences = [None for i in range(len(segment.names))]
             
             if  time.time() > t+1 :
                 t = time.time()
@@ -439,21 +444,26 @@ def export_to_GFA(listOfSegments, gfaFile="", exportFile="results/newAssembly.gf
             
             if gfaFile != "":
                 
-                sequence = ''
+                sequence = ""
+                all_sequences = []
                 for c, contig in enumerate(segment.names) :
-                    s, depth, extra_tags = get_contig_GFA(gfaFile, contig, line_offset[contig])
+                    seq, depth, extra_tags = get_contig_GFA(gfaFile, contig, line_offset[contig])
+                    if sequences[c] != None :
+                        seq = sequences[c]
                     if segment.orientations[c] == 0 :
-                        s = s[::-1]
+                        seq = seq[::-1]
                         complement_dict = {'A': 'T', 'C': 'G', 'T': 'A', 'G': 'C'}
-                        s = ''.join([complement_dict[base] for base in s])
+                        seq = ''.join([complement_dict[base] for base in seq])
                     if c > 0 :
                         CIGARlength = np.sum([int(i) for i in re.findall(r'\d+', segment.insideCIGARs[c-1])])
                         # print("in input_output.py dqkdmjc ", CIGARlength, " ", segment.insideCIGARs, " ", segment.names)
-                        s = s[CIGARlength:]
+                        seq = seq[CIGARlength:]
                     if depth != '' :
-                        fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(s)
+                        fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(seq)
                     
-                    sequence += s
+                    all_sequences += [seq]
+                
+                sequence = "".join(all_sequences)
 
                 trimmed_ends = segment.get_trim()
                 sequence = sequence[trimmed_ends[0]:len(sequence)-trimmed_ends[0]-trimmed_ends[1]]
@@ -524,6 +534,10 @@ def export_to_fasta(listOfSegments, gfaFile, exportFile="results/newAssembly.fas
         if  time.time() > t+1 :
             t = time.time()
             print(int(s / len(listOfSegments) * 1000) / 10, "% of sequences written", end = '\r')
+
+        sequences = segment.get_sequences()
+        if len(sequences) != len(segment.names) :
+            sequences = [None for i in range(len(segment.names))]
         
         if rename_contigs :
             f.write(">supercontig_" + str(s+1) + "\n")
@@ -536,19 +550,21 @@ def export_to_fasta(listOfSegments, gfaFile, exportFile="results/newAssembly.fas
         
         sequence = ''
         for c, contig in enumerate(segment.names) :
-            s, depth, extra_contigs = get_contig_GFA(gfaFile, contig, line_offset[contig])
+            seq, depth, extra_contigs = get_contig_GFA(gfaFile, contig, line_offset[contig])
+            if sequences[c] != None :
+                seq = sequences[c]
             if segment.orientations[c] == 0 :
-                s = s[::-1]
+                seq = seq[::-1]
                 complement_dict = {'A': 'T', 'C': 'G', 'T': 'A', 'G': 'C'}
-                s = ''.join([complement_dict[base] for base in s])
+                seq = ''.join([complement_dict[base] for base in seq])
             if c > 0 :
                 CIGARlength = np.sum([int(i) for i in re.findall(r'\d+', segment.insideCIGARs[c-1])])
                 
-                s = s[CIGARlength:]
+                seq = seq[CIGARlength:]
             if depth != '' :
-                fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(s)
+                fullDepth += ( float(depth.split(':')[-1])/copies[contig] ) * len(seq)
             
-            sequence += s
+            sequence += seq
 
         trimmed_ends = segment.get_trim()
         sequence = sequence[trimmed_ends[0]:len(sequence)-trimmed_ends[0]-trimmed_ends[1]]

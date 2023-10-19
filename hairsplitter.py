@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.4.0"
-__date__ = "2023-09-18"
+__version__ = "1.5.0"
+__date__ = "2023-10-18"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -290,11 +290,11 @@ def main():
     #         and "+tmp_dir+"/filtered_variants.col")
     # f.close()
 
-    print("\n===== STAGE 5: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 4: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
 
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")
-    f.write("\n==== STAGE 5: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
+    f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
     f.close()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
@@ -309,15 +309,15 @@ def main():
 
     #write in the log file that read separation went smoothly
     f = open(logFile, "a")
-    f.write("STAGE 5: Read separation computed, separate_reads exited successfully. Groups of reads are stored in "+tmp_dir+"/reads_haplo.gro. Explanation of the format\
+    f.write("STAGE 4: Read separation computed, separate_reads exited successfully. Groups of reads are stored in "+tmp_dir+"/reads_haplo.gro. Explanation of the format\
             can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
 
-    print("\n===== STAGE 6: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
+    print("\n===== STAGE 5: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <python> <debug>" 
     
     #write in the log file the time at which the new contigs creation starts
     f = open(logFile, "a")
-    f.write("\n==== STAGE 6: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
+    f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
     f.close()
 
     if polisher == "auto" :
@@ -362,11 +362,11 @@ def main():
             on the new contigs are stored in "+gaffile)
     f.close()
 
-    print("\n===== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
+    print("\n===== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
 
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")
-    f.write("\n==== STAGE 7: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
+    f.write("\n==== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
     f.close()
 
     simply = ""
@@ -403,7 +403,7 @@ def main():
 
     #write in the log file that the summary file was created
     f = open(logFile, "a")
-    f.write("STAGE 7: Summary file created, hairsplitter_summary.txt is stored in "+args.output)
+    f.write("STAGE 6: Summary file created, hairsplitter_summary.txt is stored in "+args.output)
     f.close()
 
     

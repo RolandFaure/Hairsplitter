@@ -137,7 +137,10 @@ def simple_unzip(segments, names, gafFile) :
         cont = re.split('[><]' , line[1])
         orientations = "".join(re.findall("[<>]", line[1]))
         del cont[0] #because the first element is always ''
-        contigs = [segments[names[i]] for i in cont] 
+        try : #THIS SHOULD BE REMOVED IN FUTURE VERSIONS
+            contigs = [segments[names[i]] for i in cont] 
+        except KeyError :
+            continue
         
         paths.append(Path(contigs, orientations, line[0]))
 
@@ -379,7 +382,10 @@ def remove_unsupported_links(segments, names, lines):
         cont = re.split('[><]' , line[1])
         orientations = "".join(re.findall("[<>]", line[1]))
         del cont[0] #because the first element is always ''
-        contigs = [segments[names[i]] for i in cont] 
+        try : #TO BE REMOVE IN FUTURE VERSIONS
+            contigs = [segments[names[i]] for i in cont] 
+        except KeyError :
+            continue
 
         for i in range(len(contigs)-1) :
             links.add((contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1])))
