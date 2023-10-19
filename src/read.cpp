@@ -1,5 +1,7 @@
 #include "read.h"
 
+#include <mutex> //to protect some functions while multithreading
+
 using std::vector;
 using std::cout;
 using std::endl;
@@ -21,17 +23,19 @@ Read::Read(std::string s, size_t size)
     size_ = size;
 }
 
-void Read::upload_sequence(std::string s){
+void Read::set_sequence(std::string &s){ //s can be empty if we want to free the sequence
+    //include a mutex here so that only one thread at a time can modify the sequence
+    std::mutex mutx;
+    mutx.lock();
     sequence_ = Sequence(s);
-    size_ = s.size();
-    number_of_threads_in_which_it_is_loaded += 1;
-}
-
-void Read::free_sequence(){
-    number_of_threads_in_which_it_is_loaded -= 1;
-    if (number_of_threads_in_which_it_is_loaded == 0){
-        sequence_ = Sequence();
+    if (s != ""){
+        size_ = s.size();
+        number_of_threads_in_which_it_is_loaded += 1;
     }
+    else{
+        number_of_threads_in_which_it_is_loaded -= 1;
+    }
+    mutx.unlock();
 }
 
 void Read::add_overlap(long int o){

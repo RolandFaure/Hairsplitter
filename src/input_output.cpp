@@ -548,7 +548,7 @@ void parse_reads_on_contig(std::string fileReads, long int backbone, std::vector
         in.seekg(allreads[read].get_position_in_file());
         getline(in, line);
 
-        allreads[read].upload_sequence(line);
+        allreads[read].set_sequence(line);
         // cout << "sequence of read " << allreads[read].name << " is recovered " << line.size() << " " << allreads[read].sequence_.size() << endl;// << line << endl;
     }
     in.close();

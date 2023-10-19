@@ -40,8 +40,7 @@ public:
     Read();
     Read(std::string s, size_t size); //size is the size of the sequence but sometimes we don't upload the actual sequence to be light on memory 
 
-    void upload_sequence(std::string s);
-    void free_sequence();
+    void set_sequence(std::string &s);
     Sequence sequence_;
 
     std::string name;

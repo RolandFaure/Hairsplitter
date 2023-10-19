@@ -5,6 +5,8 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <mutex>
+#include <thread>
 
 using std::cout;
 using std::endl;
@@ -326,8 +328,6 @@ string consensus_reads(
     string nameOfFile = outFolder +"mapped_"+id+".sam";
     if (!check_alignment(nameOfFile)){ //this means that no reads aligned really well, hence recompute a backbone
 
-        cout << "REassssssenmple " << endl;
-
         string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
         string commandMap = MINIMAP + com;
         auto map = system(commandMap.c_str());
@@ -415,6 +415,9 @@ string consensus_reads(
     if (check_alignment(alnfile)){ //in the case the reads aligned well on the backbone
         //racon tends to drop the ends of the sequence, so attach them back.
         //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
+        std::mutex mutx;
+        mutx.lock();
+
         auto before_size = min(size_t(300), backbone.size());
         auto after_size = min(size_t(200), consensus.size());
 
@@ -442,6 +445,8 @@ string consensus_reads(
         int end_pos = result.endLocations[0]+1;
         string additional_end_seq = before_end.substr(end_pos , before_end.size()-end_pos);
         edlibFreeAlignResult(result);
+
+        mutx.unlock();
 
         new_seq = additional_start_seq + consensus + additional_end_seq;
 

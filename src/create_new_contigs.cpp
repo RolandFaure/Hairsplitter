@@ -4,6 +4,7 @@
 #include <fstream>
 #include <omp.h>
 #include <tuple>
+#include <set>
 #include "input_output.h"
 #include "tools.h"
 // #include "reassemble_unaligned_reads.h"
@@ -195,7 +196,7 @@ void modify_GFA(
     vector <Read> &allreads, 
     vector<unsigned long int> &backbones_reads, 
     vector <Overlap> &allOverlaps,
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > &partitions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > & partitions,
     vector<Link> &allLinks,
     int num_threads,
     string &outFolder, 
@@ -218,6 +219,10 @@ void modify_GFA(
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
+
+        if (partitions.find((backbones_reads[b])) == partitions.end()){
+            continue;
+        }
 
         //first load all the reads
         #pragma omp critical
@@ -251,7 +256,7 @@ void modify_GFA(
 
         //if partitions[backbone].size() == 0, see if we need to repolish or not, depending on wether the coverage is coherent or not
         bool dont_recompute_contig = false;
-        if (partitions[backbone].size() == 0 && allreads[backbones_reads[b]].depth > 1){
+        if (partitions.at(backbone).size() == 0 && allreads[backbones_reads[b]].depth > 1){
             double total_depth = 0;
             for (auto n : allreads[backbones_reads[b]].neighbors_){
                 total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
@@ -261,23 +266,22 @@ void modify_GFA(
             if (new_depth / allreads[backbones_reads[b]].depth > 0.7){
                 dont_recompute_contig = true;
             }
-        }
+        }        
 
-        // #pragma omp critical
-        // {
-        //     cout << "wwiuoowii " << thread_id << endl;
-        // }
 
-        if (partitions.find(backbone) != partitions.end() && partitions[backbone].size() > 0 && !dont_recompute_contig){
+        if (partitions.find(backbone) != partitions.end() && partitions.at(backbone).size() > 0 && !dont_recompute_contig){
+
+
             //stitch all intervals of each backbone read
-            vector<unordered_map <int,set<int>>> stitches(partitions[backbone].size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
+            vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
+            int stricthsizedebug = stitches.size();
 
-            for (int n = 0 ; n < partitions[backbone].size() ; n++){
+            for (int n = 0 ; n < partitions.at(backbone).size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
-                    std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions[backbone][n].second, 
-                                                                            partitions[backbone][n-1].second, 
-                                                                            partitions[backbone][n].first.first);
+                    std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions.at(backbone).at(n).second, 
+                                                                            partitions.at(backbone).at(n-1).second, 
+                                                                            partitions.at(backbone).at(n).first.first);
                     // std::unordered_map<int, std::set<int>> stitchRight = stitch(
                     //                                                         partitions[backbone][n-1].second.first,
                     //                                                         partitions[backbone][n].second.first,
@@ -297,14 +301,14 @@ void modify_GFA(
 
                     //make sure all contigs on the left and right are stitched
                     set<int> all_contigs_left;
-                    for (int a : partitions[backbone][n-1].second){
+                    for (auto a : partitions.at(backbone).at(n-1).second){
                         all_contigs_left.emplace(a);
                     }
                     all_contigs_left.erase(-1);
                     all_contigs_left.erase(-2);
 
                     set<int> all_contigs_right;
-                    for (int a : partitions[backbone][n].second){
+                    for (auto a : partitions.at(backbone).at(n).second){
                         all_contigs_right.emplace(a);
                     }
                     all_contigs_right.erase(-1);
@@ -353,7 +357,7 @@ void modify_GFA(
                     // }
                 }
             }
-
+            // cout << "sticch size 2 " << stitches.size() << endl;
 
             //create hangingLinks, a list of links that are not yet connected but will soon be
             vector<int> hangingLinks;
@@ -379,8 +383,9 @@ void modify_GFA(
             // }
 
             int n = 0;
-            for (auto interval : partitions[backbone]){
-
+            while (n < partitions.at(backbone).size()){
+                
+                auto interval = partitions.at(backbone).at(n);
                 // if (interval.first.first != 158000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     continue;
@@ -545,6 +550,7 @@ void modify_GFA(
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+
                             // if (interval.first.first == 38000 && group.first == 1){
                             //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
                             //     exit(1);
@@ -554,10 +560,7 @@ void modify_GFA(
                             // newcontig = consensus_reads(toPolish, full_backbone, 
                             //     interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
                         // }
-                        
-                        // string samtools = "samtools";
-                        // string wtdbg2 = "/home/rfaure/Documents/software/wtdbg2/wtdbg2";
-                        // newcontig = consensus_reads_wtdbg2(toPolish, group.second, thread_id, outFolder, techno, MINIMAP, RACON, samtools, wtdbg2 );
+
                         if (newcontig != ""){
 
                             EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
@@ -624,7 +627,6 @@ void modify_GFA(
                     //now create all the links IF they are compatible with "stitches"  
                     set<int> linksToKeep;
 
-        
                     if (n == 0 || stitches[n][group.first].size() == 0){
                         for (int h : hangingLinks){
                             linksToKeep.emplace(allLinks[h].group);
@@ -687,7 +689,7 @@ void modify_GFA(
                 n += 1;
             }
             //now wrap up the right of the contig
-            int left = partitions[backbone][partitions[backbone].size()-1].first.second+1; //rightmost interval
+            int left = partitions.at(backbone).at(partitions.at(backbone).size()-1).first.second+1; //rightmost interval
             string right;
             if (left < allreads[backbone].sequence_.size()){
                 right = allreads[backbone].sequence_.str().substr(left, allreads[backbone].sequence_.size()-left);
@@ -767,15 +769,18 @@ void modify_GFA(
             log_text += local_log_text;
         }
 
+        string empty = "";
+
         //free up memory by deleting the sequence of the reads used there
         for (auto n : allreads[backbones_reads[b]].neighbors_){
-            if (allOverlaps[n].sequence1 != backbones_reads[b]){
-                allreads[allOverlaps[n].sequence1].free_sequence();
+            if (allOverlaps[n].sequence1 != backbones_reads[b]){ 
+                allreads[allOverlaps[n].sequence1].set_sequence(empty);
             }
             else{
-                allreads[allOverlaps[n].sequence2].free_sequence();
+                allreads[allOverlaps[n].sequence2].set_sequence(empty);
             }
         }
+
     }
 
     std::ofstream o("output.txt");
@@ -791,7 +796,7 @@ void modify_GFA(
  * @param readLimits limits of the reads in the backbone (so that reads that are not on the position of the stitch are not considered)
  * @return unordered_map<int, set<int>> map associating a set of partitions of neighbor matching each partition of par
  */
-unordered_map<int, set<int>> stitch(vector<int> &par, vector<int> &neighbor, int position){
+unordered_map<int, set<int>> stitch(vector<int> par, vector<int> neighbor, int position){
 
     unordered_map<int, unordered_map<int,int>> fit_left; //each parts maps to what left part ?
     unordered_map<int, unordered_map<int,int>> fit_right; //each parts maps to what right part ?

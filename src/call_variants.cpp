@@ -1322,12 +1322,13 @@ int main(int argc, char *argv[])
                 variants[contig] = filteredSnps;
 
                 //free up memory by deleting the sequence of the reads used there
+                string empty = "";
                 for (auto n : allreads[contig].neighbors_){
                     if (allOverlaps[n].sequence1 != contig){
-                        allreads[allOverlaps[n].sequence1].free_sequence();
+                        allreads[allOverlaps[n].sequence1].set_sequence(empty);
                     }
                     else{
-                        allreads[allOverlaps[n].sequence2].free_sequence();
+                        allreads[allOverlaps[n].sequence2].set_sequence(empty);
                     }
                 }
         

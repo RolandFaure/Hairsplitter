@@ -21,7 +21,7 @@ void modify_GFA(
     std::vector <Read> &allreads, 
     std::vector<unsigned long int> &backbones_reads,
     std::vector <Overlap> &allOverlaps, 
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > &partitions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > & partitions,
     std::vector<Link> &allLinks,
     int num_threads,
     std::string &outFolder,
@@ -37,7 +37,7 @@ void modify_GFA(
     std::string &path_src,
     bool DEBUG);
 
-std::unordered_map<int, std::set<int>> stitch(std::vector<int> &par, std::vector<int> &neighbor, int position);
+std::unordered_map<int, std::set<int>> stitch(std::vector<int> par, std::vector<int> neighbor, int position);
 std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, double originalDepth);
 
 
