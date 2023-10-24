@@ -37,7 +37,7 @@ std::string consensus_reads(
     std::string &path_to_python,
     std::string &path_src);
 
-bool check_alignment(std::string &paf_file);
+int check_alignment(std::string &paf_file);
 std::string alternative_backbone(std::string &sam_file, std::string &backbone);
 
 std::string consensus_reads_medaka(
@@ -61,6 +61,8 @@ std::string consensus_reads_wtdbg2(
     std::string &SAMTOOLS,
     std::string &WTDBG2
 );
+
+std::string basic_assembly(std::string read_file, std::string &MINIMAP, std::string &tmp_folder, std::string &id);
 
 void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std::string &ref, std::string id, std::string &WTDBG2, std::string &MINIMAP, std::string &SAMTOOLS);
 

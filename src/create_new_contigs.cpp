@@ -230,8 +230,8 @@ void modify_GFA(
             parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
         }
 
-        // if (allreads[backbones_reads[b]].name != "edge_10"){
-        //     cout << "edgge 10" << endl;
+        // if (allreads[backbones_reads[b]].name != "edge_33@0"){
+        //     cout << "edgge 1dd0" << endl;
         //     continue;
         // }
 
@@ -377,17 +377,13 @@ void modify_GFA(
             vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
             unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, allreads[backbone].depth);
 
-            // #pragma omp critical
-            // {
-            //     cout << "iuyfiuqud" << endl;
-            // }
-
             int n = 0;
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 158000){
+                // if (interval.first.first != 280000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
+                //     n+=1;
                 //     continue;
                 // }
 
@@ -430,6 +426,11 @@ void modify_GFA(
 
                             posOnCIGAR++;
                             if (c == 'S' || c == 'H'){ //get to the beginning of the read
+                                if (posOnReadStart != -1){//then we're at the end of the read
+                                    posOnReadEnd = posOnRead;
+                                    posOnCIGAREnd = posOnCIGAR-1;
+                                    break;
+                                }
                                 posOnRead++;
                                 continue;
                             }
@@ -537,7 +538,11 @@ void modify_GFA(
 
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
-
+                        
+                        // if (group.first != 0){
+                        //     cout << "ioudjqfdkljdqsmjf" << endl;
+                        //     continue;
+                        // }
                         cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << group.second.size() << endl;
                         if (group.second.size() == 0){
                             newcontig = "";
@@ -555,6 +560,8 @@ void modify_GFA(
                             //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
                             //     exit(1);
                             // }
+                            // cout << "oioociicic " << newcontig.size() << endl;
+                            // exit(1);
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
@@ -563,20 +570,21 @@ void modify_GFA(
 
                         if (newcontig != ""){
 
-                            EdlibAlignResult result = edlibAlign(toPolish.c_str(), toPolish.size(),
+                            //align the ends of toPolish on newcontig to know where to cut newcontig
+                            string toPolishStart = toPolish.substr(0, max(300, overhangLeft*2));
+                            EdlibAlignResult result = edlibAlign(toPolishStart.c_str(), toPolishStart.size(),
                                         newcontig.c_str(), newcontig.size(),
                                         edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
 
-                            string cig = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_STANDARD);
+                            string cig = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_EXTENDED);
                             string cigar = convert_cigar(cig);
                             // extract the part of newcontig that does not align to the first and last overhang bases of toPolish2
                             int posOnToPolish = 0;
                             int posOnNewContig = result.startLocations[0];
                             int posStartOnNewContig = 0;
-                            int posEndOnNewContig = 0;
                             // cout << "fqjdk " << posOnNewContig << " " << overhangLeft << " " << overhangRight << " " << toPolish.size() << endl;
                             for (char c : cigar){
-                                if (c == 'M'){
+                                if (c == 'M' || c == 'X' || c == '='){
                                     posOnToPolish++;
                                     posOnNewContig++;
                                 }
@@ -586,19 +594,57 @@ void modify_GFA(
                                 else if (c == 'I'){
                                     posOnToPolish++;
                                 }
-                                if (posOnToPolish == overhangLeft+1){
+                                if (posOnToPolish == overhangLeft){
                                     posStartOnNewContig = posOnNewContig;
-                                }
-                                if (posOnToPolish == toPolish.size()-overhangRight){
-                                    posEndOnNewContig = posOnNewContig;
+                                    break;
                                 }
                                 // cout << "indices: " << posOnToPolish << " " << posOnNewContig << endl;
                             }
-                            
-                            // cout << "fdkl qd fsqdfdsq" << endl;
+                            if (result.editDistance > 0.3*toPolishStart.size()) //does not align that well
+                            {
+                                posStartOnNewContig = min(overhangLeft, int(newcontig.size()));
+                            }
+                            edlibFreeAlignResult(result);
+
+                            int beginning_of_end = max(0,min(int(toPolish.size())-overhangRight*2, int(toPolish.size())-300));
+                            string toPolishEnd = toPolish.substr(beginning_of_end, int(toPolish.size())-beginning_of_end);
+                            result = edlibAlign(toPolishEnd.c_str(), toPolishEnd.size(),
+                                        newcontig.c_str(), newcontig.size(),
+                                        edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_PATH, NULL, 0));
+
+                            cig = edlibAlignmentToCigar(result.alignment, result.alignmentLength, EDLIB_CIGAR_EXTENDED);
+                            cigar = convert_cigar(cig);
+                            // extract the part of newcontig that does not align to the first and last overhang bases of toPolish2
+                            posOnToPolish = beginning_of_end;
+                            posOnNewContig = result.startLocations[0];
+                            int posEndOnNewContig = 0;
+                            // cout << "fqjdk " << posOnNewContig << " " << overhangLeft << " " << overhangRight << " " << toPolish.size() << endl;
+                            for (char c : cigar){
+                                if (c == 'M' || c == 'X' || c == '='){
+                                    posOnToPolish++;
+                                    posOnNewContig++;
+                                }
+                                else if (c == 'D'){
+                                    posOnNewContig++;
+                                }
+                                else if (c == 'I'){
+                                    posOnToPolish++;
+                                }
+                                if (posOnToPolish == toPolish.size()-overhangRight-1){
+                                    posEndOnNewContig = posOnNewContig;
+                                    break;
+                                }
+                                // cout << "indices: " << posOnToPolish << " " << posOnNewContig << endl;
+                            }
+                            if (result.editDistance > 0.3*toPolishEnd.size()) //does not align that well
+                            {
+                                posEndOnNewContig = max(0,int(newcontig.size())-overhangRight);
+                            }
+                       
                             newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
                             // cout << "kmljlkmjlkjijkl" << endl;
                             edlibFreeAlignResult(result);
+                            // exit(1);
                         }
                     }
                     else {

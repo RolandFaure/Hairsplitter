@@ -5,6 +5,10 @@ import os
 import sys
 import re
 
+def reverse_complement(seq) :
+    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N':'N'}
+    return "".join(complement.get(base, base) for base in seq[::-1])
+
 #input: the graph (as the list of segments), the alignment of the reads (gaf_file), and the number of copies of each contig in the final assembly
 #output: each subcontig assigned to a precise list of reads that make up the contig
 def assign_reads_to_contigs(segments, gaf_file, copies):
@@ -140,14 +144,15 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
         seqs = segment.get_sequences()
         names = segment.get_namesOfContigs()
         reads = segment.get_reads()
+        orientations = segment.get_orientations()
 
         for s, subcontig in enumerate(names) :
 
-            # if subcontig != "edge_8@1_110000_0":# "edge_67@1_258000_0" :
+            # if subcontig != "edge_67@0_72000_0":
             #     print("continuuedj ")
             #     continue
 
-            # print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]), "\n")
+            print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
             if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
 
                 seq = None
@@ -164,69 +169,114 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
                 f.close()
 
-                #now retrieve the sequence of the contig and write it to a temporary file
-                f = open("tmp_contig.fa", 'w')
+                #find out the chunk of the contig left of the subcontig
+                left = ""
+                name_of_contig_left = names[s-1]
+                with open(gfa_file, 'r') as gfa :
+                    gfa.seek(contigs_position[name_of_contig_left])
+                    ls = gfa.readline().strip().split('\t')
+                    left = ls[2]
+                    if orientations[s-1] == 0 :
+                        left = reverse_complement(left)
+                #write down left in a temporary file
+                f = open("tmp_left.fa", 'w')
+                f.write(">" + name_of_contig_left + "\n" + left + "\n")
+                f.close()
+
+                #find out the chunk of the contig right of the subcontig
+                right = ""
+                name_of_contig_right = names[s+1]
+                with open(gfa_file, 'r') as gfa :
+                    gfa.seek(contigs_position[name_of_contig_right])
+                    ls = gfa.readline().strip().split('\t')
+                    right = ls[2]
+                    if orientations[s+1] == 0 :
+                        right = reverse_complement(right)
+
+                #write down right in a temporary file
+                f = open("tmp_right.fa", 'w')
+                f.write(">" + name_of_contig_right + "\n" + right + "\n")
+                f.close()
+
+                #first check that the reads align well on the contig - if not (e.g. structural variant), reassemble everythin
+                contig_seq = ""
+                contig_extended = ""
                 with open(gfa_file, 'r') as gfa :
                     gfa.seek(contigs_position[subcontig])
                     ls = gfa.readline().strip().split('\t')
-                    f.write(">" + ls[1] + "\n" + ls[2] + "\n")
+                    contig_seq = ls[2]
+                    contig_extended = contig_seq
+                    if orientations[s] == 0 : #if reverse complement
+                        contig_extended = reverse_complement(contig_seq)
+                    gfa.seek(0)
+                    #if neighboring contigs are there let's take them too
+                    if s > 0 and s < len(names)-1 :
+                        gfa.seek(contigs_position[names[s-1]])
+                        ls = gfa.readline().strip().split('\t')
+                        neigh_seq = ls[2]
+                        if orientations[s-1] == 0 : #if reverse complement
+                            neigh_seq = reverse_complement(neigh_seq)
+                        contig_extended = neigh_seq[-1000:] + contig_extended
+                        gfa.seek(0)
+                        gfa.seek(contigs_position[names[s+1]])
+                        ls = gfa.readline().strip().split('\t')
+                        neigh_seq = ls[2]
+                        if orientations[s+1] == 0 : #if reverse complement
+                            neigh_seq = reverse_complement(neigh_seq)
+                        contig_extended = contig_extended + neigh_seq[:1000]
+                f = open("tmp_complete_contig.fa", 'w')
+                f.write(">" + subcontig + "_and_left_and_right" + "\n" + contig_extended + "\n")
                 f.close()
 
-                #now run racon
-                #first align reads on the contig using minimap2
-                command = "minimap2 -x map-pb -t " + str(threads) + " tmp_contig.fa tmp_reads.fa > tmp.paf 2> trash.txt"
+                # align reads on the contig using minimap2
+                command = "minimap2 -x map-pb -t " + str(threads) + " tmp_complete_contig.fa tmp_reads.fa > tmp_complete.paf 2> trash.txt"
                 minimap = os.system(command)
                 if minimap != 0 :
                     print("Error while running minimap2: " + command + "\n")
                     sys.exit(1)
 
-                #check if the alignment is empty
-                empty = True
-                with open("tmp.paf", 'r') as paf :
+                #check if the alignments (or at least one) are good
+                no_struct_variants = False
+                orientations_of_reads = {}
+                with open("tmp_complete.paf", 'r') as paf :
                     for line in paf :
                         ls = line.strip().split('\t')
-                        #check if it aligns on more or less the whole read
-                        if int(ls[8])-int(ls[7]) > 0.8*int(ls[6]) :
-                            empty = False
-                            break
-                
-                if not empty :
+                        orientations_of_reads[ls[0]] = ls[4]
+                        #make sure the read aligns on more or less the whole read
+                        if int(ls[8])-int(ls[7]) > 0.9*int(ls[6]) \
+                            and int(ls[7]) < 500 and int(ls[8]) > len(contig_seq)-500 \
+                            and int(ls[3])-int(ls[2]) > 0.9*(int(ls[8])-int(ls[7])) and int(ls[3])-int(ls[2]) < 1.1*(int(ls[8])-int(ls[7])) :
+                            no_struct_variants = True
+
+                print("no struct variants: ", no_struct_variants, " (", names[max(s-1, 0)], " ", names[min(s+1, len(names)-1)], ")")
+
+                if no_struct_variants or s == 0 or s == len(names)-1 :
+
+                    #output the contig to a temporary file
+                    f = open("tmp_contig.fa", 'w')
+                    f.write(">" + subcontig + "\n" + contig_seq + "\n")
+                    f.close()
+
+                    #now polish the contig with the reads using racon
+                    command = "minimap2 -x map-pb -t " + str(threads) + " tmp_contig.fa tmp_reads.fa > tmp.paf 2> trash.txt"
+                    minimap = os.system(command)
+                    if minimap != 0 :
+                        print("Error while running minimap2: " + command + "\n")
+                        sys.exit(1)
+
                     command = "racon -t " + str(threads) + " tmp_reads.fa tmp.paf tmp_contig.fa > tmp_repolished.fa 2>trash.txt"
                     racon = os.system(command)
                     if racon != 0 :
                         print("Error while running racon: " + command + "\n")
                         sys.exit(1)
 
-                    #now retrieve the repolished sequence and store it in the segment
+                    #now retrieve the repolished sequence
                     with open("tmp_repolished.fa", 'r') as repolished :
                         repolished.readline()
                         seq = repolished.readline().strip()
 
-                elif s > 0 and s < len(names)-1 : #let's try to reassemble the reads using neighboring contigs to anchor them
-                    #find out the chunk of the contig left of the subcontig
-                    left = ""
-                    name_of_contig_left = names[s-1]
-                    with open(gfa_file, 'r') as gfa :
-                        gfa.seek(contigs_position[name_of_contig_left])
-                        ls = gfa.readline().strip().split('\t')
-                        left = ls[2]
-                    #write down left in a temporary file
-                    f = open("tmp_left.fa", 'w')
-                    f.write(">" + name_of_contig_left + "\n" + left + "\n")
-                    f.close()
 
-                    #find out the chunk of the contig right of the subcontig
-                    right = ""
-                    name_of_contig_right = names[s+1]
-                    with open(gfa_file, 'r') as gfa :
-                        gfa.seek(contigs_position[name_of_contig_right])
-                        ls = gfa.readline().strip().split('\t')
-                        right = ls[2]
-
-                    #write down right in a temporary file
-                    f = open("tmp_right.fa", 'w')
-                    f.write(">" + name_of_contig_right + "\n" + right + "\n")
-                    f.close()
+                elif not no_struct_variants : #let's try to reassemble the reads using neighboring contigs to anchor them
                     
                     #now align the reads on the left and right chunks and take the portion of the reads between the two chunks
                     command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_reads.fa > tmp_left.paf 2> trash.txt"
@@ -260,7 +310,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
                     #now retrieve the reads that are between the two chunks
                     reads_between = {}
-                    best_read_idx = 0 #that's to measure the read that is best anchored on the sides
+                    best_read = "" #that's to measure the read that is best anchored on the sides
                     length_left_and_right = 0
                     idx = 0
                     for read in reads[s] :
@@ -274,7 +324,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                                 
                             if reads_between[read][1] - reads_between[read][0] > length_left_and_right :
                                 length_left_and_right = reads_between[read][1] - reads_between[read][0]
-                                best_read_idx = idx
+                                best_read = read
                             idx += 1
                     
                     # print("reads between: ", reads_between)
@@ -283,20 +333,22 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     #create the list of reads to use for polishing by extracting the reads from the fastq file, cutting them using reads_between and write them to a temporary file
                     f = open("tmp_reads_cut.fa", 'w')
                     
-                    nread = 0
                     f_toPolish = open("tmp_toPolish.fa", 'w')
                     with open(fastq_file, 'r') as fastq :
                         for read in reads_between :
                             fastq.seek(reads_position[read])
                             line = fastq.readline()
-                            if nread == best_read_idx :
+                            if read == best_read :
+                                contig_seq = line[max(0,reads_between[read][0]-500):min(reads_between[read][1]+500, len(line))]
+                                if orientations_of_reads[read] == "0":
+                                    contig_seq = reverse_complement(contig_seq)
                                 f_toPolish.write(">" + read + "\n")
-                                f_toPolish.write(line[max(0,reads_between[read][0]-500):min(reads_between[read][1]+500, len(line))] + "\n") #take a little margin to anchor the contig on both sides
+                                f_toPolish.write(contig_seq + "\n") #take a little margin to anchor the contig on both sides
                                 
                             else :
                                 f.write(">" + read + "\n")
                                 f.write(line[max(0,reads_between[read][0]-500):min(reads_between[read][1]+500, len(line))] + "\n")
-                            nread += 1
+
                     f.close()
                     f_toPolish.close()
                         

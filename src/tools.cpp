@@ -326,35 +326,49 @@ string consensus_reads(
 
     //check that the alignment of the reads were correct, otherwise change the backbone
     string nameOfFile = outFolder +"mapped_"+id+".sam";
-    if (!check_alignment(nameOfFile)){ //this means that no reads aligned really well, hence recompute a backbone
+    int good_aln = check_alignment(nameOfFile);
+    if (good_aln != 0){ //this means that no reads aligned really well, hence recompute a backbone
 
-        string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
-        string commandMap = MINIMAP + com;
-        auto map = system(commandMap.c_str());
-        if (map != 0){
-            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
-            exit(1);
+        cout << "alignment does not check out fdstools " << good_aln << endl;
+        string newbackbone;
+        if (good_aln == 1){ //only small indels
+            std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
+            for (int read = 0 ; read < fullReads.size() ; read++){
+                polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
+            }
+            polishseqs.close();
+            string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+            string commandMap = MINIMAP + com;
+            auto map = system(commandMap.c_str());
+            if (map != 0){
+                cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+                exit(1);
+            }
+
+            newbackbone = alternative_backbone(nameOfFile, backbone);
         }
+        else{ //bib problem in aln so reassemble
+            newbackbone = basic_assembly(outFolder+"reads_"+id+".fasta", MINIMAP, outFolder, id);
+        }
+        if (newbackbone == ""){
+            newbackbone  = backbone;
+        }
+        // string newbackbone = polishingReads[0];
 
-        string newbackbone = alternative_backbone(nameOfFile, backbone);
         std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
         outseq << ">seq\n" << newbackbone << endl;
         outseq.close();
-        //realign all the reads on the new backbone
-        std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
-        for (int read = 0 ; read < fullReads.size() ; read++){
-            polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
-        }
-        polishseqs.close();
 
-        com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
-        commandMap = MINIMAP + com;
-        map = system(commandMap.c_str());
-        if (map != 0){
-            cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+        //realign all the reads on the new backbone
+        string com2 = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+        string commandMap2 = MINIMAP + com2;
+        auto map2 = system(commandMap2.c_str());
+        if (map2 != 0){
+            cout << "ERROR minimap2 failed, while running " << commandMap2 << endl;
             exit(1);
         }
         outseq.close();
+
     }
 
     //sort and index mapped_id.sam
@@ -366,7 +380,7 @@ string consensus_reads(
     }
 
     //run a basic consensus
-    command = "samtools consensus "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
+    command = "samtools consensus -m simple -c 0 -a "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
     // cout << "Running " << command << endl;
     auto res_cons = system(command.c_str());
     if (res_cons != 0){
@@ -374,7 +388,7 @@ string consensus_reads(
         exit(1);
     }
 
-    //then map all the reads on unpolsihed.fasta to obtain a new mapped.sam
+    //then map all the reads on consensus.fasta to obtain a new mapped.sam
     string com = " -a --secondary=no -t 1 "+ technoFlag + " " + outFolder +"consensus_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
     command = MINIMAP + com;
     auto map2 = system(command.c_str());
@@ -412,11 +426,9 @@ string consensus_reads(
 
     string new_seq;
     string alnfile = "mapped_"+id+".sam";
-    if (check_alignment(alnfile)){ //in the case the reads aligned well on the backbone
+    if (check_alignment(alnfile) == 0 || true){ //in the case the reads aligned well on the backbone
         //racon tends to drop the ends of the sequence, so attach them back.
         //This is an adaptation in C++ of a Minipolish (Ryan Wick) code snippet 
-        std::mutex mutx;
-        mutx.lock();
 
         auto before_size = min(size_t(300), backbone.size());
         auto after_size = min(size_t(200), consensus.size());
@@ -446,9 +458,8 @@ string consensus_reads(
         string additional_end_seq = before_end.substr(end_pos , before_end.size()-end_pos);
         edlibFreeAlignResult(result);
 
-        mutx.unlock();
-
         new_seq = additional_start_seq + consensus + additional_end_seq;
+        // cout << "nerwseq : " << new_seq.size() << endl;
 
     }
     else{ // in the case we had to reassemble, it is more tricky to find the limits of the seq, so it makes no sense to align the borders
@@ -823,16 +834,19 @@ void assemble_with_wtdbg2(std::string &fileReads, std::string outputFolder, std:
  * @brief Check if the reads aligned well on the backbone
  * 
  * @param paf_file 
- * @return true 
- * @return false 
+ * @return 0 (good alignment), 1 (few indels), 2 (breakpoints with S and H)
  */
-bool check_alignment(std::string &paf_file){
+int check_alignment(std::string &paf_file){
+    
+    int result_code = 0;
+    
     ifstream in(paf_file);
     string line;
     int read = 0;
     int aligned = 0;
     string new_reference = "";
     int nb_reads = 0;
+    std::unordered_map<int,int> putative_breakpoints;
     //if it is a paf file 
     if (paf_file.substr(paf_file.size()-4,4) == ".paf"){ 
         while (getline(in, line)){
@@ -883,6 +897,7 @@ bool check_alignment(std::string &paf_file){
                 }
                 fieldnumber+= 1;
             }
+            int pos_on_ref = startPos;
             int M = 0;
             int cigar_size = 0;
             int size_of_indel = 0;
@@ -891,32 +906,52 @@ bool check_alignment(std::string &paf_file){
                     M += 1;
                     cigar_size += 1;
                     size_of_indel = 0;
+                    pos_on_ref += 1;
                 }
                 else if (c == 'I' || c == 'D'){
                     cigar_size += 1;
                     size_of_indel += 1;
-                    if (size_of_indel > 30){
+                    if (size_of_indel > 15){
                         big_indel = true;
+                        if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
+                            putative_breakpoints[pos_on_ref] = 0;
+                        }
+                        putative_breakpoints[pos_on_ref] += 1;
+                        if (putative_breakpoints[pos_on_ref] > 2){
+                            result_code = 1;
+                        }
+                    }
+                    if (c == 'I'){
+                        pos_on_ref += 1;
                     }
                 }
+                else if (c == 'S' || c == 'H'){ //there are supposed to be no clips, as the reads were already tailored to the backbone
+                    size_of_indel += 1;
+                    if (size_of_indel > 30){
+                        big_indel = true;
+                        if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
+                            putative_breakpoints[pos_on_ref] = 0;
+                        }
+                        putative_breakpoints[pos_on_ref] += 1;
+                        if (putative_breakpoints[pos_on_ref] > 2){
+                            return 2;
+                        }
+                    }
+                }
+
             }
-            // cout << cigar << " dii" << endl;
-            if (M > 0.7*cigar_size && big_indel == false){
-                aligned += 1;
-                // cout << "alrigthrez " << startPos << endl;
-            }
-            else{
-                // cout << cigar << endl << "dfjniii noooooo " << big_indel << " " << M << " " << cigar_size << " " << startPos << endl;
-            }
+
             nb_reads++;
+            // cout << "fquodfj " << cigar << endl;
         }
     }
 
-    // if (!float(aligned)/nb_reads >= 0.9){
+    // if (float(aligned)/nb_reads >= 0.4 && float(aligned)/nb_reads < 0.9){
     //     cout << "uarepu tools aligned " << aligned << " " << nb_reads << endl;
     //     exit(1);
     // }
-    return (float(aligned)/nb_reads >= 0.9);
+    // cout << "aligned " << aligned << " " << nb_reads << endl;
+    return result_code;
 }
 
 /**
@@ -1024,4 +1059,319 @@ std::string alternative_backbone(std::string &sam_file, std::string &backbone){
     }
 
     return new_reference;
+}
+
+/**
+ * @brief Basic overlap-layout assembler using minimap2 to align the reads
+ * 
+ * @param read_file 
+ * @param MINIMAP 
+ * @param tmp_folder 
+ * @param id 
+ * @return std::string reads stitched together
+ */
+std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_folder, string &id){
+
+    //first do the all-vs-all alignment using minimap2
+    string com = MINIMAP + " -cx ava-pb " + read_file + " " + read_file + " > " + tmp_folder + "all_vs_all_"+id+".paf 2>" + tmp_folder + "trash.txt";
+    auto res = system(com.c_str());
+    if (res != 0){
+        cout << "ERROR minimap2 failed, while running " << com << endl;
+        exit(1);
+    }
+    string paf_file = tmp_folder + "all_vs_all_"+id+".paf";
+
+    //then let's do a basic assembly
+    //go trhough the paf file
+    ifstream in(paf_file);
+    string line;
+    struct Overlap_minimap{
+        string name1;
+        int length1;
+        int start1;
+        int end1;
+        string name2;
+        int length2;
+        int start2;
+        int end2;
+        bool strand;
+    };
+    std::unordered_map<string, vector<Overlap_minimap>> reads;
+
+    while (getline(in, line)){
+
+        std::istringstream iss(line);
+        string field;
+        short fieldnumber = 0;
+        Overlap_minimap overlap1;
+        Overlap_minimap overlap2;
+
+        iss >> field;
+        overlap1.name1 = field;
+        overlap2.name2 = field;
+        iss >> field;
+        overlap1.length1 = std::atoi(field.c_str());
+        overlap2.length2 = std::atoi(field.c_str());
+        iss >> field;
+        overlap1.start1 = std::atoi(field.c_str());
+        overlap2.start2 = std::atoi(field.c_str());
+        iss >> field;
+        overlap1.end1 = std::atoi(field.c_str());
+        overlap2.end2 = std::atoi(field.c_str());
+        iss >> field;
+        if (field == "+"){
+            overlap1.strand = true;
+            overlap2.strand = true;
+        }
+        else{
+            overlap1.strand = false;
+            overlap2.strand = false;
+        }
+        iss >> field;
+        overlap2.name1 = field;
+        overlap1.name2 = field;
+        iss >> field;
+        overlap2.length1 = std::atoi(field.c_str());
+        overlap1.length2 = std::atoi(field.c_str());
+        iss >> field;
+        overlap2.start1 = std::atoi(field.c_str());
+        overlap1.start2 = std::atoi(field.c_str());
+        iss >> field;
+        overlap2.end1 = std::atoi(field.c_str());
+        overlap1.end2 = std::atoi(field.c_str());
+        
+        if (reads.find(overlap1.name1) == reads.end()){
+            reads[overlap1.name1] = vector<Overlap_minimap>();
+        }
+        reads[overlap1.name1].push_back(overlap1);
+        if (reads.find(overlap2.name1) == reads.end()){
+            reads[overlap2.name1] = vector<Overlap_minimap>();
+        }
+        reads[overlap2.name1].push_back(overlap2);
+    }
+    in.close();
+
+    // cout << "ioufpoisdu parsed the paf file " << endl;
+
+    //now that we parsed the paf, let's try to assemble by stitching reads together
+    struct contig_parts{
+        string read;
+        int start;
+        int end;
+        bool strand;
+    };
+    vector <contig_parts> new_contig;
+    //start with read 1 and extend it right as far as possible
+    string current_read;
+    for (auto r : reads){
+        if (r.second.size() > 0){
+            current_read = r.first;
+            break;
+        }
+    }
+    if (current_read == ""){
+        cout << "DEBUG did not manage to assemblef fdfdqcc " << endl;
+        return ""; //did not manage to assemble
+    }
+
+    contig_parts first_read;
+    first_read.read = current_read;
+    first_read.start = 0;
+    first_read.end = reads[current_read][0].length1;
+    first_read.strand = true;
+
+    new_contig.push_back(first_read);
+    bool current_strand = true;
+
+    // cout << "starting with read " << current_read << endl;
+
+    while (current_read != ""){
+        //look for next read
+        for (Overlap_minimap overlap : reads[current_read]){
+            //now see if this extends left
+            if (current_strand){
+                if (overlap.end1 == overlap.length1){ //then let's extend with the next read
+                    contig_parts next_read;
+                    next_read.read = overlap.name2;
+                    
+                    if (overlap.strand){
+                        next_read.start = overlap.end2;
+                        next_read.end = overlap.length2;
+                        next_read.strand = true;
+                    }
+                    else{
+                        next_read.start = 0;
+                        next_read.end = overlap.start2;
+                        next_read.strand = false;
+                    }
+
+                    if (next_read.end - next_read.start > 0){
+                        new_contig.push_back(next_read);
+                        current_read = overlap.name2;
+                        current_strand = next_read.strand;
+
+                    
+                        // cout << "movingd on tho " << current_read << " thanks to overlap : " << endl;
+                        // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
+                        // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+
+                        break;
+                    }
+                }
+            }
+            else{
+                if (overlap.start1 == 0){ //let's extend
+                    contig_parts next_read;
+                    next_read.read = overlap.name2;
+                    
+                    if (overlap.strand){
+                        next_read.start = 0;
+                        next_read.end = overlap.start2;
+                        next_read.strand = false;
+                    }
+                    else{
+                        next_read.start = overlap.end2;
+                        next_read.end = overlap.length2;
+                        next_read.strand = true;
+                    }
+
+                    if (next_read.end - next_read.start > 0){
+                        new_contig.push_back(next_read);
+                        current_read = overlap.name2;
+                        current_strand = next_read.strand;
+                        // cout << "movingd on ztho " << current_read << endl;
+
+                        break;
+                    }
+                }
+            }
+
+
+            current_read = ""; //means it could not extend
+        }
+
+    }
+
+    //now extend to the left
+    // cout << "going legt now" << endl;
+    current_read = new_contig[0].read;
+    current_strand = new_contig[0].strand;
+    vector<contig_parts> new_contig_left_reversed;
+    while (current_read != ""){
+        //look for next read
+        for (Overlap_minimap overlap : reads[current_read]){
+            //now see if this extends left
+            if (current_strand){
+                if (overlap.start1 == 0){ //then let's extend with the next read
+                    contig_parts next_read;
+                    next_read.read = overlap.name2;
+                    
+                    if (overlap.strand){
+                        next_read.start = 0;
+                        next_read.end = overlap.start2;
+                        next_read.strand = true;
+                    }
+                    else{
+                        next_read.start = overlap.end2;
+                        next_read.end = overlap.length2;
+                        next_read.strand = false;
+                    }
+
+                    if (next_read.end - next_read.start > 0){
+                        new_contig_left_reversed.push_back(next_read);
+                        current_read = overlap.name2;
+                        current_strand = next_read.strand;
+
+                        // cout << "movingd on Atho " << current_read << endl;
+                        // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
+                        // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+
+                        break;
+                    }
+                }
+            }
+            else{
+                if (overlap.start1 == overlap.length1){ //let's extend
+                    contig_parts next_read;
+                    next_read.read = overlap.name2;
+                    
+                    if (!overlap.strand){
+                        next_read.start = 0;
+                        next_read.end = overlap.start2;
+                        next_read.strand = false;
+                    }
+                    else{
+                        next_read.start = overlap.end2;
+                        next_read.end = overlap.length2;
+                        next_read.strand = true;
+                    }
+
+                    if (next_read.end - next_read.start > 0){
+                        new_contig_left_reversed.push_back(next_read);
+                        current_read = overlap.name2;
+                        current_strand = next_read.strand;
+                        // cout << "movingd on ptho " << current_read << endl;
+
+                        break;
+                    }
+                }
+            }
+
+            current_read = ""; //means it could not extend
+        }
+
+    }
+
+    // cout << "rebuilding contig " << endl;
+
+    vector<contig_parts> new_contig_full;
+    //reverse the left part
+    for (int i = new_contig_left_reversed.size()-1 ; i >= 0 ; i--){
+        new_contig_full.push_back(new_contig_left_reversed[i]);
+    }
+    //add the rigth part
+    for (auto c : new_contig){
+        new_contig_full.push_back(c);
+    }
+
+    //parse the read files to get the sequences
+    std::unordered_map<string, string> reads_sequences;
+    ifstream in2(read_file);
+    string line2 = "";
+    string current_read_name = "";
+    string current_read_seq = "";
+    while (getline(in2, line2)){
+        if (line2[0] == '>'){
+            if (current_read_name != ""){
+                // cout << "reaqdsljf " << current_read_name << " " << current_read_seq.substr(0,10) << endl;
+                reads_sequences[current_read_name] = current_read_seq;
+            }
+            current_read_name = line2.substr(1);
+            current_read_seq = "";
+        }
+        else{
+            current_read_seq += line2;
+            // cout << "adding " << line2.substr(0,10) << " to " << current_read_name << endl;
+        }
+    }
+    reads_sequences[current_read_name] = current_read_seq;
+    in2.close();   
+
+    // cout << "read1 (from) " << read_file << endl;
+    // cout << reads_sequences["read1"] << endl;
+
+    //now convert the contig parts into a string
+    string new_contig_string = "";
+    for (auto c : new_contig_full){
+        cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
+        if (c.strand){
+            new_contig_string += reads_sequences[c.read].substr(c.start, c.end-c.start);
+        }
+        else{
+            string s = reads_sequences[c.read].substr(c.start, c.end-c.start);
+            new_contig_string += reverse_complement(s);
+        }
+    }
+
+    return new_contig_string;
 }
