@@ -7,7 +7,7 @@ import re
 
 def reverse_complement(seq) :
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N':'N'}
-    return "".join(complement.get(base, base) for base in seq[::-1])
+    return "".join(complement[base] for base in seq[::-1])
 
 #input: the graph (as the list of segments), the alignment of the reads (gaf_file), and the number of copies of each contig in the final assembly
 #output: each subcontig assigned to a precise list of reads that make up the contig
@@ -148,9 +148,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
         for s, subcontig in enumerate(names) :
 
-            # if subcontig != "edge_67@0_72000_0":
-            #     print("continuuedj ")
-            #     continue
+            if subcontig != "edge_8@0_0_0":
+                print("continuuedj ")
+                continue
 
             print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
             if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
@@ -295,18 +295,18 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     left_coordinates = {}
                     with open("tmp_left.paf", 'r') as paf :
                         for line in paf :
-                            line = line.strip().split('\t')
-                            if int(line[11]) == 60:
-                                left_coordinates[line[0]] = (int(line[2]), int(line[3]))
+                            ls = line.strip().split('\t')
+                            if int(ls[11]) == 60 and int(ls[8]) >= int(ls[6])-10: #ls[6] == ls[8] means the read maps to the very end of the contig
+                                left_coordinates[ls[0]] = (int(ls[2]), int(ls[3]))
 
                     #retrieve the coordinates of the reads mapping on the right chunk
                     right_coordinates = {}
                     with open("tmp_right.paf", 'r') as paf :
                         for line in paf :
-                            line = line.strip().split('\t')
+                            ls = line.strip().split('\t')
                             #if quality of the mapping is good
-                            if int(line[11]) == 60:
-                                right_coordinates[line[0]] = (int(line[2]), int(line[3]))
+                            if int(ls[11]) == 60 and int(ls[7]) < 10: #ls[7] == 0 means the read maps to the very beginning of the contig to the right: that's what we want
+                                right_coordinates[ls[0]] = (int(ls[2]), int(ls[3]))
 
                     #now retrieve the reads that are between the two chunks
                     reads_between = {}
@@ -340,8 +340,8 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             line = fastq.readline()
                             if read == best_read :
                                 contig_seq = line[max(0,reads_between[read][0]-500):min(reads_between[read][1]+500, len(line))]
-                                if orientations_of_reads[read] == "0":
-                                    contig_seq = reverse_complement(contig_seq)
+                                # if orientations_of_reads[read] == "0":
+                                #     contig_seq = reverse_complement(contig_seq)
                                 f_toPolish.write(">" + read + "\n")
                                 f_toPolish.write(contig_seq + "\n") #take a little margin to anchor the contig on both sides
                                 
@@ -390,6 +390,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             sys.exit(1)
 
                         #retrieve the coordinates of the reads mapping on the left chunk
+                        reversed_seq = False
                         left_coordinates = (0,0)
                         with open("tmp_left.paf", 'r') as paf :
                             for line in paf :
@@ -403,8 +404,10 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                                 right_coordinates = (int(line[2]), int(line[3]))
                                 break
 
-                        if right_coordinates[0] < left_coordinates[0] :
+                        if left_coordinates[0] >= right_coordinates[1]:
+                            reversed_seq = True
                             left_coordinates, right_coordinates = right_coordinates, left_coordinates
+
                         
                         #now retrieve the repolished sequence between left_coordinates and right_coordinates
                         with open("tmp_repolished.fa", 'r') as repolished :
@@ -416,8 +419,14 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                                 right_coordinates=(max(min(500, len(seq)), len(seq)-500), len(seq))
 
                             seq = seq[max(left_coordinates[0], left_coordinates[1])-1:min(right_coordinates[0], right_coordinates[1])+1]
+                            if reversed_seq :
+                                # print("REVERSIIIIIING !", orientations[s])
+                                seq = reverse_complement(seq)
+                                # sys.exit(1)
+                            
                             # print("repolished sequence: ", seq)
-                    
+                    #because we made sure the orientation was positive when choosing left and right
+                    segment.set_orientation(s, 1)
 
                 else :
                     seq = None #haven't managed to repolish the contig :'(
@@ -425,6 +434,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                 seqs[s] = seq
         
         segment.set_sequences(seqs)
+
+    #remove temporary files
+    # os.system("rm tmp*")
 
 
 

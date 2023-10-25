@@ -244,7 +244,7 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
-        // if (allreads[backbones_reads[b]].name != "edge_43@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_33@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -381,7 +381,7 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 280000){
+                // if (interval.first.first != 232000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;

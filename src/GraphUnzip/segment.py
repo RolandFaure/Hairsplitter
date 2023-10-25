@@ -145,6 +145,9 @@ class Segment:
     
     def set_sequences(self, newSequences) :
         self._sequences = newSequences
+
+    def set_orientation(self, index, newOrientation) :
+        self._orientationOfContigs[index] = newOrientation
     
     def add_read(self, nameOfContig, nameOfRead):
         # print("adding ", nameOfRead, " to ", nameOfContig, " of ", self._namesOfContigs)

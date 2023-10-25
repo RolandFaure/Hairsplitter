@@ -911,14 +911,14 @@ int check_alignment(std::string &paf_file){
                 else if (c == 'I' || c == 'D'){
                     cigar_size += 1;
                     size_of_indel += 1;
-                    if (size_of_indel > 15){
+                    if (size_of_indel >= 15){
                         big_indel = true;
                         if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
                             putative_breakpoints[pos_on_ref] = 0;
                         }
                         putative_breakpoints[pos_on_ref] += 1;
                         if (putative_breakpoints[pos_on_ref] > 2){
-                            result_code = 1;
+                            result_code = 2;
                         }
                     }
                     if (c == 'I'){
@@ -1363,7 +1363,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     //now convert the contig parts into a string
     string new_contig_string = "";
     for (auto c : new_contig_full){
-        cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
+        // cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
         if (c.strand){
             new_contig_string += reads_sequences[c.read].substr(c.start, c.end-c.start);
         }
