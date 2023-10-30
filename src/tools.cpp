@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 
 using std::cout;
 using std::endl;
@@ -287,12 +288,11 @@ string consensus_reads(
 
     std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
     for (int read =0 ; read < polishingReads.size() ; read++){
-        if (polishingReads[read].size() > 100){
+        if (polishingReads[read].size() > 0){
             polishseqs << ">read"+std::to_string(read)+"\n" << polishingReads[read] << "\n";
         }
     }
     polishseqs.close();
-
 
     string technoFlag;
     if (techno == "ont" && false){ //minimap with setting ont can be absolutely terrible in the case of a long homopolymer
@@ -318,7 +318,8 @@ string consensus_reads(
     sam << "@HD\tVN:1.6\tSO:coordinate" << endl;
     sam << "@SQ\tSN:seq\tLN:" << backbone.size() << endl;
     for (int read = 0 ; read < polishingReads.size() ; read++){
-        if (polishingReads[read].size() > 100){
+        // cout << "readeue " << read << " " << polishingReads[read].size() << endl;
+        if (polishingReads[read].size() > 0){
             sam << "read" << read << "\t0\tseq\t"<< CIGARs[read].second <<"\t60\t" << CIGARs[read].first << "\t*\t0\t0\t" << polishingReads[read] << "\t*\tAS:i:0\tXS:i:0" << endl;
         }   
     }
@@ -351,7 +352,10 @@ string consensus_reads(
             newbackbone = basic_assembly(outFolder+"reads_"+id+".fasta", MINIMAP, outFolder, id);
         }
         if (newbackbone == ""){
-            newbackbone  = backbone;
+            newbackbone  = polishingReads[0];
+            if (newbackbone == "") { //very bizarre
+                return backbone;
+            }
         }
         // string newbackbone = polishingReads[0];
 
@@ -407,8 +411,9 @@ string consensus_reads(
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
     if (polishres != 0){
-        cout << "ERROR racon failed, while running " << commandPolish << endl;
-        exit(1);
+        cout << "WARNING racon failed, while running " << commandPolish << endl;
+        return backbone;
+        //exit(1);
     }
 
     std::ifstream polishedRead(outFolder +"polished_"+id+".fasta");
@@ -951,6 +956,9 @@ int check_alignment(std::string &paf_file){
     //     exit(1);
     // }
     // cout << "aligned " << aligned << " " << nb_reads << endl;
+    if (nb_reads < 2){
+        return 2;
+    }
     return result_code;
 }
 

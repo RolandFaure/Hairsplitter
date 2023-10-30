@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.0"
+__version__ = "1.6.1"
 __date__ = "2023-10-30"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -146,6 +146,7 @@ def main():
 
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
+    sys.stdout.flush()
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
@@ -167,6 +168,7 @@ def main():
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
     print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed. Correct the assembly"
         " by making sure that all reads align end-to-end of the assembly.\n")
+    sys.stdout.flush()
     
     #write in the log file where to look in case of error
     f = open(logFile, "w")
@@ -188,6 +190,7 @@ def main():
 
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
+    sys.stdout.flush()
 
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
@@ -237,6 +240,7 @@ def main():
     f.close()
 
     print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
+    sys.stdout.flush()
 
     #write in the log file the time at which the variant calling starts
     f = open(logFile, "a")
@@ -297,6 +301,7 @@ def main():
     # f.close()
 
     print("\n===== STAGE 4: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
+    sys.stdout.flush()
 
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")
@@ -319,6 +324,7 @@ def main():
             can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
 
     print("\n===== STAGE 5: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
+    sys.stdout.flush()
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <python> <debug>" 
     
     #write in the log file the time at which the new contigs creation starts
@@ -369,6 +375,7 @@ def main():
     f.close()
 
     print("\n===== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
+    sys.stdout.flush()
 
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")
