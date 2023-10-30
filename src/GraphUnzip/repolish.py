@@ -148,9 +148,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
         for s, subcontig in enumerate(names) :
 
-            if subcontig != "edge_8@0_0_0":
-                print("continuuedj ")
-                continue
+            # if subcontig != "edge_8@0_0_0":
+            #     print("continuuedj ")
+            #     continue
 
             print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
             if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
@@ -248,7 +248,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             and int(ls[3])-int(ls[2]) > 0.9*(int(ls[8])-int(ls[7])) and int(ls[3])-int(ls[2]) < 1.1*(int(ls[8])-int(ls[7])) :
                             no_struct_variants = True
 
-                print("no struct variants: ", no_struct_variants, " (", names[max(s-1, 0)], " ", names[min(s+1, len(names)-1)], ")")
+                # print("no struct variants: ", no_struct_variants, " (", names[max(s-1, 0)], " ", names[min(s+1, len(names)-1)], ")")
 
                 if no_struct_variants or s == 0 or s == len(names)-1 :
 

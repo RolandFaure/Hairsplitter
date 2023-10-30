@@ -10,7 +10,7 @@ Author: Roland Faure
 __author__ = "Roland Faure"
 __license__ = "GPL3"
 __version__ = "1.6.0"
-__date__ = "2023-10-27"
+__date__ = "2023-10-30"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
+    parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
     parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
@@ -47,12 +48,17 @@ def parse_args():
 
     return parser.parse_args()
 
-def check_dependencies(tmp_dir, minimap2, racon, medaka, polisher, samtools, path_to_src, path_to_python):
+def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     mini_run = os.system(minimap2 + com)
     if mini_run != 0:
         print("ERROR: minimap2 could not run. Check the path to the executable. (command line tried by HairSplitter: "+minimap2+com+")")
+        sys.exit(1)
+
+    minigraph_run = os.system(minigraph + com)
+    if minigraph_run != 0:
+        print("ERROR: minigraph could not run. Check the path to the executable. (command line tried by HairSplitter: "+minigraph+com+")")
         sys.exit(1)
 
     if polisher != "medaka" :
@@ -88,7 +94,7 @@ def check_dependencies(tmp_dir, minimap2, racon, medaka, polisher, samtools, pat
 
 def main():
 
-    if sys.argv[1] == "-v" or sys.argv[1] == "--version":
+    if len(sys.argv) > 1 and (sys.argv[1] == "-v" or sys.argv[1] == "--version"):
         print("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__)
         sys.exit(0)
 
@@ -97,6 +103,7 @@ def main():
     #path to src folder can be imputed from the first argument of the command line
     path_to_src = sys.argv[0].split("hairsplitter.py")[0]+"src/"
     path_to_minimap2 = args.path_to_minimap2
+    path_to_minigraph = args.path_to_minigraph
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
     path_to_python = args.path_to_python
@@ -135,7 +142,7 @@ def main():
         sys.exit(1)
 
     #check the dependencies
-    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
+    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
 
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
@@ -156,21 +163,20 @@ def main():
         print("ERROR: Assembly file must be in GFA or FASTA format. File extension not recognized.")
         sys.exit(1)
 
-    # 1. Clean the assembly
-    print("\n===== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes   [", datetime.datetime.now() ,"]\n\n")
-    print(" When the assemblers manage to locally phase the haplotypes, they sometimes assemble the alternative haplotype as a separate contig, unconnected in "\
-                    "the gfa graph. This affects negatively the performance of Hairsplitter. Let's delete these contigs\n")
+    # 1. Clean the assembly using correct_structural_errors.py
+    print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
+    print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed. Correct the assembly"
+        " by making sure that all reads align end-to-end of the assembly.\n")
     
     #write in the log file where to look in case of error
     f = open(logFile, "w")
-    f.write("==== STAGE 1: Cleaning graph of small contigs that are unconnected parts of haplotypes   ["+str(datetime.datetime.now())+"]\nIn case of errors\
-            , check the log file of minimap2 at "+tmp_dir+"/tmp/minimap2.log")
+    f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
     f.close()
     
-    print(" - Mapping the assembly against itself")
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
-    command = path_to_src + "build/clean_graph " + gfaAssembly + " " + new_assembly + " " + args.output.rstrip('/') +" " + logFile + " " \
-        + str(nb_threads) + " " + args.path_to_minimap2
+    command = "python " + path_to_src + "correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
+        + str(nb_threads) + " --minigraph " + args.path_to_minimap2 + " --minimap2 " + args.path_to_minigraph + " --racon " + args.path_to_racon \
+        + " --folder " + tmp_dir
     print(" Running: ", command)
     res_clean = os.system(command)
 
@@ -178,7 +184,7 @@ def main():
         print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
         sys.exit(1)
 
-    print(" - Eliminated small unconnected contigs that align on other contigs")
+    print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
 
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
@@ -379,7 +385,8 @@ def main():
     # if args.multiploid :
     #     meta = ""
 
-    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
+    command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
+          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
     print( " - Running GraphUnzip with command line:\n     ", command, "\n   The log of GraphUnzip is written on ",tmp_dir+"/logGraphUnzip.txt\n")
     resultGU = os.system(command)
     if resultGU != 0 :

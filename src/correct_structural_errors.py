@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--reads", "-r", required=True, default=None, help="Reads file")
     parser.add_argument("--output", "-o", required=True, help="Output file")
     parser.add_argument("--threads", "-t", required=False, default=1, help="Number of threads to use")
+    parser.add_argument("--folder", required=False, default="tmp_correct_structural_errors", help="Folder where to store the temporary files")
     parser.add_argument("--minigraph", "-m", required=False, default="minigraph", help="Path to minigraph")
     parser.add_argument("--racon", "-c", required=False, default="racon", help="Path to racon")
     parser.add_argument("--minimap2", "-p", required=False, default="minimap2", help="Path to minimap2")
@@ -83,7 +84,7 @@ class Contig:
 #function that takes as input the new link and the contigs, and generates the new link
 def generate_new_link(contigName, new_link, reads, contigs, read_file, read_index):
 
-    print("Generating new link ", contigName, " ", new_link)
+    # print("Generating new link ", contigName, " ", new_link)
     #inventoriate the reads and output them in a file
     reads_file = "tmp_reads.fa"
     toPolish_file = "tmp_toPolish.fa"
@@ -258,7 +259,7 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
 def create_new_contig(contigName, new_link, reads, contigs, read_file, read_index):
 
     #begin by generating the new contig
-    print("Generating new contig ", contigName, " ", new_link)
+    # print("Generating new contig ", contigName, " ", new_link)
     #inventoriate the reads and output them in a file
     reads_file = "tmp_reads.fa"
     toPolish_file = "tmp_toPolish.fa"
@@ -428,7 +429,7 @@ def output_gfa(contigs, nameOfFile):
                 new_contigs[contigLeftName].neighbors.add((new_contigs[contigLeftName].length, "+", contigRightName, 0, "-", "0M"))
                 # print("xxixui adding link : ", contigLeftName, " ", (new_contigs[contigLeftName].length, "+", contigRightName, 0, "-", "0M"))
 
-        print("iddidizf ", contig, " ", breakpoints)
+        # print("iddidizf ", contig, " ", breakpoints)
         name_of_new_contigs[(contig, breakpoints[-1])] = ["*", contig + "_" + str(breakpoints[-2]) + "_" + str(breakpoints[-1])]
 
     #create the links
@@ -475,8 +476,8 @@ def output_gfa(contigs, nameOfFile):
                 elif neighbor[0] == 0 and neighbor[3] == new_contigs[neighbor[2]].length :
                     f.write("L\t" + contig + "\t-\t" + neighbor[2] + "\t-\t" + neighbor[5] + "\n")
                 else :
-                    print("What is this link ? ", neighbor)
-                    print("contig ", contig, " has length ", contigs[contig].length, " and neighbor ", neighbor[2], " has length ", contigs[neighbor[2]].length)
+                    # print("What is this link ? ", neighbor)
+                    # print("contig ", contig, " has length ", contigs[contig].length, " and neighbor ", neighbor[2], " has length ", contigs[neighbor[2]].length)
                     sys.exit(1)
 
 class Mapping:
@@ -513,6 +514,7 @@ def main():
     output = args.output
     threads = args.threads
     minigraph = args.minigraph
+    tmp_folder = args.folder.strip("/") + "/"
 
     #check the dependencies
     minigraph_res = os.system(minigraph + " --version >& /dev/null")
@@ -555,11 +557,11 @@ def main():
                 contigs[ls[3]].neighbors.add((pos_other_contig, orientation_on_other_contig, ls[1], pos_this_contig, orientation_on_this_contig, ls[5]))
 
     #now map the reads on the assembly graph using minigraph
-    alignmentFile = "tmp.gaf"
-    # minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile)
-    # if minigraph_res != 0:
-    #     print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
-    #     exit(1)
+    alignmentFile = tmp_folder + "tmp.gaf"
+    minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    if minigraph_res != 0:
+        print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
+        exit(1)
 
     #parse the alignment file : associate to each read the contig it aligns on (index only reads that do not align end-to-end)
     #reads_breakpoints = {}
@@ -568,7 +570,7 @@ def main():
         for line in f:
             ls = line.strip().split("\t")
             if ls[4] == "-" :
-                print("WHOA a .gaf with strand -, I'm panicking now... SOS !")
+                print("WHOA a .gaf with strand -, I'm panicking now... SOS, error code SOS !")
                 sys.exit(1)
             
             min_length_for_breakpoint = min(0.2*int(ls[1]), 100)
@@ -766,7 +768,7 @@ def main():
                 #     create_new_contig(contig, link, contigs[contig].future_links[link], contigs, reads, fastq_index)
 
     #now output the gfa
-    print("Now outputting the graph")
+    # print("Now outputting the graph")
     output_gfa(contigs, output)
 
 if __name__ == "__main__":
