@@ -12,7 +12,7 @@ import os
 import re
 import sys
 
-resolution = 100
+resolution = 50
 
 def reverse_complement(seq):
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N':'N'}
@@ -65,15 +65,16 @@ class Contig:
                 elif link[2] != "*" and abs(link[0]-already_link[0]) < resolution*2 and link[1] == already_link[1] and link[2]==already_link[2] and abs(link[3]-already_link[3]) < resolution*2 and link[4] == already_link[4] :  
                     links[already_link].append(link[-4:])
                     added = True
+
                     break
 
             if not added :
                 links[link] = [link[-4:]]
                
-        #now go through the links and see if they are present more than twice
+        #now go through the links and see if they are present at least 10 times
         # print("All the links for contig ", self.name, " are ")
         for k in links.keys() :
-            if len(links[k]) > 2 :
+            if len(links[k]) > 4 :
                 # print(k)
                 self.future_links[k] = links[k]
                 # print(k, " ", links[k])
@@ -100,7 +101,7 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
     end_toPolish = -1
     nreads = len(reads)
     nread = 0
-    for read in reads:
+    for r,read in enumerate(reads):
         read_name = read[0]
         orientation_on_read = read[1]
         start = int(read[2])
@@ -121,9 +122,9 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
             beginning_toPolish = min(300, start)
             end_toPolish = max(len(seq)-300, len(seq)-end)
             foPolish = open(toPolish_file, "w")
-            foPolish.write(">" + read_name + "\n" + seq + "\n")
+            foPolish.write(">" + read_name+ "_" + str(r) + "\n" + seq + "\n")
             foPolish.close()
-        fo.write(">" + read_name + "\n" + seq + "\n")
+        fo.write(">" + read_name+ "_" + str(r) + "\n" + seq + "\n")
         nread += 1
 
     fo.close()
@@ -139,6 +140,16 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
     racon = os.system(command)
     if racon != 0 :
         print("Error while running racon: " + command + "\n")
+        print("Trying to build the link ", new_link)
+        print(reads)
+        #remove the temporary files
+        os.system("rm tmp_reads.fa tmp_toPolish.fa tmp.paf tmp_repolished.fa trash.txt")
+        # pos_on_contig_left = new_link[0]
+        # pos_on_contig_right = new_link[3]
+        # contigs[contigName].neighbors.add((pos_on_contig_left, new_link[1], new_link[2], pos_on_contig_right, new_link[4], "0M"))
+        # contigs[new_link[2]].neighbors.add((pos_on_contig_right, new_link[4], contigName, pos_on_contig_left, new_link[1], "0M"))
+        return #give up on this link
+        print("Trying to build the link ", new_link, " between ", contigName, " and ", new_link[2])
         sys.exit(1)
 
     #see where it aligns left and right of the junction
@@ -234,11 +245,11 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
             contigs[new_link[2]].neighbors.add((pos_on_contig_right, new_link[4], nameOfNewContig, len(seq_repolished), "+", "0M"))
 
         else :
-            new_contig.neighbors.add((len(seq_repolished), "-", contigName, pos_on_contig_left, new_link[1], "0M"))
-            contigs[contigName].neighbors.add((pos_on_contig_left, new_link[1], nameOfNewContig, len(seq_repolished), "-", "0M"))
+            new_contig.neighbors.add((len(seq_repolished), "+", contigName, pos_on_contig_left, new_link[1], "0M"))
+            contigs[contigName].neighbors.add((pos_on_contig_left, new_link[1], nameOfNewContig, len(seq_repolished), "+", "0M"))
 
-            new_contig.neighbors.add((0, "+", new_link[2], pos_on_contig_right, new_link[4], "0M"))
-            contigs[new_link[2]].neighbors.add((pos_on_contig_right, new_link[4],nameOfNewContig, 0, "+", "0M"))
+            new_contig.neighbors.add((0, "-", new_link[2], pos_on_contig_right, new_link[4], "0M"))
+            contigs[new_link[2]].neighbors.add((pos_on_contig_right, new_link[4],nameOfNewContig, 0, "-", "0M"))
 
         contigs[nameOfNewContig] = new_contig
 
@@ -315,6 +326,9 @@ def create_new_contig(contigName, new_link, reads, contigs, read_file, read_inde
     racon = os.system(command)
     if racon != 0 :
         print("Error while running racon: " + command + "\n")
+        #remove the temporary files
+        os.system("rm tmp_reads.fa tmp_toPolish.fa tmp.paf tmp_repolished.fa trash.txt")
+        return #give up on this contig
         sys.exit(1)
 
     #see where it aligns left and right of the junction
@@ -432,11 +446,15 @@ def output_gfa(contigs, nameOfFile):
         # print("iddidizf ", contig, " ", breakpoints)
         name_of_new_contigs[(contig, breakpoints[-1])] = ["*", contig + "_" + str(breakpoints[-2]) + "_" + str(breakpoints[-1])]
 
+
     #create the links
     for contig in contigs.keys():
         for neighbor in contigs[contig].neighbors:
             #test to make sure not to write duplicate links
             if contig <= neighbor[2] or (contig == neighbor[2] and neighbor[0] < neighbor[3]) :
+
+                # print("Link between ", neighbor[0], " ", neighbor[1], " and ", neighbor[3], " ", neighbor[4], " ", neighbor)
+
                 #let's find the name of the contigs
                 nameOfThisContig, nameOfOtherContig = "", ""
                 positionOnThisContig, positionOnOtherContig = 0, 0
@@ -558,10 +576,10 @@ def main():
 
     #now map the reads on the assembly graph using minigraph
     alignmentFile = tmp_folder + "tmp.gaf"
-    minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
-    if minigraph_res != 0:
-        print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
-        exit(1)
+    # minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    # if minigraph_res != 0:
+    #     print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
+    #     exit(1)
 
     #parse the alignment file : associate to each read the contig it aligns on (index only reads that do not align end-to-end)
     #reads_breakpoints = {}
@@ -604,7 +622,7 @@ def main():
                 if orientations[-1] == "<":
                     m.position_on_contig2 = contigs[all_contigs[-1]].length - (int(ls[8]) - int(np.sum([contigs[i].length for i in all_contigs[:-1]])))
                     m.orientation_on_contig2 = "-"
-                
+
                 if int(ls[2]) > min_length_for_breakpoint : #then breakpoint towards the beginning of the read
                     m.breakpoint1 = True
 
@@ -612,36 +630,6 @@ def main():
                     m.breakpoint2 = True
                 
                 contig_mapping[ls[0]].append(m)
-
-                # #let's look if we have a breakpoint towards the beginning of the read
-                # if int(ls[2]) > min_length_for_breakpoint : #then breakpoint towards the beginning of the read
-                #     contig = all_contigs[0]
-                #     orientation_on_contig = "-" #indicates the direction of the unknown
-                #     position_on_contig = int(ls[7])
-                #     if orientations[0] == "<":
-                #         position_on_contig = contigs[contig].length - int(ls[7])
-                #         orientation_on_contig = "+"
-                    
-                #     orientation_on_read = "-" #indicates the direction of the unknown
-                #     pos_on_read = int(ls[2])
-                #     length_of_read = int(ls[1])
-
-                #     reads_breakpoints[ls[0]] += [(contig, position_on_contig, orientation_on_contig, ls[0], pos_on_read, orientation_on_read, length_of_read)]
-
-                # #let's look if we have a breakpoint towards the end of the read
-                # if int(ls[1])-int(ls[3]) > min_length_for_breakpoint: #then breakpoint towards the end of the read
-                #     contig = all_contigs[-1]
-                #     orientation_on_contig = "+" #indicates the direction of the unknown
-                #     position_on_contig = int(ls[8]) - int(np.sum([contigs[i].length for i in all_contigs[:-1]]))
-                #     if orientations[-1] == "<":
-                #         position_on_contig = contigs[contig].length - (int(ls[8]) - int(np.sum([contigs[i].length for i in all_contigs[:-1]])))
-                #         orientation_on_contig = "-"
-                    
-                #     orientation_on_read = "+"
-                #     pos_on_read = int(ls[3])
-                #     length_of_read = int(ls[1])
-
-                #     reads_breakpoints[ls[0]] += [(contig, position_on_contig, orientation_on_contig, ls[0], pos_on_read, orientation_on_read, length_of_read)]
 
     for read in contig_mapping.keys():
         contig_mapping[read].sort(key=lambda x: int(x.pos_on_read1))
@@ -695,56 +683,6 @@ def main():
                     contigs[contig].potential_new_links.add((position_on_contig, orientation_on_contig, "*", "*", "*", \
                                                                 read, "+", position_on_read, length_of_read))
 
-
-        
-    # for read in reads_breakpoints:
-    #     #sort the alignments by position on the read, from left to right
-    #     reads_breakpoints[read].sort(key=lambda x: int(x[4]))
-        
-        # if read == "12009_@a8ec3e4e-9869-21c9-590a-7690551170bd" :
-        #for each breakpoint, see if it is linked with the next breakpoint (missing link in GFA) or if it is a leap in the unknown (missing contig in GFA)
-        # b = 0
-        # while b < len(reads_breakpoints[read]):
-
-        #     contig = reads_breakpoints[read][b][0]
-        #     position_on_contig = reads_breakpoints[read][b][1]
-        #     orientation_on_contig = reads_breakpoints[read][b][2]
-
-        #     #check if the next breakpoint is right next on the read
-        #     # print(b, " ", reads_breakpoints[read][b], " ", len(reads_breakpoints[read]))
-        #     if b < len(reads_breakpoints[read]) -1 and reads_breakpoints[read][b][5] == "+" and reads_breakpoints[read][b+1][5] == "-" and reads_breakpoints[read][b+1][4]-reads_breakpoints[read][b][4] < 300: #then the two breakpoints are linked are linked !!
-        #         other_contig = reads_breakpoints[read][b+1][0]
-        #         position_on_other_contig = reads_breakpoints[read][b+1][1]
-        #         orientation_on_other_contig = reads_breakpoints[read][b+1][2]
-
-        #         #add the potential new link to the contigs
-        #         contigs[contig].potential_new_links.add((position_on_contig, orientation_on_contig, other_contig, position_on_other_contig, orientation_on_other_contig,\
-        #                                                  read, "+", reads_breakpoints[read][b][4], reads_breakpoints[read][b+1][4]))
-        #         contigs[other_contig].potential_new_links.add((position_on_other_contig, orientation_on_other_contig, contig, position_on_contig, orientation_on_contig,\
-        #                                                  read, "-", reads_breakpoints[read][b+1][6]-reads_breakpoints[read][b+1][4], reads_breakpoints[read][b+1][6]-reads_breakpoints[read][b][4]))
-
-        #         # if contig == "edge_31" or other_contig == "edge_31" :
-        #         #     print("Adding a link because of read ", read, " ", contig, " ", position_on_contig, " ", orientation_on_contig, " ", other_contig, " ", position_on_other_contig, " ", orientation_on_other_contig)
-
-        #         b += 1 #because the next breakpoint is already linked to this one
-            
-        #     else : #means a breakpoint going in an unknown contig 
-        #         position_on_read = reads_breakpoints[read][b][4]
-        #         orientation_on_read = reads_breakpoints[read][b][5]
-        #         length_of_read = reads_breakpoints[read][b][6]
-        #         #check if there is a significant overhang of the read
-        #         if (orientation_on_read == "-" and position_on_read > 300) or (orientation_on_read == "+" and length_of_read - position_on_read > 300) :
-        #             #in this case store in the "other contig" (which does not exist), the read
-        #             # print("qfoidpdfsp")
-        #             if orientation_on_read == "+" :
-        #                 contigs[contig].potential_new_links.add((position_on_contig, orientation_on_contig, "*", "*", "*", \
-        #                                                          read, "+", position_on_read, length_of_read))
-        #             else :
-        #                 contigs[contig].potential_new_links.add((position_on_contig, orientation_on_contig, "*", "*", "*", \
-        #                                                          read, "-", length_of_read-position_on_read, length_of_read))
-        
-            # b += 1
-
     #build a fastq_index, i.e. a dict associating each read with its position in the fastq file
     fastq_index = {}
     offset = 0
@@ -761,7 +699,7 @@ def main():
             contigs[contig].find_new_links()
             #now create the new links
             for link in contigs[contig].future_links.keys():
-                # print("piypio ", link)
+                # print("piypio ", link, " ", contigs[contig].future_links[link])
                 if link[2] != "*" and (contig < link[2] or (contig == link[2] and link[0] < link[3])) : #create an order on the links so that we do not create the same link twice
                     generate_new_link(contig, link, contigs[contig].future_links[link], contigs, reads, fastq_index)
                 # elif link[2] == "*" :

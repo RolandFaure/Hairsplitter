@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.2"
+__version__ = "1.6.3"
 __date__ = "2023-11-02"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -189,6 +189,28 @@ def main():
         sys.exit(1)
 
     print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
+
+    #now check if the improved assembly is not too complicated, else fall back on the original assembly
+    #the metric is : did the N50 fall below 10kb ?
+    f = open(new_assembly, "r")
+    contigs_length = []
+    for line in f :
+        if "S" == line[0] :
+            contigs_length.append(len(line.split("\t")[2]))
+    f.close()
+    contigs_length.sort(reverse=True)
+    N50 = 0
+    cumul = 0
+    total_length = sum(contigs_length)
+    for l in contigs_length :
+        cumul += l
+        if cumul > total_length/2 :
+            N50 = l
+            break
+
+    if N50 < 10000 :
+        print(" - The improved assembly is too complicated, falling back on the original assembly")
+        new_assembly = gfaAssembly
 
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
