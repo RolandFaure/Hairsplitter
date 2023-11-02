@@ -1113,6 +1113,26 @@ void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, 
     }
 }
 
+void outputGraph_low_memory(std::vector<std::vector<int>> &neighbor_list , std::vector<int> &clusters, std::string fileOut){
+    ofstream out(fileOut);
+
+    out << "nodedef>name VARCHAR,label VARCHAR, cluster VARCHAR\n";
+    for (auto i = 0 ; i < neighbor_list.size() ; i++){
+        out << i << ", " << i << ", " <<clusters[i] << "\n";
+    }
+    out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
+    for (auto i = 0 ; i < neighbor_list.size() ; i++){
+        // cout << "line " << i << ", length of line i : " << 
+        for (auto j: neighbor_list[i]){
+            out << i << ", " << j << ", " << 1 << "\n";
+            // else{
+            //     // cout << "Not working on me : " << adj[i][j] << endl;
+            // }
+        }
+        
+    }
+}
+
 void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vector<std::vector<int>> &clusters, std::vector<bool> &mask, std::string fileOut){
 
     ofstream out(fileOut);

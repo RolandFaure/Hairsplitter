@@ -9,6 +9,26 @@
 
 #include "Partition.h"
 
+// A hash function used to hash a pair of any kind
+struct hash_pair {
+    template <class T1, class T2>
+    size_t operator()(const std::pair<T1, T2>& p) const
+    {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+
+        // return size_t(hash1) << 32 | hash2;
+ 
+        if (hash1 != hash2) {
+            return hash1 ^ hash2;              
+        }
+         
+        // If hash1 == hash2, their XOR is zero.
+        return hash1;
+    }
+};
+
+
 std::string convert_cigar(std::string &cigar);
 std::string convert_cigar2(std::string &cigar);
 

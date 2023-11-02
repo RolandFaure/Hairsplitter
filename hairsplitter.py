@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.1"
-__date__ = "2023-10-30"
+__version__ = "1.6.2"
+__date__ = "2023-11-02"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
+    parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
@@ -107,6 +108,7 @@ def main():
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
     path_to_python = args.path_to_python
+    low_memory = args.low_memory
 
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka" and polisher != "auto":
@@ -177,7 +179,7 @@ def main():
     
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     command = "python " + path_to_src + "correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
-        + str(nb_threads) + " --minigraph " + args.path_to_minimap2 + " --minimap2 " + args.path_to_minigraph + " --racon " + args.path_to_racon \
+        + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
         + " --folder " + tmp_dir
     print(" Running: ", command)
     res_clean = os.system(command)
@@ -309,8 +311,8 @@ def main():
     f.close()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
-    command = path_to_src + "build/separate_reads " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + flag_debug \
-        + " " + tmp_dir + "/reads_haplo.gro"
+    command = path_to_src + "build/separate_reads " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(int(low_memory)) \
+        + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
     print(" - Separating reads by haplotype of origin")
     print(" Running: ", command)
     res_separate_reads = os.system(command)

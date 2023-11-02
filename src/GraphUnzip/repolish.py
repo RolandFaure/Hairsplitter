@@ -152,7 +152,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
             #     print("continuuedj ")
             #     continue
 
-            print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
+            # print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
             if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
 
                 seq = None

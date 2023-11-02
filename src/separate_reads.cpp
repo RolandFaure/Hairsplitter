@@ -1,5 +1,6 @@
 #include "separate_reads.h"
 #include "cluster_graph.h"
+#include "tools.h"
 
 #include "input_output.h"
 
@@ -11,6 +12,7 @@
 #include <map>
 #include <set>
 #include <cmath> //for sqrt and pow
+#include <algorithm> //for sort and std::find
 
 using std::vector;
 using std::string;
@@ -293,7 +295,7 @@ void list_similarities_and_differences_between_reads(
  * @param snps 
  * @param chunk chunk of the contig that is being processed
  * @param sizeOfWindow size of chunks
- * @param adjacency_matrix Result
+ * @param adjacency_matrix Result, set of pairs of coordinates (containing only ones)
  * @param errorRate Error rate of the reads
  */
 void create_read_graph(
@@ -302,7 +304,7 @@ void create_read_graph(
     int chunk, 
     int sizeOfWindow,
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
-    std::vector< std::vector<int>> &adjacency_matrix,
+    vector<vector<int>> &adjacency_matrix,
     float &errorRate){
 
     set<int> listOfGroups;
@@ -321,18 +323,6 @@ void create_read_graph(
                     }
                 }
             }
-
-            // if (read1 == 16 || true){
-            //     cout << "ddqfhhe distance of 16 to other reads: " << endl;
-            //     for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
-            //         if (mask[r] && r != read1){
-            //             cout << r << " " << distance_with_other_reads[r] << " " << float(sims_and_diffs[read1][r].second) << " " << float(sims_and_diffs[read1][r].first) << endl;
-            //         }
-            //     }
-            //     cout << endl;
-            //     // cout << "sims and diffffsss between 133 and 43 : " << sims_and_diffs[read1][43].first << " " << sims_and_diffs[read1][43].second << " " << distance_with_other_reads[43]<< endl;
-            //     // cout << "sims and diffffsss between 133 and 141 : " << sims_and_diffs[read1][141].first << " " << sims_and_diffs[read1][141].second << " " << distance_with_other_reads[141] << endl;
-            // }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
                 if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < max(5.0,0.7*max_compat) ){
@@ -366,6 +356,9 @@ void create_read_graph(
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
             }
+            if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
+                distance_threshold_above_which_two_reads_should_be_linked = 1 - errorRate;
+            }
 
             for (auto neighbor : smallest){
                 if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
@@ -394,6 +387,171 @@ void create_read_graph(
     // cout << endl;
 
 }
+ 
+ 
+ /**
+  * @brief Create a read graph, using less memory but much more time than list_similarities_and_differences and create_read_graph
+  * 
+  * @param snps 
+  * @param mask 
+  * @param chunk 
+  * @param sizeOfWindow 
+  * @param adjacency_matrix 
+  * @param errorRate 
+  */
+void create_read_graph_low_memory(
+    std::vector<Column> &snps,
+    std::vector <bool> &mask,
+    int chunk,
+    int sizeOfWindow,
+    std::vector<std::vector<int>> &neighbor_list_low_memory, //containing the ordered list of neighbors for each read
+    float &errorRate){
+
+    //compute the graph by batches of reads
+    int batch_size = 1000;
+    for (int batch = 0 ; batch*batch_size < mask.size() ; batch++){
+
+        int firstRead = batch*batch_size;
+        int lastRead = min((batch+1)*batch_size-1, (int) mask.size()-1);
+        int nb_reads_batch = lastRead - firstRead + 1;
+
+        // cout << "idqsn bathc " << batch << " " << firstRead << " " << lastRead << " " << nb_reads_batch << endl;
+
+        vector<vector<pair<int,int>>> sims_and_diffs(nb_reads_batch, vector<pair<int,int>>(mask.size(), make_pair(0,0)));
+
+        for (Column snp : snps){
+
+            //what bases occur in which cluster ?
+            robin_hood::unordered_map<unsigned char,int> bases_in_total;
+            for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
+                unsigned char base = snp.content[r];
+                if (bases_in_total.find(base) == bases_in_total.end()){
+                    bases_in_total[base] = 0;
+                }
+                bases_in_total[base]++;
+            }
+            //find the second most frequent base
+            unsigned char second_most_frequent_base = ' ';
+            unsigned char most_frequent_base = ' ';
+            int second_most_frequent_base_count = 0;
+            int most_frequent_base_count = 0;
+            for (auto b : bases_in_total){
+                if (b.second > most_frequent_base_count){
+                    second_most_frequent_base = most_frequent_base;
+                    second_most_frequent_base_count = most_frequent_base_count;
+                    most_frequent_base_count = b.second;
+                    most_frequent_base = b.first;
+                }
+                else if (b.second > second_most_frequent_base_count){
+                    second_most_frequent_base = b.first;
+                    second_most_frequent_base_count = b.second;
+                }
+            }
+
+            int idx1 = 0;
+            for (int r1 = 0 ; r1 < sims_and_diffs.size() ; r1++){
+                int read1 = r1 + firstRead;
+                while (idx1 < snp.readIdxs.size() && snp.readIdxs[idx1] < read1){
+                    idx1++;
+                }
+                if (snp.readIdxs[idx1] > read1){
+                    continue;
+                }
+                unsigned char base1 = snp.content[idx1];
+
+                int idx2 = idx1+1;
+                for (int read2 = read1+1 ; read2 < sims_and_diffs[r1].size() ; read2 ++){
+
+                    // cout << "fqljdklmf " << read2 << " " << sims_and_diffs[read1].size() << endl;
+                    while (idx2 < snp.readIdxs.size() && snp.readIdxs[idx2] < read2){
+                        idx2++;
+                    }
+                    if (idx2 >= snp.readIdxs.size() || snp.readIdxs[idx2] > read2){
+                        continue;
+                    }
+                    unsigned char base2 = snp.content[idx2];
+
+                    if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 != base2){
+                        sims_and_diffs[r1][read2].second++;
+                    }
+                    else if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 == base2){
+                        sims_and_diffs[r1][read2].first++;
+                        if (base1 == second_most_frequent_base){ //this is very strong signal
+                            sims_and_diffs[r1][read2].first+= 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        // cout << "ofoqdqqsss" << endl;
+
+        set<int> listOfGroups;
+        int max_cluster = 0;
+
+        for (int r1 = 0 ; r1 < sims_and_diffs.size(); r1 ++){
+            int read1 = r1+firstRead;
+            if (mask[read1]){
+
+                vector <float> distance_with_other_reads (mask.size(), 0);
+                int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
+                for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
+                    if (mask[r] && r != read1 && sims_and_diffs[r1][r].first > 0){
+                        float diffs = max(0,sims_and_diffs[r1][r].second-1); //-1 to make sure that 1 difference does not make such a difference 
+                        distance_with_other_reads[r] = 1 - diffs / float(sims_and_diffs[r1][r].first+sims_and_diffs[r1][r].second);
+                        if (sims_and_diffs[r1][r].first > max_compat){
+                            max_compat = sims_and_diffs[r1][r].first;
+                        }
+                    }
+                }
+
+
+                for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
+                    if (mask[r] && r != read1 && sims_and_diffs[r1][r].first + sims_and_diffs[r1][r].second < max(5.0,0.7*max_compat) ){
+                        distance_with_other_reads[r] = 0;
+                    }
+                }
+
+                vector<pair<int, float>> smallest;
+                for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
+                    smallest.push_back(make_pair(r,distance_with_other_reads[r]));
+                }
+                //sort smallest by distance in decreasing order
+                sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
+                    return a.second > b.second;
+                });
+
+                int nb_of_neighbors = 0;
+                float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
+                float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
+                if (smallest.size() > 1){
+                    distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
+                }
+                if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
+                    distance_threshold_above_which_two_reads_should_be_linked = 1 - errorRate;
+                }
+
+                for (auto neighbor : smallest){
+                    if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
+                        && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
+                        && mask[neighbor.first]){
+                        nb_of_neighbors++;
+
+                        neighbor_list_low_memory[read1].push_back(neighbor.first);
+                        neighbor_list_low_memory[neighbor.first].push_back(read1);
+                    }
+                }
+            }
+        }
+    }
+
+    //sort each entry of neighbor_list_low_memory and remove duplicates
+    for (auto r = 0 ; r < neighbor_list_low_memory.size() ; r++){
+        sort(neighbor_list_low_memory[r].begin(), neighbor_list_low_memory[r].end());
+        //remove duplicate using unique
+        neighbor_list_low_memory[r] = vector<int>(neighbor_list_low_memory[r].begin(), std::unique(neighbor_list_low_memory[r].begin(), neighbor_list_low_memory[r].end()));
+    }
+}
 
 /**
  * @brief Merge the clusters that are too close to each other
@@ -404,10 +562,11 @@ void create_read_graph(
  * @return std::vector<int> resulting clusters
  */
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
-    std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask){
+    std::vector<std::vector<int>> &neighbor_list, 
+    vector<vector<int>> &adjacency_matrix_high_memory, bool low_memory, std::vector <bool> &mask){
 
     if (localClusters.size() == 0){
-        return vector<int>(adjacency_matrix.size(), 0);
+        return vector<int>(neighbor_list.size(), 0);
     }
 
     vector<double> clusters_aggregated(localClusters[0].size(), 0);
@@ -438,7 +597,13 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
         }
     }
 
-    auto re_clustered = chinese_whispers(adjacency_matrix, cluster_aggregated_ints, mask);
+    vector<int> re_clustered;
+    if (low_memory){
+        re_clustered = chinese_whispers(neighbor_list, cluster_aggregated_ints, mask);
+    }
+    else{
+        re_clustered = chinese_whispers_high_memory(adjacency_matrix_high_memory, cluster_aggregated_ints, mask);
+    }
 
     return re_clustered;
 }
@@ -456,14 +621,28 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
 void finalize_clustering( 
     std::vector<Column> &snps,  
     vector<vector<int>> &localClusters, 
-    vector<vector<int>> &strengthened_adjacency_matrix, 
+    std::vector<std::vector<int>> &strengthened_neighbor_list,
+    vector<vector<int>> &strengthened_adjacency_matrix_high_memory,
+    bool low_memory, 
     vector<bool> &mask_at_this_position,
     vector<int> &haplotypes,
     float errorRate,
     int posstart,
     int posend){
+
+    if (localClusters.size() == 0){
+        for (auto r = 0 ; r < mask_at_this_position.size() ; r++){
+            if (mask_at_this_position[r]){
+                haplotypes[r] = -1;
+            }
+            else{
+                haplotypes[r] = -2;
+            }
+        }
+        return;
+    }
  
-    vector<int> new_clusters = merge_clusterings(localClusters, strengthened_adjacency_matrix, mask_at_this_position);
+    vector<int> new_clusters = merge_clusterings(localClusters, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position);
     vector<int> clusteredReads = new_clusters;
 
     // find all clusters that are too small and flag them as a -1 cluster, so they can be rescued later
@@ -511,7 +690,12 @@ void finalize_clustering(
     //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
     //however, they should not be actually separated in snps: merge them
 
-    haplotypes = chinese_whispers(strengthened_adjacency_matrix, mergedHaplotypes, mask_at_this_position);
+    if (low_memory){
+        haplotypes = chinese_whispers(strengthened_neighbor_list, mergedHaplotypes, mask_at_this_position);
+    }
+    else{
+        haplotypes = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, mergedHaplotypes, mask_at_this_position);
+    }
 
     //re-number the haplotypes
     unordered_map<int, int> haplotypeToIndex;
@@ -531,8 +715,8 @@ void finalize_clustering(
         haplotypes[r] = haplotypeToIndex[haplotypes[r]];
     }
 
-    merge_close_clusters(strengthened_adjacency_matrix, haplotypes, mask_at_this_position); //by disturbing the CW clustering
-    haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_adjacency_matrix, posstart, posend); //by looking at the actual reads
+    merge_close_clusters(strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, haplotypes, mask_at_this_position); //by disturbing the CW clustering
+    haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, posstart, posend); //by looking at the actual reads
 }
 
 /**
@@ -550,7 +734,9 @@ void finalize_clustering(
 std::vector<int> merge_wrongly_split_haplotypes(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps,  
-    std::vector<std::vector<int>> &adjacencyMatrix,
+     std::vector<std::vector<int>> &neighbor_list,
+    vector<vector<int>> &adjacencyMatrix_high_memory,
+    bool low_memory,
     int posstart,
     int posend){
 
@@ -728,9 +914,13 @@ std::vector<int> merge_wrongly_split_haplotypes(
     // list all the distances between different clusters
     std::map < pair<int, int>, double > number_of_links_between_the_two_clusters;
     unordered_map <int,int> number_of_links_in_each_cluster;
-    for (auto read1 = 0 ; read1 < adjacencyMatrix.size() ; read1++){
-        for (auto read2 = 0 ; read2 < adjacencyMatrix.size() ; read2++){
-            if (adjacencyMatrix[read1][read2]){
+    for (auto read1 = 0 ; read1 < clusteredReads.size() ; read1++){
+        for (auto read2 = 0 ; read2 < clusteredReads.size() ; read2++){
+            bool linked = false;
+            if (low_memory && std::binary_search(neighbor_list[read1].begin(), neighbor_list[read1].end(),read2) == true || !low_memory && adjacencyMatrix_high_memory[read1][read2] >= 1){
+                linked = true;
+            }
+            if (linked){
                 int cluster1 = clusteredReads[read1];
                 int cluster2 = clusteredReads[read2];
                 if (cluster1 != cluster2){
@@ -839,17 +1029,17 @@ std::vector<int> merge_wrongly_split_haplotypes(
 }
 
 int main(int argc, char *argv[]){
-    if (argc < 5){
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> " << endl;
-        
+    if (argc < 7){
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
     float errorRate = atof(argv[3]);
-    bool debug = bool(atoi(argv[4]));
+    bool debug = bool(atoi(argv[6]));
     string outfile = argv[5];
+    bool low_memory = bool(atoi(argv[4]));
 
     //create empty output file
     ofstream out(outfile);
@@ -907,9 +1097,11 @@ int main(int argc, char *argv[]){
             cout << "separating reads on contig " << name_of_contigs[n] << "\r";
         }
 
-        vector<vector<pair<int,int>>> sims_and_diffs (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
-
-        list_similarities_and_differences_between_reads(snps, sims_and_diffs);
+        vector<vector<pair<int,int>>> sims_and_diffs;
+        if (!low_memory){
+            sims_and_diffs = vector<vector<pair<int,int>>> (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
+            list_similarities_and_differences_between_reads(snps, sims_and_diffs);
+        }
 
         // cout << "similrities and differences computed" << endl;
         // for (auto i : sims_and_diffs[0]){
@@ -975,25 +1167,45 @@ int main(int argc, char *argv[]){
             }
 
             suspectPostitionIdx++; //suspectPostitionIdx is now the first position after the window
-            // cout << "fqljsd creating graph " << endl;
 
-            vector<vector<int>> adjacency_matrix (mask_at_this_position.size(), vector<int>(mask_at_this_position.size(), 0));
-            create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix, errorRate);
-            vector<int> clustersStart (adjacency_matrix.size(), 0);
-            for (auto r = 0 ; r < adjacency_matrix.size() ; r++){
+            vector<vector<int>> neighbor_list_low_memory (numberOfReadsHere, vector<int> (0));
+            vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
+            vector<vector<int>> adjacency_matrix_high_memory (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+            vector<vector<int>> strengthened_adjacency_matrix_high_memory (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+            if (!low_memory){
+                create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix_high_memory, errorRate);
+                strengthened_adjacency_matrix_high_memory = strengthen_adjacency_matrix_high_memory(adjacency_matrix_high_memory);
+                strengthened_adjacency_matrix_high_memory = adjacency_matrix_high_memory;
+            }
+            else{
+                for (auto v : neighbor_list_low_memory){
+                    v.reserve(20);
+                }
+                create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
+                neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
+                neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
+            }
+            // cout << "ociojccood" << endl;
+
+            vector<int> clustersStart (numberOfReadsHere, 0);
+            for (auto r = 0 ; r < numberOfReadsHere ; r++){
                 clustersStart[r] = r;
             }
-            auto strengthened_adjacency_matrix = strengthen_adjacency_matrix(adjacency_matrix);
-            strengthened_adjacency_matrix = adjacency_matrix;
-
-            // cout << "fioid u clustering graph " << endl;
 
             vector<vector<int>> allclusters_debug;
-            vector<int> clusteredReads1 = chinese_whispers(strengthened_adjacency_matrix, clustersStart, mask_at_this_position);
+            vector<int> clusteredReads1;
+            if (low_memory){
+                clusteredReads1 = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart, mask_at_this_position);
+            }
+            else{
+                clusteredReads1 = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, clustersStart, mask_at_this_position);
+            }
+            // cout << "ofudi" << endl;
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
             // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            // outputGraph_low_memory(neighbor_list_low_memory, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             // outputGraph(adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
 
             // cout << "here are all the interesting positions" << endl;
@@ -1008,8 +1220,8 @@ int main(int argc, char *argv[]){
                     // cout << "in dldjk position " << position << " : " << endl;
 
                     unordered_map<unsigned char, int> charToIndex;
-                    vector<int> clustersStart2 (adjacency_matrix.size(), 0);
-                    for (auto r = 0 ; r < adjacency_matrix.size() ; r++){
+                    vector<int> clustersStart2 (numberOfReadsHere, 0);
+                    for (auto r = 0 ; r < numberOfReadsHere ; r++){
                         clustersStart2[r] = r;
                     }
                     for (auto r = 0 ; r < snp.content.size() ; r++){
@@ -1022,7 +1234,13 @@ int main(int argc, char *argv[]){
                         }
                     }
                     
-                    vector<int> clusteredReads_local = chinese_whispers(strengthened_adjacency_matrix, clustersStart2, mask_at_this_position); 
+                    vector<int> clusteredReads_local;// = chinese_whispers(strengthened_adjacency_matrix, clustersStart2, mask_at_this_position); 
+                    if (low_memory){
+                        clusteredReads_local = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart2, mask_at_this_position);
+                    }
+                    else{
+                        clusteredReads_local = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, clustersStart2, mask_at_this_position);
+                    }
                     localClusters.push_back(clusteredReads_local);
                     
                     allclusters_debug.push_back(clustersStart2);
@@ -1030,27 +1248,27 @@ int main(int argc, char *argv[]){
                 }         
             }
 
-            vector<int> haplotypes;
-            finalize_clustering(snps, localClusters, strengthened_adjacency_matrix, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+            vector<int> haplotypes(numberOfReadsHere, -2);
+            finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
             
-            if (debug){
-                cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
-                for (auto h : haplotypes){
-                    if (h > -1){
-                        // cout << n << ":" <<h << " ";
-                        cout << h;
-                    }
-                    // else{
-                    //     cout << "*";
-                    // }
-                }
-                cout << endl;
-                // for (auto h = 0 ; h < haplotypes.size() ; h++){
-                //     if (haplotypes[h] == 4){
-                //         cout << "haplotype 4 : " << names_of_reads[n][h] << endl;
-                //     }
-                // }
-            }
+            // if (debug){
+            //     cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
+            //     for (auto h : haplotypes){
+            //         if (h > -1){
+            //             // cout << n << ":" <<h << " ";
+            //             cout << h;
+            //         }
+            //         // else{
+            //         //     cout << "*";
+            //         // }
+            //     }
+            //     cout << endl;
+            //     // for (auto h = 0 ; h < haplotypes.size() ; h++){
+            //     //     if (haplotypes[h] == 4){
+            //     //         cout << "haplotype 4 : " << names_of_reads[n][h] << endl;
+            //     //     }
+            //     // }
+            // }
 
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));
         }

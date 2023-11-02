@@ -14,6 +14,47 @@ using std::min;
 using std::cout;
 using std::endl;
 using std::set;
+using std::make_pair;
+
+/**
+ * @brief Strengthen the adjacency matrix by adding edges between nodes that are connected by a path of length 2
+ * 
+ * @param adjacency_matrix unordered map
+ * @param size size of the adjacency matrix
+ * @return unordered map
+ */
+std::vector<std::vector<int>> strengthen_adjacency_matrix(std::vector<std::vector<int>> &neighbor_list, int size){
+
+    //create a copy of the adjacency matrix
+    auto strengthened_neighbor_list = neighbor_list;
+
+    //iterate over all nodes
+    for (int i = 0; i < size; i++){
+        //iterate over all nodes that are connected to i
+        vector<int> neighbors;
+        for (auto j : neighbor_list[i]){
+            //if i and j are connected
+            neighbors.push_back(j);
+        }
+        //add 1 to the adjacency matrix for all nodes that are connected through i
+        for (int j = 0; j < neighbors.size(); j++){
+            for (int k = j+1; k < neighbors.size(); k++){
+                strengthened_neighbor_list[neighbors[j]].push_back(neighbors[k]);
+                strengthened_neighbor_list[neighbors[k]].push_back(neighbors[j]);
+            }
+        }
+    }
+
+    //sort each entry of neighbor_list_low_memory and remove duplicates
+    for (auto r = 0 ; r < strengthened_neighbor_list.size() ; r++){
+        std::sort(strengthened_neighbor_list[r].begin(), strengthened_neighbor_list[r].end());
+        //remove duplicate using unique
+        strengthened_neighbor_list[r] = vector<int>(strengthened_neighbor_list[r].begin(), std::unique(strengthened_neighbor_list[r].begin(), strengthened_neighbor_list[r].end()));
+    }
+
+    return strengthened_neighbor_list;
+
+}
 
 /**
  * @brief Strengthen the adjacency matrix by adding edges between nodes that are connected by a path of length 2
@@ -21,32 +62,31 @@ using std::set;
  * @param adjacency_matrix 
  * @return std::vector<std::vector<int>> 
  */
-std::vector<std::vector<int>> strengthen_adjacency_matrix(std::vector<std::vector<int>> const &adjacency_matrix){
+std::vector<std::vector<int>> strengthen_adjacency_matrix_high_memory(vector<vector<int>> &adjacency_matrix){
 
     //create a copy of the adjacency matrix
-    std::vector<std::vector<int>> strengthened_adjacency_matrix(adjacency_matrix);
+    auto strengthened_adjacency_matrix = adjacency_matrix;
 
     //iterate over all nodes
     for (int i = 0; i < adjacency_matrix.size(); i++){
         //iterate over all nodes that are connected to i
         vector<int> neighbors;
-        for (int j = 0; j < adjacency_matrix[i].size(); j++){
+        for (int j = 0; j < adjacency_matrix.size(); j++){
             //if i and j are connected
-            if (adjacency_matrix[i][j] == 1){
+            if (adjacency_matrix[i][j] >= 1){
                 neighbors.push_back(j);
             }
         }
         //add 1 to the adjacency matrix for all nodes that are connected through i
         for (int j = 0; j < neighbors.size(); j++){
             for (int k = j+1; k < neighbors.size(); k++){
-                strengthened_adjacency_matrix[neighbors[j]][neighbors[k]] += 1;
-                strengthened_adjacency_matrix[neighbors[k]][neighbors[j]] += 1;
+                strengthened_adjacency_matrix[j][k] += 1;
+                strengthened_adjacency_matrix[k][j] += 1;
             }
         }
     }
 
     return strengthened_adjacency_matrix;
-
 }
 
 /**
@@ -70,7 +110,7 @@ std::vector<std::vector<int>> strengthen_adjacency_matrix(std::vector<std::vecto
  * @param mask Masked reads
  * @return std::vector<int> 
  */
-std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
+std::vector<int> chinese_whispers(std::vector<std::vector<int>> &neighbor_list, std::vector<int> &initialClusters, std::vector<bool> &mask){
 
 
     //at the beginning, all nodes are in their own cluster
@@ -78,6 +118,85 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
     // for (int i = 0; i < adjacency_matrix.size(); i++){
     //     clusters[i] = i;
     // }
+    auto clusters = initialClusters;
+
+    //keep track of the number of changes in the clustering
+    int changes = 3;
+    int number_of_iterations = 0;
+
+    //iterate until less than 2 changes are made  
+    while (changes > 2 && number_of_iterations < 15){
+
+        changes = 0;
+        //iterate over all nodes in a random order
+        // for (int i = 0; i < adjacency_matrix.size(); i++){
+        // generate a random order
+        vector<int> order(neighbor_list.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(order.begin(), order.end(), g);
+    
+        for (int i : order){
+            //find the most frequent neighbor
+            if (!mask[i]){
+                continue;
+            }          
+            vector<int> neighbors (mask.size(), 0);
+            for (auto n : neighbor_list[i]){
+                neighbors[clusters[n]]+= 1;
+            }
+
+            int max_index = 0;
+            int max_value = 0;
+            for (int j = 0; j < neighbors.size(); j++){
+                if (neighbors[j] > max_value){
+                    max_value = neighbors[j];
+                    max_index = j;
+                }
+            }
+
+            //choose the new cluster among the clusters that have more than one third of the links 
+            if (max_value > 0){
+                if (clusters[i] != max_index){
+                    changes++;
+                }
+                clusters[i] = max_index;
+            }
+        }
+
+        // cout << "dopudqsop number oc changes " << changes << " ";
+        // for (auto j = 0 ; j < clusters.size() ; j++){
+        //     if (mask[j]){
+        //         cout << clusters[j] << " ";
+        //     }
+        // }
+        // cout << endl;
+        number_of_iterations += 1;
+    }
+
+    // cout << "done clustddeering" << endl;
+
+    //put -2 for masked reads
+    for (int i = 0; i < mask.size(); i++){
+        if (!mask[i]){
+            clusters[i] = -2;
+        }
+    }
+
+    //return the clusters
+    return clusters;
+}
+
+/**
+ * @brief clusters a graph using the chinese whispers algorithm
+ * 
+ * @param adjacency_matrix 
+ * @param initialClusters 
+ * @param mask 
+ * @return std::vector<int> 
+ */
+std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
     auto clusters = initialClusters;
 
     //keep track of the number of changes in the clustering
@@ -102,11 +221,9 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
             if (!mask[i]){
                 continue;
             }          
-            vector<int> neighbors (adjacency_matrix.size(), 0);
-            for (int j = 0; j < adjacency_matrix[i].size(); j++){
-                if (adjacency_matrix[i][j] >= 1 && clusters[j] >= 0){
-                    neighbors[clusters[j]]+= adjacency_matrix[i][j];
-                }
+            vector<int> neighbors (mask.size(), 0);
+            for (int j = 0; j < mask.size(); j++){
+                neighbors[clusters[j]]+= adjacency_matrix[i][j];
             }
 
             int max_index = 0;
@@ -158,7 +275,7 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> const &adjacency
  * @param mask Masked reads
  * @return std::vector<int> merged clusters
  */
-void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix, std::vector<int> &clusters, std::vector<bool> &mask){
+void merge_close_clusters(std::vector<std::vector<int>> &neighbor_list, vector<vector<int>> & adjacency_matrix_high_memory, bool low_memory, std::vector<int> &clusters, std::vector<bool> &mask){
 
     std::set<int> setOfTestedClusters;
     vector<int> initialCountOfClusters (clusters.size(), 0);
@@ -184,7 +301,7 @@ void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix,
                 //iterate over all nodes in a random order
                 // for (int i = 0; i < adjacency_matrix.size(); i++){
                 // generate a random order
-                vector<int> order(adjacency_matrix.size());
+                vector<int> order(clusters.size());
                 std::iota(order.begin(), order.end(), 0);
                 std::random_device rd;
                 std::mt19937 g(rd());
@@ -195,10 +312,13 @@ void merge_close_clusters(std::vector<std::vector<int>> const &adjacency_matrix,
                     if (!mask[i] || newclusters[i] != clusterToTest){
                         continue;
                     }          
-                    vector<int> neighbors (adjacency_matrix.size(), 0);
-                    for (int j = 0; j < adjacency_matrix[i].size(); j++){
-                        if (adjacency_matrix[i][j] >= 1 && newclusters[j] >= 0){
-                            neighbors[newclusters[j]]+= adjacency_matrix[i][j];
+                    vector<int> neighbors (mask.size(), 0);
+                    for (int j = 0; j < mask.size(); j++){
+                        if (low_memory && std::binary_search(neighbor_list[i].begin(), neighbor_list[i].end(),j) == true && newclusters[j] >= 0){
+                            neighbors[newclusters[j]]+= 1;
+                        }
+                        else if (!low_memory && adjacency_matrix_high_memory[i][j] >= 1 && newclusters[j] >= 0){
+                            neighbors[newclusters[j]]+= adjacency_matrix_high_memory[i][j];
                         }
                     }
 

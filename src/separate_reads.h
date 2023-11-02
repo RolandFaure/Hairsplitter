@@ -7,6 +7,7 @@
 #include "read.h"
 #include "Partition.h"
 #include "robin_hood.h"
+#include "tools.h"
 
 void parse_column_file(
     std::string file, 
@@ -28,13 +29,23 @@ void create_read_graph(
     int chunk, 
     int sizeOfWindow,
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
-    std::vector< std::vector<int>> &adjacency_matrix,
+    std::vector<std::vector<int>> &adjacency_matrix, //containing only the 1s
+    float &errorRate);
+
+void create_read_graph_low_memory(
+    std::vector<Column> &snps,
+    std::vector <bool> &mask,
+    int chunk,
+    int sizeOfWindow,
+    std::vector<std::vector<std::pair<int,int>>> &adjacency_matrix, //containing only the 1s
     float &errorRate);
 
 void finalize_clustering( 
     std::vector<Column> &snps,  
     std::vector<std::vector<int>> &localClusters, 
-    std::vector<std::vector<int>> &strengthened_adjacency_matrix, 
+    std::vector<std::vector<int>> &strengthened_neighbor_list, 
+    std::vector<std::vector<int>> &strengthened_adjacency_matrix_high_memory,
+    bool low_memory,
     std::vector<bool> &mask_at_this_position,
     std::vector<int> &haplotypes,
     float errorRate,
@@ -44,12 +55,18 @@ void finalize_clustering(
 std::vector<int> merge_wrongly_split_haplotypes(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps, 
-    std::vector<std::vector<int>> &adjacencyMatrix,
+    std::vector<std::vector<int>> &neighbor_list,
+    std::vector<std::vector<int>> &adjacency_matrix_high_memory,
+    bool low_memory,
     int posstart,
     int posend);
 
-std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
-    std::vector< std::vector<int>> &adjacency_matrix, std::vector <bool> &mask);
+std::vector<int> merge_clusterings(
+    std::vector<std::vector<int>> &localClusters,
+    std::vector<std::vector<int>> &neighbor_list,
+    std::vector<std::vector<int>> &adjacency_matrix_high_memory, 
+    bool low_memory, 
+    std::vector <bool> &mask);
 
 
 #endif
