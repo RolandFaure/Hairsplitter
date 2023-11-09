@@ -51,7 +51,7 @@ void parse_column_file(
     std::string line;
     int nbreadshere = 0;
     names_of_reads = vector<vector<string>>(0);
-    bool numbers = false;
+    bool numbers = false; //are snps encoded as numbers or as chars ?
     bool firstsnpline = true;
     while (std::getline(infile, line)){
         std::istringstream iss(line);
@@ -81,14 +81,13 @@ void parse_column_file(
 
             if (firstsnpline && (!std::isalpha(ref_base_string[0]) && ref_base_string[0] != '-')){
                 numbers = true;
-                
             }
             if (numbers){
                 ref_base = (char) std::stoi(ref_base_string);
                 second_frequent_base = (char) std::stoi(second_frequent_base_string);
             }
             else{
-                ref_base = ref_base_string[0];//the string should be of length 1 anyway
+                ref_base = ref_base_string[0];//the string should be of length 1
                 second_frequent_base = second_frequent_base_string[0];
             }
             firstsnpline = false;
@@ -104,10 +103,10 @@ void parse_column_file(
                         new_content += " ";
                     }
                     else if (numbers){
-                        new_content += (char) std::stoi(integer);
+                        new_content += (unsigned char) std::stoi(integer);
                     }
                     else{
-                        new_content += integer; //in this cas "integer" is actually already a char
+                        new_content += integer; //in this case "integer" is actually already a char
                     }
                     integer = "";
                 }
@@ -312,6 +311,7 @@ void create_read_graph(
 
     for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
         if (mask[read1]){
+
             vector <float> distance_with_other_reads (mask.size(), 0);
             int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
@@ -339,16 +339,6 @@ void create_read_graph(
             sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
                 return a.second > b.second;
             });
-            
-            // if (read1 == 1){
-            //     cout << "readss1 : " << read1 << endl;
-            //     for (auto r = 0 ; r < distance_with_other_reads.size() ; r ++){
-            //         if (mask[r]){
-            //             cout << r << " " << distance_with_other_reads[r] << ", ";
-            //         }
-            //     }
-            //     cout << endl;
-            // }
 
             int nb_of_neighbors = 0;
             float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
@@ -357,7 +347,15 @@ void create_read_graph(
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
             }
             if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
-                distance_threshold_above_which_two_reads_should_be_linked = 1 - errorRate;
+                //take the first two non-1 distance of smallest
+                int idx = 0;
+                while (idx < smallest.size() && smallest[idx].second == 1){
+                    idx+=1;
+                }
+                if (idx < smallest.size()){
+                    idx = min(idx+1, (int) smallest.size()-1);
+                    distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
+                }
             }
 
             for (auto neighbor : smallest){
@@ -370,13 +368,6 @@ void create_read_graph(
                     adjacency_matrix[neighbor.first][read1] = 1;
                 }
             }
-
-            // for (auto read2 = 0 ; read2 < mask.size() ; read2 ++){
-            //     if (mask[read2] && distance_with_other_reads[read2] >= threshold){
-            //         adjacency_matrix[read1][read2] = 1;
-            //         // adjacency_matrix[read2][read1] = 1;
-            //     }
-            // }
         }
     }
 
@@ -459,8 +450,12 @@ void create_read_graph_low_memory(
                 }
                 unsigned char base1 = snp.content[idx1];
 
-                int idx2 = idx1+1;
-                for (int read2 = read1+1 ; read2 < sims_and_diffs[r1].size() ; read2 ++){
+                int idx2 = 0;
+                for (int read2 = 0 ; read2 < sims_and_diffs[r1].size() ; read2 ++){
+
+                    if (read1 == read2){
+                        continue;
+                    }
 
                     // cout << "fqljdklmf " << read2 << " " << sims_and_diffs[read1].size() << endl;
                     while (idx2 < snp.readIdxs.size() && snp.readIdxs[idx2] < read2){
@@ -528,8 +523,24 @@ void create_read_graph_low_memory(
                     distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
                 }
                 if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
-                    distance_threshold_above_which_two_reads_should_be_linked = 1 - errorRate;
+                //take the first two non-1 distance of smallest
+                    int idx = 0;
+                    while (idx < smallest.size() && smallest[idx].second == 1){
+                        idx+=1;
+                    }
+                    if (idx < smallest.size()){
+                        idx = min(idx+1, (int) smallest.size()-1);
+                        distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
+                    }
                 }
+
+
+                // if (read1 == 13320){
+                //     cout << "Here looking at the neigghbor list of a big node: " << endl;
+                //     for (auto neighbor : smallest){
+                //         cout << neighbor.first << " " << neighbor.second << endl;
+                //     }
+                // }
 
                 for (auto neighbor : smallest){
                     if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
@@ -1086,6 +1097,7 @@ int main(int argc, char *argv[]){
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
+
         auto snps = snps_in[n];
         int numberOfReadsHere = numberOfReads[n];
         if (snps.size() == 0){
@@ -1152,11 +1164,9 @@ int main(int argc, char *argv[]){
                 suspectPostitionIdx++;
             } //suspectPostitionIdx is now the first position after the window
             suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
-
             if (suspectPostitionIdx > 0){
                 suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             }
-
             int idxmask = 0;
             for (auto r = 0 ; r < snps[suspectPostitionIdx].readIdxs.size() ; r++){
                 while (idxmask < snps[suspectPostitionIdx].readIdxs[r]){
@@ -1165,7 +1175,6 @@ int main(int argc, char *argv[]){
                 }
                 idxmask++;
             }
-
             suspectPostitionIdx++; //suspectPostitionIdx is now the first position after the window
 
             vector<vector<int>> neighbor_list_low_memory (numberOfReadsHere, vector<int> (0));
@@ -1203,10 +1212,6 @@ int main(int argc, char *argv[]){
             // cout << "ofudi" << endl;
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
-
-            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            // outputGraph_low_memory(neighbor_list_low_memory, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // outputGraph(adjacency_matrix, clusteredReads1, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
 
             // cout << "here are all the interesting positions" << endl;
             // for (auto p : interestingPositions){
@@ -1250,7 +1255,15 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
-            
+            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            // if (low_memory){
+            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // }
+            // else{
+            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // }
+            // exit(0);
+
             // if (debug){
             //     cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
             //     for (auto h : haplotypes){

@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.3"
-__date__ = "2023-11-02"
+__version__ = "1.6.4"
+__date__ = "2023-11-09"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
+    parser.add_argument("--skip-minigraph", help="Skip the assembly correction step. Aligning reads on very complex graphs can be time-consuming", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
@@ -109,6 +110,7 @@ def main():
     tmp_dir = args.output.rstrip('/') + "/tmp"
     path_to_python = args.path_to_python
     low_memory = args.low_memory
+    skip_minigraph = args.skip_minigraph
 
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka" and polisher != "auto":
@@ -168,7 +170,7 @@ def main():
 
     # 1. Clean the assembly using correct_structural_errors.py
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
-    print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed. Correct the assembly"
+    print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed by the assembler. Here, HairSplitter correct the assembly"
         " by making sure that all reads align end-to-end of the assembly.\n")
     sys.stdout.flush()
     
@@ -178,38 +180,41 @@ def main():
     f.close()
     
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
-    command = "python " + path_to_src + "correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
-        + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
-        + " --folder " + tmp_dir
-    print(" Running: ", command)
-    res_clean = os.system(command)
-
-    if res_clean != 0:
-        print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
-        sys.exit(1)
-
-    print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
-
-    #now check if the improved assembly is not too complicated, else fall back on the original assembly
-    #the metric is : did the N50 fall below 10kb ?
-    f = open(new_assembly, "r")
-    contigs_length = []
-    for line in f :
-        if "S" == line[0] :
-            contigs_length.append(len(line.split("\t")[2]))
-    f.close()
-    contigs_length.sort(reverse=True)
     N50 = 0
-    cumul = 0
-    total_length = sum(contigs_length)
-    for l in contigs_length :
-        cumul += l
-        if cumul > total_length/2 :
-            N50 = l
-            break
+    if not skip_minigraph :
+        command = "python " + path_to_src + "correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
+            + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
+            + " --folder " + tmp_dir
+        print(" Running: ", command)
+        res_clean = os.system(command)
+        if res_clean != 0:
+            print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
+            sys.exit(1)
 
-    if N50 < 10000 :
+        print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
+
+        #now check if the improved assembly is not too complicated, else fall back on the original assembly
+        #the metric is : did the N50 fall below 10kb ?
+        f = open(new_assembly, "r")
+        contigs_length = []
+        for line in f :
+            if "S" == line[0] :
+                contigs_length.append(len(line.split("\t")[2]))
+        f.close()
+        contigs_length.sort(reverse=True)
+        cumul = 0
+        total_length = sum(contigs_length)
+        for l in contigs_length :
+            cumul += l
+            if cumul > total_length/2 :
+                N50 = l
+                break
+
+    if N50 < 10000 and not skip_minigraph:
         print(" - The improved assembly is too complicated, falling back on the original assembly")
+        new_assembly = gfaAssembly
+    elif skip_minigraph :
+        print(" - Skipping the assembly correction step because --skip-minigraph was used")
         new_assembly = gfaAssembly
 
     # 2. Map the reads on the assembly

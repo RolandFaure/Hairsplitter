@@ -1,4 +1,3 @@
-#/usr/bin python3
 #-*- coding:utf-8 -*-
 #author = Roland Faure
 
@@ -535,17 +534,17 @@ def main():
     tmp_folder = args.folder.strip("/") + "/"
 
     #check the dependencies
-    minigraph_res = os.system(minigraph + " --version >& /dev/null")
+    minigraph_res = os.system(minigraph + " --version > /dev/null")
     if minigraph_res != 0:
         print("Error: could not find/run minigraph at specified location: ", minigraph)
         exit(1)
 
-    racon_res = os.system(args.racon + " --version >& /dev/null")
+    racon_res = os.system(args.racon + " --version > /dev/null")
     if racon_res != 0:
         print("Error: could not find/run racon at specified location: ", args.racon)
         exit(1)
 
-    minimap2_res = os.system(args.minimap2 + " --version >& /dev/null")
+    minimap2_res = os.system(args.minimap2 + " --version > /dev/null")
     if minimap2_res != 0:
         print("Error: could not find/run minimap2 at specified location: ", args.minimap2)
         exit(1)
@@ -576,10 +575,10 @@ def main():
 
     #now map the reads on the assembly graph using minigraph
     alignmentFile = tmp_folder + "tmp.gaf"
-    # minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
-    # if minigraph_res != 0:
-    #     print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
-    #     exit(1)
+    minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    if minigraph_res != 0:
+        print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
+        exit(1)
 
     #parse the alignment file : associate to each read the contig it aligns on (index only reads that do not align end-to-end)
     #reads_breakpoints = {}
