@@ -1284,14 +1284,14 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
-            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            if (low_memory){
-                outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            }
-            else{
-                outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            }
-            exit(0);
+            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            // if (low_memory){
+            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // }
+            // else{
+            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // }
+            // exit(0);
 
             // if (debug){
             //     cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
