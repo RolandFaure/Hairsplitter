@@ -214,7 +214,7 @@ def main():
         print(" - The improved assembly is too complicated, falling back on the original assembly")
         new_assembly = gfaAssembly
     elif skip_minigraph :
-        open(logFile, "w")
+        f = open(logFile, "w")
         f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
         f.write(" - Skipping the assembly correction step because --skip-minigraph was used")
         f.close()
@@ -268,7 +268,6 @@ def main():
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
     f.write(" - Aligning the reads on the assembly\n")
-    f.close(command)
     f.close()
     res_minimap = os.system(command)
     if res_minimap != 0 :
