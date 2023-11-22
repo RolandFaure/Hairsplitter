@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.4"
-__date__ = "2023-11-09"
+__version__ = "1.6.5"
+__date__ = "2023-11-22"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -174,11 +174,6 @@ def main():
         " by making sure that all reads align end-to-end of the assembly.\n")
     sys.stdout.flush()
     
-    #write in the log file where to look in case of error
-    f = open(logFile, "w")
-    f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
-    
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     N50 = 0
     if not skip_minigraph :
@@ -186,6 +181,11 @@ def main():
             + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
             + " --folder " + tmp_dir
         print(" Running: ", command)
+        #write in the log file where to look in case of error
+        f = open(logFile, "w")
+        f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
+        f.write(command)
+        f.close()
         res_clean = os.system(command)
         if res_clean != 0:
             print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
@@ -214,6 +214,10 @@ def main():
         print(" - The improved assembly is too complicated, falling back on the original assembly")
         new_assembly = gfaAssembly
     elif skip_minigraph :
+        open(logFile, "w")
+        f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
+        f.write(" - Skipping the assembly correction step because --skip-minigraph was used")
+        f.close()
         print(" - Skipping the assembly correction step because --skip-minigraph was used")
         new_assembly = gfaAssembly
 
@@ -221,14 +225,15 @@ def main():
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
-    #write in the log file the time at which the alignment starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
-
     # 2.1. Cut the contigs in chunks of 300000bp to avoid memory issues
     print(" - Cutting the contigs in chunks of 300000bp to avoid memory issues")
     command = "python " + path_to_src + "cut_gfa.py -a " + new_assembly + " -l 300000 -o " + tmp_dir + "/cut_assembly.gfa"
+    #write in the log file the time at which the alignment starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
+    f.write(" - Cutting the contigs in chunks of 300000bp to avoid memory issues\n")
+    f.write(command)
+
     res_cut_gfa = os.system(command)
     if res_cut_gfa != 0 :
         print("ERROR: cut_gfa.py failed. Was trying to run: " + command)
@@ -239,6 +244,9 @@ def main():
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
     command = path_to_src + "build/gfa2fa " + new_assembly + " > " + fastaAsm
+    f.write(" - Converting the assembly in fasta format\n")
+    f.write(command)
+    f.close()
     res_gfa2fasta = os.system(command)
     if res_gfa2fasta != 0 :
         print("ERROR: gfa2fa failed UUE. Was trying to run: " + command)
@@ -257,6 +265,11 @@ def main():
 
     command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a -N 1 -t "+ str(nb_threads) +" > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
     print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
+    #write in the log file the time at which the alignment starts
+    f = open(logFile, "a")
+    f.write(" - Aligning the reads on the assembly\n")
+    f.close(command)
+    f.close()
     res_minimap = os.system(command)
     if res_minimap != 0 :
         print("ERROR: minimap2 failed. Was trying to run: " + command)
@@ -272,9 +285,6 @@ def main():
     sys.stdout.flush()
 
     #write in the log file the time at which the variant calling starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
 
     error_rate_file = tmp_dir + "/error_rate.txt"
     flag_debug = "0"
@@ -282,6 +292,10 @@ def main():
         flag_debug = "1"
     command = path_to_src + "build/call_variants " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
         + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
+    f.write(command)
+    f.close()
     # print(" - Calling variants with a basic pileup")
     print(" Running: ", command)
     res_call_variants = os.system(command)
@@ -332,14 +346,14 @@ def main():
     print("\n===== STAGE 4: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
-    #write in the log file the time at which the separation starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
-
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
     command = path_to_src + "build/separate_reads " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(int(low_memory)) \
         + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
+    #write in the log file the time at which the separation starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
+    f.write(command)
+    f.close()
     print(" - Separating reads by haplotype of origin")
     print(" Running: ", command)
     res_separate_reads = os.system(command)
@@ -355,11 +369,6 @@ def main():
     print("\n===== STAGE 5: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     sys.stdout.flush()
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <python> <debug>" 
-    
-    #write in the log file the time at which the new contigs creation starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
 
     if polisher == "auto" :
         if os.path.getsize(args.assembly) < 1000000 and args.technology == "ont" :
@@ -392,6 +401,11 @@ def main():
         + path_to_python + " " \
         + flag_debug
     print(" Running : ", command)
+    #write in the log file the time at which the new contigs creation starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
+    f.write(command)
+    f.close()
     res_create_new_contigs = os.system(command)
     if res_create_new_contigs != 0:
         print("ERROR: create_new_contigs failed. Was trying to run: " + command)
@@ -406,11 +420,6 @@ def main():
     print("\n===== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
-    #write in the log file the time at which the untangling starts
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
-    f.close()
-
     simply = ""
     if args.dont_simplify :
         simply = " --dont_merge -r"
@@ -422,7 +431,12 @@ def main():
     #     meta = ""
 
     command = "python " + path_to_src + "GraphUnzip/graphunzip.py unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
-          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt";
+          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
+    #write in the log file the time at which the untangling starts
+    f = open(logFile, "a")
+    f.write("\n==== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
+    f.write(command)
+    f.close()
     print( " - Running GraphUnzip with command line:\n     ", command, "\n   The log of GraphUnzip is written on ",tmp_dir+"/logGraphUnzip.txt\n")
     resultGU = os.system(command)
     if resultGU != 0 :

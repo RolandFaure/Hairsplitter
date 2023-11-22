@@ -142,9 +142,11 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> &neighbor_list, 
             if (!mask[i]){
                 continue;
             }          
-            vector<int> neighbors (mask.size(), 0);
+            vector<int> neighbors (neighbor_list.size(), 0);
             for (auto n : neighbor_list[i]){
-                neighbors[clusters[n]]+= 1;
+                if (clusters[n] >= 0){
+                    neighbors[clusters[n]]+= 1;
+                }
             }
 
             int max_index = 0;
@@ -223,7 +225,9 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
             }          
             vector<int> neighbors (mask.size(), 0);
             for (int j = 0; j < mask.size(); j++){
-                neighbors[clusters[j]]+= adjacency_matrix[i][j];
+                if (adjacency_matrix[i][j] >= 1 && clusters[j] >= 0){
+                    neighbors[clusters[j]]+= 1;
+                }
             }
 
             int max_index = 0;

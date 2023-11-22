@@ -225,7 +225,7 @@ void list_similarities_and_differences_between_reads(
             while (idx1 < snp.readIdxs.size() && snp.readIdxs[idx1] < read1){
                 idx1++;
             }
-            if (snp.readIdxs[idx1] > read1){
+            if (idx1 >= snp.readIdxs.size() || snp.readIdxs[idx1] > read1){
                 // if (debug_interesting_reads.find(read1) != debug_interesting_reads.end()){
                 //     debug_strings[read1] += " ";
                 // }
@@ -341,19 +341,19 @@ void create_read_graph(
             });
 
             int nb_of_neighbors = 0;
-            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
+            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
             float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
             }
             if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
-                //take the first two non-1 distance of smallest
+                //take the first five non-1 distance of smallest
                 int idx = 0;
                 while (idx < smallest.size() && smallest[idx].second == 1){
                     idx+=1;
                 }
                 if (idx < smallest.size()){
-                    idx = min(idx+1, (int) smallest.size()-1);
+                    idx = min(idx+4, (int) smallest.size()-1);
                     distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
                 }
             }
@@ -402,6 +402,11 @@ void create_read_graph_low_memory(
     int batch_size = 1000;
     for (int batch = 0 ; batch*batch_size < mask.size() ; batch++){
 
+        // if (batch != 11 && batch != 12 && batch != 22){
+        //     cout << "iqcsuibdbfoin" << endl;
+        //     continue;
+        // }
+
         int firstRead = batch*batch_size;
         int lastRead = min((batch+1)*batch_size-1, (int) mask.size()-1);
         int nb_reads_batch = lastRead - firstRead + 1;
@@ -445,7 +450,7 @@ void create_read_graph_low_memory(
                 while (idx1 < snp.readIdxs.size() && snp.readIdxs[idx1] < read1){
                     idx1++;
                 }
-                if (snp.readIdxs[idx1] > read1){
+                if (idx1 >= snp.readIdxs.size() || snp.readIdxs[idx1] > read1){
                     continue;
                 }
                 unsigned char base1 = snp.content[idx1];
@@ -486,6 +491,10 @@ void create_read_graph_low_memory(
 
         for (int r1 = 0 ; r1 < sims_and_diffs.size(); r1 ++){
             int read1 = r1+firstRead;
+            // if (read1 != 11645 && read1 != 12747 && read1 != 22677){
+            //     cout << "dsiodiccsz " << read1 << endl;
+            //     continue;
+            // }
             if (mask[read1]){
 
                 vector <float> distance_with_other_reads (mask.size(), 0);
@@ -516,31 +525,24 @@ void create_read_graph_low_memory(
                     return a.second > b.second;
                 });
 
+
                 int nb_of_neighbors = 0;
-                float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*5;
+                float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
                 float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
                 if (smallest.size() > 1){
                     distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
                 }
                 if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
-                //take the first two non-1 distance of smallest
+                    //take the first five non-1 distance of smallest
                     int idx = 0;
                     while (idx < smallest.size() && smallest[idx].second == 1){
                         idx+=1;
                     }
                     if (idx < smallest.size()){
-                        idx = min(idx+1, (int) smallest.size()-1);
+                        idx = min(idx+4, (int) smallest.size()-1);
                         distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
                     }
                 }
-
-
-                // if (read1 == 13320){
-                //     cout << "Here looking at the neigghbor list of a big node: " << endl;
-                //     for (auto neighbor : smallest){
-                //         cout << neighbor.first << " " << neighbor.second << endl;
-                //     }
-                // }
 
                 for (auto neighbor : smallest){
                     if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
@@ -548,10 +550,22 @@ void create_read_graph_low_memory(
                         && mask[neighbor.first]){
                         nb_of_neighbors++;
 
+                        if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
+                            cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
+                        }
+
                         neighbor_list_low_memory[read1].push_back(neighbor.first);
                         neighbor_list_low_memory[neighbor.first].push_back(read1);
                     }
                 }
+
+                // if (read1 == 11645){
+                //     cout << "here is sims for read 11645 : " << endl;
+                //     for (auto r = 0 ; r < sims_and_diffs[r1].size() ; r++){
+                //         cout << sims_and_diffs[r1][r].first << " " << sims_and_diffs[r1][r].second << " " << distance_with_other_reads[r] << endl;
+                //     }
+                //     exit(1);
+                // }
             }
         }
     }
@@ -702,6 +716,11 @@ void finalize_clustering(
     //however, they should not be actually separated in snps: merge them
 
     if (low_memory){
+        // cout << "lendidi sep reads " << strengthened_neighbor_list.size() << " " << mergedHaplotypes.size() << endl;
+        // for (auto i : mergedHaplotypes){
+        //     cout << i << " ";
+        // }  
+        cout << endl;
         haplotypes = chinese_whispers(strengthened_neighbor_list, mergedHaplotypes, mask_at_this_position);
     }
     else{
@@ -754,6 +773,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
     set<int> listOfGroups;
     int max_cluster = 0;
     unordered_map<int, int> indexOfGroups;
+    unordered_map<int,int> sizeOfGroups;
 
     int index = 0;
     for (auto read = 0 ; read < clusteredReads.size() ; read++){
@@ -762,7 +782,9 @@ std::vector<int> merge_wrongly_split_haplotypes(
             if (indexOfGroups.find(clusteredReads[read]) == indexOfGroups.end()){
                 indexOfGroups[clusteredReads[read]] = index;
                 index++;
+                sizeOfGroups[clusteredReads[read]] = 0;
             }
+            sizeOfGroups[clusteredReads[read]] += 1;
         }
     }
     vector<vector<int>> imcompatibilities (listOfGroups.size(), vector<int> (listOfGroups.size(), 0));
@@ -858,7 +880,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
             for (auto group1 : listOfGroups){
                 for (auto group2 : listOfGroups){
                     if (cluster_to_majority_base[group1] != ' ' && cluster_to_majority_base[group2] != ' ' && group1 > group2){
-                        if (cluster_to_majority_base[group1] != cluster_to_majority_base[group2] && snp.pos - pos_of_last_incompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] > 10){ //>5 to make sure it's not two close snps
+                        if (cluster_to_majority_base[group1] != cluster_to_majority_base[group2] && snp.pos - pos_of_last_incompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] > 10){ //>10 to make sure it's not two close snps
 
                             // if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] <= 1){
                             //     cout << "fqdsttewlj sep reads are incompatible " << group1 << " " << group2 << " " << snp.pos << " " << "ACGT-"[cluster_to_majority_base[group1]%5]
@@ -915,9 +937,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
     // cout << "imcompatibilities computed : " << endl;
     // for (auto group1 : listOfGroups){
     //     for (auto group2 : listOfGroups){
-    //         if (imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]]){
-    //             cout << "incompatiebility btw " << group1 << " and " << group2 << endl;
-    //         }
+    //         cout << "incompatiebility btw " << group1 << " (" << sizeOfGroups[group1] << ") and " << group2 << " (" << sizeOfGroups[group2] << ") "  << imcompatibilities[indexOfGroups[group1]][indexOfGroups[group2]] << endl;
     //     }
     //     cout << endl;
     // }
@@ -1005,7 +1025,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
         }
     }
 
-    //re-nomber the clusters
+    //re-number the clusters
     unordered_map <int, int> new_group_to_index;
     int new_group_index = 0;
     for (auto group : listOfGroups){
@@ -1098,6 +1118,11 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
+        // if (name_of_contigs[n].substr(7,8) !=  "edge_134"){
+        //     cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
+        //     continue;
+        // }
+
         auto snps = snps_in[n];
         int numberOfReadsHere = numberOfReads[n];
         if (snps.size() == 0){
@@ -1126,6 +1151,10 @@ int main(int argc, char *argv[]){
         int chunk = -1;
         int upperBound;
         while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
+            // if (chunk == 0){
+            //     cout << "csksdlk " << endl;
+            //     continue;
+            // }
             chunk++;
             upperBound = (chunk+1)*sizeOfWindow;
             if ((chunk+1)*sizeOfWindow + 100 > length_of_contigs[n]){ //to avoid having extremely short terminal windows
@@ -1255,14 +1284,14 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
-            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            // if (low_memory){
-            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // }
-            // else{
-            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // }
-            // exit(0);
+            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            if (low_memory){
+                outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            }
+            else{
+                outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            }
+            exit(0);
 
             // if (debug){
             //     cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
