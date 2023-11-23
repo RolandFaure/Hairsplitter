@@ -57,11 +57,11 @@ class Contig:
             for already_link in links.keys() :
                 # if link[2] == "edge_30":
                 #     print("Comparing ", already_link, " and ", link)
-                if (link[2] == "*" and already_link[2] == "*") and abs(link[0]-already_link[0]) < resolution*2 and link[1] == already_link[1] :
+                if (link[2] == "*" and already_link[2] == "*") and abs(link[0]-already_link[0]) < 200 and link[1] == already_link[1] :
                     links[already_link].append(link[-4:])
                     added = True
                     break
-                elif link[2] != "*" and abs(link[0]-already_link[0]) < resolution*2 and link[1] == already_link[1] and link[2]==already_link[2] and abs(link[3]-already_link[3]) < resolution*2 and link[4] == already_link[4] :  
+                elif link[2] != "*" and abs(link[0]-already_link[0]) < 200 and link[1] == already_link[1] and link[2]==already_link[2] and abs(link[3]-already_link[3]) < 200 and link[4] == already_link[4] :  
                     links[already_link].append(link[-4:])
                     added = True
 
@@ -77,6 +77,8 @@ class Contig:
                 # print(k)
                 self.future_links[k] = links[k]
                 # print(k, " ", links[k])
+                
+
         # print(self.future_links)
         # if (len(links) > 0) :
         #     sys.exit(1)
@@ -235,7 +237,10 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
                     seq_repolished += line.strip()
         seq_repolished = seq[pos_on_read_left:pos_on_read_right]
         nameOfNewContig = "join_" + contigName +"_"+ str(pos_on_contig_left) + "_" + new_link[2]+"_"+str(pos_on_contig_right)
+        if nameOfNewContig in contigs.keys() : #oops, same link twice
+            return
         new_contig = Contig(nameOfNewContig, seq_repolished)
+
         if orientation_repolished == ">" :
             new_contig.neighbors.add((0, "-", contigName, pos_on_contig_left, new_link[1], "0M"))
             contigs[contigName].neighbors.add((pos_on_contig_left, new_link[1], nameOfNewContig, 0, "-", "0M"))
@@ -432,7 +437,6 @@ def output_gfa(contigs, nameOfFile):
         for i in range(len(breakpoints)-1):
 
             new_contigs[contig + "_" + str(breakpoints[i]) + "_" + str(breakpoints[i+1])] = Contig(contig + "_" + str(breakpoints[i]) + "_" + str(breakpoints[i+1]), contigs[contig].sequence[breakpoints[i]:breakpoints[i+1]])
-            
             name_of_new_contigs[(contig, breakpoints[i])] = [contig + "_" + str(breakpoints[i]) + "_" + str(breakpoints[i+1])]
             if i > 0 :
                 name_of_new_contigs[(contig, breakpoints[i])].append(contig + "_" + str(breakpoints[i-1]) + "_" + str(breakpoints[i]))
@@ -444,7 +448,6 @@ def output_gfa(contigs, nameOfFile):
 
         # print("iddidizf ", contig, " ", breakpoints)
         name_of_new_contigs[(contig, breakpoints[-1])] = ["*", contig + "_" + str(breakpoints[-2]) + "_" + str(breakpoints[-1])]
-
 
     #create the links
     for contig in contigs.keys():
@@ -464,6 +467,7 @@ def output_gfa(contigs, nameOfFile):
                     nameOfThisContig = name_of_new_contigs[(contig, neighbor[0])][0]
                     positionOnThisContig = 0
                 
+                # print("Building link between ", contig, " ", neighbor[0], " and ", neighbor[2], " ", neighbor[3], " with lengths ", contigs[contig].length, " ", contigs[neighbor[2]].length)
                 if neighbor[4] == "+" :
                     nameOfOtherContig = name_of_new_contigs[(neighbor[2], neighbor[3])][1]
                     positionOnOtherContig = new_contigs[nameOfOtherContig].length
@@ -574,11 +578,12 @@ def main():
                 contigs[ls[3]].neighbors.add((pos_other_contig, orientation_on_other_contig, ls[1], pos_this_contig, orientation_on_this_contig, ls[5]))
 
     #now map the reads on the assembly graph using minigraph
-    alignmentFile = tmp_folder + "tmp.gaf"
-    minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
-    if minigraph_res != 0:
-        print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
-        exit(1)
+    # alignmentFile = tmp_folder + "tmp.gaf"
+    # minigraph_res = os.system(minigraph + " -c -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    # if minigraph_res != 0:
+    #     print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
+    #     exit(1)
+    alignmentFile = "tmp.gaf"
 
     #parse the alignment file : associate to each read the contig it aligns on (index only reads that do not align end-to-end)
     #reads_breakpoints = {}
