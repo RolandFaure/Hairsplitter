@@ -1082,7 +1082,7 @@ std::string alternative_backbone(std::string &sam_file, std::string &backbone){
 std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_folder, string &id){
 
     //first do the all-vs-all alignment using minimap2
-    string com = MINIMAP + " -X -cx ava-pb " + read_file + " " + read_file + " > " + tmp_folder + "all_vs_all_"+id+".paf 2>" + tmp_folder + "trash.txt";
+    string com = MINIMAP + " -t 1 -X -cx ava-pb " + read_file + " " + read_file + " > " + tmp_folder + "all_vs_all_"+id+".paf 2>" + tmp_folder + "trash.txt";
     auto res = system(com.c_str());
     if (res != 0){
         cout << "ERROR minimap2 failed, while running " << com << endl;
@@ -1226,9 +1226,9 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                         already_used_contigs.emplace(current_read);
 
                     
-                        cout << "movingd on tho " << current_read << " thanks to overlap : " << endl;
-                        cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
-                        cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+                        // cout << "movingd on tho " << current_read << " thanks to overlap : " << endl;
+                        // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
+                        // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
                         break;
                     }
@@ -1255,7 +1255,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                         current_read = overlap.name2;
                         current_strand = next_read.strand;
                         already_used_contigs.emplace(current_read);
-                        cout << "movingd on ztho " << current_read << endl;
+                        // cout << "movingd on ztho " << current_read << endl;
 
                         break;
                     }
