@@ -682,7 +682,7 @@ void finalize_clustering(
     }
     for (auto r = 0 ; r < clusteredReads.size() ; r++){
 
-        float minSizeOfCluster = min(float(5.0),max(float(3.0), errorRate*100)); //with HiFi reads, we can find clusters of size 3
+        float minSizeOfCluster = 5;
 
         if (clusterSizes[clusteredReads[r]] < minSizeOfCluster && clusteredReads[r] != -2){
             clusteredReads[r] = -1;

@@ -171,39 +171,6 @@ def simple_unzip(segments, names, gafFile) :
             co += 1
         pa += 1
 
-    # #delete all the links that are not supported by any read
-    # for segment in segments :
-    #     links_supported = set()
-    #     for p in on_which_paths_is_this_contig[segment] :
-
-    #         contigs = paths[p[0]].get_contigs()
-    #         orientations = paths[p[0]].get_orientations()
-    #         index = p[1]
-
-    #         if index > 0 :
-    #             end = 0
-    #             if orientations[index] == "<" :
-    #                 end = 1
-    #             otherend = 1
-    #             if orientations[index-1] == "<" :
-    #                 otherend = 0
-    #             nbOfLink = sg.find_this_link(contigs[index-1], otherend, segment.links[end], segment.otherEndOfLinks[end])
-    #             links_supported.add((segment, end, contigs[index-1], otherend))
-
-    #         if index < len(contigs) - 1 :
-    #             end = 1
-    #             if orientations[index] == "<" :
-    #                 end = 0
-    #             otherend = 0
-    #             if orientations[index+1] == "<" :
-    #                 otherend = 1
-    #             nbOfLink = sg.find_this_link(contigs[index+1], otherend, segment.links[end], segment.otherEndOfLinks[end])
-    #             links_supported.add((segment, end, contigs[index+1], otherend))
-
-    #     print("Fro icisz segment ", segment.names, " links toward ", [i[2].names for i in links_supported], " are supported")
-
-
-
     toDelete = set()
     go_on = True
     while go_on :
@@ -330,7 +297,7 @@ def simple_unzip(segments, names, gafFile) :
                         if pair[1] >= 0 :
                             sg.add_link(segment.links[1][pair[1]], segment.otherEndOfLinks[1][pair[1]], new_segment, 1, CIGAR = segment.CIGARs[1][pair[1]])
 
-                        # print("Pair to duplicate : ", pair, " ", pair_to_paths[pair])
+                        print("Pair to duplicate : ", pair, " ", pair_to_paths[pair])
                         for pa in pair_to_paths[pair] :
                             # if pa[0] == 6 :
                             #     print("1055 is heer e ", paths[pa[0]], " ", segment.ID, " ", new_segment.ID, " ", [i.ID for i in paths[pa[0]].get_contigs()])
@@ -379,7 +346,7 @@ def remove_unsupported_links(segments, names, lines):
     #inventory of the links in the lines
     links = set()
     for line in lines :
-        cont = re.split('[><]' , line[1])
+        cont = re.split('[><]' , line[1].rstrip())
         orientations = "".join(re.findall("[<>]", line[1]))
         del cont[0] #because the first element is always ''
         try : #TO BE REMOVE IN FUTURE VERSIONS

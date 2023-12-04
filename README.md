@@ -17,15 +17,7 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 A conda package is in preparation but is not available yet. For now, it is necessary to download and compile the code.
 
-## Dependancies
-
-### Quick conda dependancies
-
-The recommended way to install HairSplitter is to create and activate a conda/mamba environment with all dependencies: 
-```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 samtools medaka binutils
-conda activate hairsplitter
-```
+## Dependencies
 
 ### List of dependencies
 
@@ -36,6 +28,14 @@ conda activate hairsplitter
 - Python3 with numpy and scipy
 
 If Minimap2, Racon, Medaka or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon`, `path-to-medaka` or `--path-to-samtools` options.
+ 
+### Quick conda dependencies
+
+The recommended way to install HairSplitter is to create and activate a conda/mamba environment with all dependencies: 
+```
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 samtools medaka binutils
+conda activate hairsplitter
+``` 
  
 ## Download & Compilation
 

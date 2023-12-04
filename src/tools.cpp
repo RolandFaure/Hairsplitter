@@ -353,7 +353,7 @@ string consensus_reads(
             newbackbone = basic_assembly(outFolder+"reads_"+id+".fasta", MINIMAP, outFolder, id);
         }
         if (newbackbone == ""){
-            newbackbone  = polishingReads[0];
+            newbackbone  = backbone;
             if (newbackbone == "") { //very bizarre
                 return backbone;
             }
@@ -1082,11 +1082,13 @@ std::string alternative_backbone(std::string &sam_file, std::string &backbone){
 std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_folder, string &id){
 
     //first do the all-vs-all alignment using minimap2
-    string com = MINIMAP + " -t 1 -X -cx ava-pb " + read_file + " " + read_file + " > " + tmp_folder + "all_vs_all_"+id+".paf 2>" + tmp_folder + "trash.txt";
+    string max_allowed_time = "600s";
+    string com = "timeout " + max_allowed_time + " " + MINIMAP + " -t 1 -X -cx ava-ont " + read_file + " " + read_file + " > " + tmp_folder + "all_vs_all_"+id+".paf 2>" + tmp_folder + "trash.txt";
     auto res = system(com.c_str());
     if (res != 0){
-        cout << "ERROR minimap2 failed, while running " << com << endl;
-        exit(1);
+        // cout << "ERROR minimap2 failed or time outed, while running (m)" << com << endl;
+        // exit(1);
+        return ""; //this may be a timeout (can happen on centromeric/telomeric regions)
     }
     string paf_file = tmp_folder + "all_vs_all_"+id+".paf";
 

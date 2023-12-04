@@ -55,7 +55,7 @@ def parse_args_unzip() :
     
     groupInput.add_argument("-g", "--gfa", required = True, help="""GFA file to phase""")
     groupInput.add_argument(
-        "-r", "--fastq", required = True, help="""Fastq file of the reads"""
+        "-r", "--fastq", required = False, default="",help="""Fastq file of the reads if you want GraphUnzip to repolish contigs [recommended]"""
     )
     groupInput.add_argument(
         "-i",
@@ -424,7 +424,8 @@ def main():
         #compute the copiesnumber
         print(" Repolishing the contigs we can repolish")
         copies = sg.compute_copiesNumber(segments)
-        repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
+        if fastqFile != "" : 
+            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
 
         # now exporting the output  
         print("Now exporting the result")
