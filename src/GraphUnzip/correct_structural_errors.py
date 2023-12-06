@@ -652,42 +652,13 @@ def main():
 
     #now map the reads on the assembly graph using minigraph
     #first map the reads without the CIGAR to see what reads are not mapped end-to-end
-    print("First alignment of the reads on the assembly graph...")
-    alignmentFile = tmp_folder + "tmp0.gaf"
-    # minigraph_res = os.system(minigraph + " -N 0 -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
-    not_mapped_end_to_end = set()
-    with open(alignmentFile, "r") as f:
-        for line in f:
-            ls = line.strip().split("\t")            
-            min_length_for_breakpoint = min(0.2*int(ls[1]), 100)
-            if (int(ls[2]) > min_length_for_breakpoint or int(ls[1])-int(ls[3]) > min_length_for_breakpoint) and ls[11] == "60" :
-                not_mapped_end_to_end.add(ls[0])
+    print("Alignment of the reads on the assembly graph...")
 
-    #create a new file with only the reads that are not mapped end-to-end
-    reads_file = tmp_folder + "reads_not_mapped_end_to_end."+reads.split(".")[-1]
-    fi = open(reads, "r")
-    fo = open(reads_file, "w")
-    write = False
-    for line in fi:
-        if line[0] == ">" or line[0] == "@" :
-            read_name = line.strip().split()[0][1:]
-            # print("read name ", read_name)
-            if read_name in not_mapped_end_to_end :
-                fo.write(line)
-                fo.write(fi.readline())
-                write = True
-            else :
-                write = False
-        elif write == True :
-            fo.write(line)
-    fo.close()
-    fi.close()
-    print("Now aligning the reads that are not mapped end-to-end with basepair resolution...")
     alignmentFile = tmp_folder + "tmp.gaf"
-    # minigraph_res = os.system(minigraph + " -c --secondary=no -t " + str(threads) + " " + assembly + " " + reads_file + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
-    # if minigraph_res != 0:
-    #     print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads_file + " > " + alignmentFile)
-    #     exit(1)
+    minigraph_res = os.system(minigraph + " -c --secondary=no -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    if minigraph_res != 0:
+        print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
+        exit(1)
 
     print("Moving on to the breakpoint detection and graph adjustments...")
 
