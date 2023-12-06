@@ -23,7 +23,7 @@ Read::Read(std::string s, size_t size)
     size_ = size;
 }
 
-void Read::set_sequence(std::string &s){ //s can be empty if we want to free the sequence
+void Read::set_sequence(std::string s){ //s can be empty if we want to free the sequence
     //include a mutex here so that only one thread at a time can modify the sequence
     std::mutex mutx;
     mutx.lock();

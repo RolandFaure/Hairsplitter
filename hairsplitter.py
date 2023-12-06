@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.6"
-__date__ = "2023-12-04"
+__version__ = "1.6.7"
+__date__ = "2023-12-06"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -177,7 +177,7 @@ def main():
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     N50 = 0
     if not skip_minigraph :
-        command = "python " + path_to_src + "correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
+        command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
             + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
             + " --folder " + tmp_dir
         print(" Running: ", command)

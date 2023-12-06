@@ -267,13 +267,14 @@ def get_contig_GFA(gfaFile, contig, contigOffset):
         if len(sline) >= 3 and sline[0] == 'S' and (contig in sline[1]):
             extra_tags = ''
             depth = ''
-            tags = sline[3].split()
-            for f in tags :
-                if 'dp' in f or 'DP' in f or 'KC' in f or 'RC' in f:
-                    depth = f
-                else :
-                    extra_tags += f + ' '
-            extra_tags = extra_tags.strip(" ")
+            if len(sline) > 3 :
+                tags = sline[3].split()
+                for f in tags :
+                    if 'dp' in f or 'DP' in f or 'KC' in f or 'RC' in f:
+                        depth = f
+                    else :
+                        extra_tags += f + ' '
+                extra_tags = extra_tags.strip(" ")
             
             sequence = sline[2]
             if sequence == "*" :
@@ -452,7 +453,7 @@ def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAss
                         seq = sequences[c]
                     if segment.orientations[c] == 0 :
                         seq = seq[::-1]
-                        complement_dict = {'A': 'T', 'C': 'G', 'T': 'A', 'G': 'C'}
+                        complement_dict = {'A': 'T', 'C': 'G', 'T': 'A', 'G': 'C', 'N': 'N'}
                         seq = ''.join([complement_dict[base] for base in seq])
                     if c > 0 :
                         CIGARlength = np.sum([int(i) for i in re.findall(r'\d+', segment.insideCIGARs[c-1])])
@@ -479,7 +480,7 @@ def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAss
                 
             for endOfSegment in range(2) :
                 for n, neighbor in enumerate(segment.links[endOfSegment]):
-                    if segment.ID < neighbor.ID : #to write each link just one
+                    if segment.ID < neighbor.ID or (segment.ID == neighbor.ID and endOfSegment <= segment.otherEndOfLinks[endOfSegment][n]) : #to write each link just one
                         orientation1, orientation2 = '+', '+'
                         if endOfSegment == 0 :
                             orientation1 = '-'
@@ -626,3 +627,5 @@ def load_gfa(file):
     delete_links_present_twice(segments)
 
     return segments, names
+
+
