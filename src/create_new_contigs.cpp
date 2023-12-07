@@ -230,11 +230,6 @@ void modify_GFA(
             parse_reads_on_contig(readsFile, backbones_reads[b], allOverlaps, allreads);
         }
 
-        // if (allreads[backbones_reads[b]].name != "edge_33@0"){
-        //     cout << "edgge 1dd0" << endl;
-        //     continue;
-        // }
-
         //then separate the contigs
 
         string local_log_text = ""; //text that will be printed out in the output.txt generated in this thread
@@ -244,7 +239,7 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
-        // if (allreads[backbones_reads[b]].name != "edge_33@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_4_0_46484@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -381,7 +376,7 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 232000){
+                // if (interval.first.first != 0){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;

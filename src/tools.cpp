@@ -352,6 +352,7 @@ string consensus_reads(
         else{ //bib problem in aln so reassemble
             newbackbone = basic_assembly(outFolder+"reads_"+id+".fasta", MINIMAP, outFolder, id);
         }
+
         if (newbackbone == ""){
             newbackbone  = backbone;
             if (newbackbone == "") { //very bizarre
@@ -1198,10 +1199,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     // cout << "starting with read " << current_read << endl;
 
-    while (current_read != ""){
-
-        current_read = ""; //means it could not extend
-
+    string new_current_read = current_read;
+    while (new_current_read != ""){
+        current_read = new_current_read;
+        new_current_read = ""; //means it could not extend
         //look for next read
         for (Overlap_minimap overlap : reads[current_read]){
             //now see if this extends left
@@ -1223,12 +1224,12 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
                     if (next_read.end - next_read.start > 0){
                         new_contig.push_back(next_read);
-                        current_read = overlap.name2;
+                        new_current_read = overlap.name2;
                         current_strand = next_read.strand;
                         already_used_contigs.emplace(current_read);
 
                     
-                        // cout << "movingd on tho " << current_read << " thanks to overlap : " << endl;
+                        // cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
                         // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                         // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1237,6 +1238,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                 }
             }
             else{
+
                 if (overlap.start1 == 0 && already_used_contigs.find(overlap.name2) == already_used_contigs.end() ){ //let's extend
                     contig_parts next_read;
                     next_read.read = overlap.name2;
@@ -1254,16 +1256,17 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
                     if (next_read.end - next_read.start > 0){
                         new_contig.push_back(next_read);
-                        current_read = overlap.name2;
+                        new_current_read = overlap.name2;
                         current_strand = next_read.strand;
                         already_used_contigs.emplace(current_read);
-                        // cout << "movingd on ztho " << current_read << endl;
+                        // cout << "movingd on ztho " << new_current_read << endl;
 
                         break;
                     }
                 }
             }
         }
+        
     }
 
     //now extend to the left
@@ -1271,8 +1274,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     current_read = new_contig[0].read;
     current_strand = new_contig[0].strand;
     vector<contig_parts> new_contig_left_reversed;
-    while (current_read != ""){
-        current_read = ""; //means it could not extend
+    new_current_read = current_read;
+    while (new_current_read != ""){
+        current_read = new_current_read;
+        new_current_read = ""; //means it could not extend
         //look for next read
         for (Overlap_minimap overlap : reads[current_read]){
             //now see if this extends left
@@ -1294,10 +1299,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
                     if (next_read.end - next_read.start > 0){
                         new_contig_left_reversed.push_back(next_read);
-                        current_read = overlap.name2;
+                        new_current_read = overlap.name2;
                         current_strand = next_read.strand;
                         already_used_contigs.emplace(current_read);
-                        // cout << "movingd on Atho " << current_read << endl;
+                        // cout << "movingd on Atho " << new_current_read << endl;
                         // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                         // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1323,10 +1328,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
                     if (next_read.end - next_read.start > 0){
                         new_contig_left_reversed.push_back(next_read);
-                        current_read = overlap.name2;
+                        new_current_read = overlap.name2;
                         current_strand = next_read.strand;
                         already_used_contigs.emplace(current_read);
-                        // cout << "movingd on ptho " << current_read << endl;
+                        // cout << "movingd on ptho " << new_current_read << endl;
 
                         break;
                     }
@@ -1335,8 +1340,6 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         }
 
     }
-
-    // cout << "rebuilding contig " << endl;
 
     vector<contig_parts> new_contig_full;
     //reverse the left part
@@ -1347,6 +1350,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     for (auto c : new_contig){
         new_contig_full.push_back(c);
     }
+
 
     //parse the read files to get the sequences
     std::unordered_map<string, string> reads_sequences;

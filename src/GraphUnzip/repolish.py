@@ -268,7 +268,8 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     racon = os.system(command)
                     if racon != 0 :
                         print("Error while running racon: " + command + "\n")
-                        sys.exit(1)
+                        os.system("cp tmp_contig.fa tmp_repolished.fa")
+                        # sys.exit(1)
 
                     #now retrieve the repolished sequence
                     with open("tmp_repolished.fa", 'r') as repolished :
@@ -374,8 +375,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                         command = "racon -w 50 -t " + str(threads) + " tmp_reads_cut.fa tmp_toPolish.paf tmp_toPolish.fa > tmp_repolished.fa 2>trash.txt"
                         racon = os.system(command)
                         if racon != 0 :
-                            print("Error while running racon: " + command + "\n")
-                            sys.exit(1)
+                            print("Error while running racon y: " + command + "\n")
+                            os.system("cp tmp_toPolish.fa tmp_repolished.fa")
+                            # sys.exit(1)
 
                         #now retrieve the repolished sequence, realign it one last time against left and right and store it in the segment
                         command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_repolished.fa > tmp_left.paf 2> trash.txt"
