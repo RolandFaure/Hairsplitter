@@ -779,7 +779,7 @@ def main():
     with open(reads, "r") as f:
         for i, line in enumerate(f):
             offset += len(line)
-            if i % 4 == 0:
+            if (line[0]=="@" and (reads.endswith(".fq") or reads.endswith(".fastq"))) or (line[0]==">" and (reads.endswith(".fa") or reads.endswith(".fasta"))):
                 fastq_index[line.strip().split()[0][1:]] = offset
 
     #go through the contigs and create all the new links
