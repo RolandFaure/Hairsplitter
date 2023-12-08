@@ -489,7 +489,7 @@ def output_gfa(contigs, nameOfFile):
 
         if len(breakpoints) == 0 or breakpoints[0] != 0 :
             breakpoints = [0] + breakpoints
-        if breakpoints[-1] != contigs[contig].length :
+        if breakpoints[-1] != contigs[contig].length or len(breakpoints) == 1:
             breakpoints = breakpoints + [contigs[contig].length]
 
         for i in range(len(breakpoints)-1):

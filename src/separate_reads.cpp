@@ -550,9 +550,9 @@ void create_read_graph_low_memory(
                         && mask[neighbor.first]){
                         nb_of_neighbors++;
 
-                        if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
-                            cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
-                        }
+                        // if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
+                        //     cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
+                        // }
 
                         neighbor_list_low_memory[read1].push_back(neighbor.first);
                         neighbor_list_low_memory[neighbor.first].push_back(read1);
@@ -1192,7 +1192,7 @@ int main(int argc, char *argv[]){
             while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < upperBound-1){
                 suspectPostitionIdx++;
             } //suspectPostitionIdx is now the first position after the window
-            suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
+            // suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             if (suspectPostitionIdx > 0){
                 suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             }
