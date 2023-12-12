@@ -327,6 +327,9 @@ def generate_new_link(contigName, new_link, reads, contigs, read_file, read_inde
             contigs[contigName].neighbors.add((pos_on_contig_left, new_link[1], new_link[2], pos_on_contig_right, new_link[4], str(length_of_overlap) + "M"))
             contigs[new_link[2]].neighbors.add((pos_on_contig_right, new_link[4], contigName, pos_on_contig_left, new_link[1], str(length_of_overlap) + "M"))
 
+    #remove the temporary files
+    os.system("rm tmp_reads.fa tmp_toPolish.fa tmp.paf tmp_repolished.fa trash.txt tmp_left_and_right.fa tmp_left_and_right.paf")
+
 
 #function that takes as input the new link towards the unknown and generated a new contig
 def create_new_contig(contigName, new_link, reads, contigs, read_file, read_index):

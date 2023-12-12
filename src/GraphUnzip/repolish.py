@@ -117,7 +117,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                 last_record = line_number
                 line_number += 3
             elif line[0] == '>' and fasta:
-                read = line[1:].strip()
+                read = line[1:].strip().split()[0]
                 reads_position[read] = fastq.tell()
                 line = fastq.readline()
                 line_number += 1

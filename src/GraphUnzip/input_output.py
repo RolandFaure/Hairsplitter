@@ -424,6 +424,8 @@ def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAss
             supercontigs = {}
             for s, segment in enumerate(listOfSegments):
                 supercontigs[segment.full_name()] = "supercontig_"+ str(s)
+
+        L_lines = [] #will contain the lines of the GFA that will be written at the end of the function
             
         for s, segment in enumerate(listOfSegments):
 
@@ -488,11 +490,14 @@ def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAss
                             orientation2 = '-'
                         
                         if not rename_contigs :
-                            f.write("L\t"+segment.full_name()+'\t'+orientation1+'\t'+neighbor.full_name()+\
-                                    '\t'+orientation2+'\t'+ segment.CIGARs[endOfSegment][n]+'\n')
+                            L_lines += ["L\t"+segment.full_name()+'\t'+orientation1+'\t'+neighbor.full_name()+\
+                                    '\t'+orientation2+'\t'+ segment.CIGARs[endOfSegment][n]+'\n']
                         else :
-                            f.write("L\t"+supercontigs[segment.full_name()]+'\t'+orientation1+'\t'+supercontigs[neighbor.full_name()]+\
-                                    '\t'+orientation2+'\t'+ segment.CIGARs[endOfSegment][n]+'\n')
+                            L_lines += ["L\t"+supercontigs[segment.full_name()]+'\t'+orientation1+'\t'+supercontigs[neighbor.full_name()]+\
+                                    '\t'+orientation2+'\t'+ segment.CIGARs[endOfSegment][n]+'\n']
+                            
+        for line in L_lines :
+            f.write(line)
                                 
 def export_to_fasta(listOfSegments, gfaFile, exportFile="results/newAssembly.fasta", rename_contigs = False): 
     

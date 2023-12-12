@@ -56,10 +56,11 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
     long int linecount = 0;
     long int lastoffset = 0;
     long int offset = 0;
+    char lastlinestart = '+';
 
     while(getline(in, line)){
 
-        if (line[0] == format && (buffer.size() == 4 && format == '@' || buffer.size() == 2 && format == '>')){
+        if (line[0] == format && buffer.size() >= 2 && ((lastlinestart !='+' || buffer.size() == 4) && format == '@' || format == '>')){
             //then first we append the last read we saw
 
             ///parse the name of the sequence as it will appear in minimap (i.e. up to the first blank space)
@@ -84,6 +85,9 @@ void parse_reads(std::string fileReads, std::vector <Read> &allreads, robin_hood
             buffer.push_back(line);
         }
 
+        if (line.size() > 0){
+            lastlinestart = line[0];
+        }
         linecount++;
         offset += 1+line.size();
     }
@@ -313,6 +317,9 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                         if (indices.find(field)==indices.end()){
                             cout << "WARNING: read in the sam file not found in reads file, ignoring: " << field << endl; // m54081_181221_163846/4391584/9445_12374 for example
                             allgood = false;
+                            // if (field.substr(0,3) == "SRR"){
+                            //     exit(0);
+                            // }
                         }
                         
                         sequence1 = indices[field];     

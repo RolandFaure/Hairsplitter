@@ -26,6 +26,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 - [samtools](www.htslib.org)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
+- gzip
 
 If Minimap2, Racon, Medaka or samtools are not in the PATH, their location should be specified through the `--path-to-minimap2`, `--path-to-racon`, `path-to-medaka` or `--path-to-samtools` options.
  
@@ -33,9 +34,9 @@ If Minimap2, Racon, Medaka or samtools are not in the PATH, their location shoul
 
 The recommended way to install HairSplitter is to create and activate a conda/mamba environment with all dependencies: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 samtools medaka binutils
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 samtools medaka binutils gzip
 conda activate hairsplitter
-``` 
+```
  
 ## Download & Compilation
 
@@ -54,10 +55,10 @@ make
 
 Let's say `reads.fastq` (ONT reads) were used to build assembly `assembly.gfa` (with any assembler)(the assembly can be in gfa or fasta format). To improve/phase the assembly using `Hairsplitter`, run
 ```
-python hairsplitter.py -f reads.fastq -i assembly.gfa -x ont -o hairsplitter_out/
+python /path/to/hairsplitter/folder/hairsplitter.py -f reads.fastq -i assembly.gfa -x ont -o hairsplitter_out/
 ```
 
-In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
+In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_final\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
 
 ## Options
 

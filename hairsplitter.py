@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.8"
-__date__ = "2023-12-07"
+__version__ = "1.6.9"
+__date__ = "2023-12-12"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -148,6 +148,17 @@ def main():
     #check the dependencies
     check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
 
+    #check the read file and unzip it if needed
+    if readsFile[-3:] == ".gz":
+        print("\n===== STAGE 0: Decompressing input reads [", datetime.datetime.now() ,"]\n\n")
+        command = "gzip -d " + readsFile
+        print(" Running: " + command)
+        res_gunzip = os.system(command)
+        if res_gunzip != 0:
+            print("ERROR: gzip failed. Was trying to run: " + command)
+            sys.exit(1)
+        readsFile = readsFile[:-3]
+
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
     sys.stdout.flush()
@@ -157,7 +168,7 @@ def main():
     # 0. Convert the assembly to gfa if needed
     if args.assembly[-3:] == "gfa":
         gfaAssembly = args.assembly
-    elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa":
+    elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa" or args.assembly[-3:]=="fna":
         gfaAssembly = tmp_dir + "/assembly.gfa"
         command = path_to_src + "build/fa2gfa " + args.assembly + " > " + gfaAssembly
         res_fasta2gfa = os.system(command)

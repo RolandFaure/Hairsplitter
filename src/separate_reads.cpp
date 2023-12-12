@@ -1140,13 +1140,13 @@ int main(int argc, char *argv[]){
             list_similarities_and_differences_between_reads(snps, sims_and_diffs);
         }
 
-        // cout << "similrities and differences computed" << endl;
+        // cout << "similrities and differences computed " << numberOfReadsHere << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
  
 
-        vector<pair<pair<int,int>, vector<int>>> threadedReads;
+        vector<pair<pair<int,int>, vector<int>>> threadedReads; //associates to each window the reads that are in it
         int suspectPostitionIdx = 0;
         int chunk = -1;
         int upperBound;
@@ -1183,6 +1183,7 @@ int main(int argc, char *argv[]){
                 threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), readsHere));
                 continue;
             }
+
             //only consider reads that span the whole length of the window: create a mask
             vector<bool> mask_at_this_position (numberOfReadsHere, false); 
             for (auto r = 0 ; r < snps[suspectPostitionIdx].readIdxs.size() ; r++){
@@ -1192,7 +1193,6 @@ int main(int argc, char *argv[]){
             while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < upperBound-1){
                 suspectPostitionIdx++;
             } //suspectPostitionIdx is now the first position after the window
-            // suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             if (suspectPostitionIdx > 0){
                 suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             }
@@ -1208,9 +1208,12 @@ int main(int argc, char *argv[]){
 
             vector<vector<int>> neighbor_list_low_memory (numberOfReadsHere, vector<int> (0));
             vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
-            vector<vector<int>> adjacency_matrix_high_memory (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
-            vector<vector<int>> strengthened_adjacency_matrix_high_memory (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+            vector<vector<int>> adjacency_matrix_high_memory;
+            vector<vector<int>> strengthened_adjacency_matrix_high_memory;
             if (!low_memory){
+                adjacency_matrix_high_memory = vector<vector<int>> (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+                strengthened_adjacency_matrix_high_memory = vector<vector<int>> (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+
                 create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix_high_memory, errorRate);
                 strengthened_adjacency_matrix_high_memory = strengthen_adjacency_matrix_high_memory(adjacency_matrix_high_memory);
                 strengthened_adjacency_matrix_high_memory = adjacency_matrix_high_memory;
@@ -1238,7 +1241,6 @@ int main(int argc, char *argv[]){
             else{
                 clusteredReads1 = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, clustersStart, mask_at_this_position);
             }
-            // cout << "ofudi" << endl;
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
