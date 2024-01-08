@@ -791,23 +791,7 @@ void finalize_clustering(
         haplotypes[r] = haplotypeToIndex[haplotypes[r]];
     }
 
-    cout << "haplotypes : " << endl;
-    for (auto h : haplotypes){
-        if (h > -1){
-            cout << h << " ";
-        }
-    }
-    cout << endl;
-
     merge_close_clusters(strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, haplotypes, mask_at_this_position); //by disturbing the CW clustering
-    
-    cout << "haplotypes after merge close clusters : " << endl;
-    for (auto h : haplotypes){
-        if (h > -1){
-            cout << h << " ";
-        }
-    }
-    cout << endl;
     
     haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, posstart, posend); //by looking at the actual reads
 }
