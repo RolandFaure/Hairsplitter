@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.6.9"
-__date__ = "2023-12-12"
+__version__ = "1.6.10"
+__date__ = "2023-12-21"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -145,19 +145,23 @@ def main():
         print("ERROR: not found fastq file (" + args.fastq + ")")
         sys.exit(1)
 
+    elif not args.fastq.endswith(".fastq") and not args.fastq.endswith(".fq") and not args.fastq.endswith(".fastq.gz") and not args.fastq.endswith(".fq.gz") and not args.fastq.endswith(".fasta") and not args.fastq.endswith(".fa") and not args.fastq.endswith(".fna") and not args.fastq.endswith(".fasta.gz") and not args.fastq.endswith(".fa.gz"):
+        print("ERROR: fastq file must be in FASTQ or FASTA format (potentially gzipped). File extension not recognized.")
+        sys.exit(1)
+
     #check the dependencies
     check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
 
     #check the read file and unzip it if needed
     if readsFile[-3:] == ".gz":
         print("\n===== STAGE 0: Decompressing input reads [", datetime.datetime.now() ,"]\n\n")
-        command = "gzip -d " + readsFile
+        command = "gzip -d " + readsFile + " -c > " + tmp_dir + "/"+ readsFile[:-3]
         print(" Running: " + command)
         res_gunzip = os.system(command)
         if res_gunzip != 0:
             print("ERROR: gzip failed. Was trying to run: " + command)
             sys.exit(1)
-        readsFile = readsFile[:-3]
+        readsFile = tmp_dir + "/" + readsFile[:-3]
 
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
@@ -432,7 +436,7 @@ def main():
 
     simply = ""
     if args.dont_simplify :
-        simply = " --dont_merge -r"
+        simply = " --dont_merge -R"
 
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 

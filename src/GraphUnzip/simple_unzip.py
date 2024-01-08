@@ -223,6 +223,8 @@ def simple_unzip(segments, names, gafFile) :
                             contig_right = contigs[p[1]+1]
                             end_right = 1-orientations[p[1]+1]
                             index_right = sg.find_this_link(contig_right, end_right, segment.links[orientations[p[1]]], segment.otherEndOfLinks[orientations[p[1]]])
+                            if index_right == -1 : #could happen if it was an esoteric link
+                                continue
 
                         pair = (index_left, index_right)
                         # if segment.names == ['edge_4_5000_1'] :

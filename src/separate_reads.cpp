@@ -183,7 +183,7 @@ void list_similarities_and_differences_between_reads(
 
     for (Column snp : snps){
 
-        // cout << "suspssdcect position : " << position << endl;
+        cout << "suspssdcect position : " << snp.pos << endl;
         // if (position <200000){
         //     cout<< "ldjflqmj" << endl;
         //     print_snp(snps[position], mask);
@@ -280,6 +280,56 @@ void list_similarities_and_differences_between_reads(
                     if (base1 == second_most_frequent_base){ //this is very strong signal
                         sims_and_diffs[read1][read2].first+= 2;
                         sims_and_diffs[read2][read1].first+= 2;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Compute pairwise similarities and differences between reads
+ * 
+ * @param snps All the snps in the contig
+ * @param sims_and_diffs Resulting matrix of similarities and differences
+ */
+void list_similarities_and_differences_between_reads2(
+    std::vector<Column> &snps, 
+    vector<vector<pair<int,int>>> &sims_and_diffs){
+
+    //first convert snps to a vector of strings
+    vector<string> snps_by_reads (sims_and_diffs.size(), string(snps.size(), ' '));
+    vector<char> dominant_char (snps.size(), ' ');
+    vector<char> second_char (snps.size(), ' ');
+    for (int s = 0 ; s < snps.size() ; s++){
+        dominant_char[s] = snps[s].ref_base;
+        second_char[s] = snps[s].second_base;
+        Column snp = snps[s];
+        for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
+            snps_by_reads[snp.readIdxs[r]][s] = snp.content[r];
+        }
+    }
+
+    //now list the similarities and differences
+    for (auto r1 = 0 ; r1 < snps_by_reads.size() ; r1++){
+        for (auto r2 = r1+1 ; r2 < snps_by_reads.size() ; r2++){
+            for (auto pos = 0 ; pos < snps_by_reads[r1].size() ; pos++){
+                if (snps_by_reads[r1][pos] != ' ' && snps_by_reads[r2][pos] != ' '){
+                    if (snps_by_reads[r1][pos] == snps_by_reads[r2][pos] && snps_by_reads[r1][pos] == dominant_char[pos]){
+                        sims_and_diffs[r1][r2].first++;
+                        sims_and_diffs[r2][r1].first++;
+                    }
+                    else if (snps_by_reads[r1][pos] == snps_by_reads[r2][pos] && snps_by_reads[r1][pos] == second_char[pos]){
+                        sims_and_diffs[r1][r2].first+= 3;
+                        sims_and_diffs[r2][r1].first+= 3;
+                    }
+                    else if (snps_by_reads[r1][pos] != snps_by_reads[r2][pos] && snps_by_reads[r1][pos] == dominant_char[pos] && snps_by_reads[r2][pos] == second_char[pos]){
+                        sims_and_diffs[r1][r2].second++;
+                        sims_and_diffs[r2][r1].second++;
+                    }
+                    else if (snps_by_reads[r1][pos] != snps_by_reads[r2][pos] && snps_by_reads[r1][pos] == second_char[pos] && snps_by_reads[r2][pos] == dominant_char[pos]){
+                        sims_and_diffs[r1][r2].second++;
+                        sims_and_diffs[r2][r1].second++;
                     }
                 }
             }
@@ -416,6 +466,8 @@ void create_read_graph_low_memory(
         vector<vector<pair<int,int>>> sims_and_diffs(nb_reads_batch, vector<pair<int,int>>(mask.size(), make_pair(0,0)));
 
         for (Column snp : snps){
+
+            // cout << "sus cect position : " << snp.pos << endl;
 
             //what bases occur in which cluster ?
             robin_hood::unordered_map<unsigned char,int> bases_in_total;
@@ -578,6 +630,8 @@ void create_read_graph_low_memory(
     }
 }
 
+
+
 /**
  * @brief Merge the clusters that are too close to each other
  * 
@@ -703,14 +757,6 @@ void finalize_clustering(
         }
     }
 
-    // cout << "merged haploitypes : " << endl;
-    // for (auto h : mergedHaplotypes){
-    //     if (h > -1){
-    //         cout << h << " ";
-    //     }
-    // }
-    // cout << endl;
-
     //clustered reads represent subsets of reads that have never been separated in no partition
     //however, some haplotypes may have been separated in some partitions (especially if there are many haplotypes)
     //however, they should not be actually separated in snps: merge them
@@ -720,7 +766,7 @@ void finalize_clustering(
         // for (auto i : mergedHaplotypes){
         //     cout << i << " ";
         // }  
-        cout << endl;
+        // cout << endl;
         haplotypes = chinese_whispers(strengthened_neighbor_list, mergedHaplotypes, mask_at_this_position);
     }
     else{
@@ -745,7 +791,24 @@ void finalize_clustering(
         haplotypes[r] = haplotypeToIndex[haplotypes[r]];
     }
 
+    cout << "haplotypes : " << endl;
+    for (auto h : haplotypes){
+        if (h > -1){
+            cout << h << " ";
+        }
+    }
+    cout << endl;
+
     merge_close_clusters(strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, haplotypes, mask_at_this_position); //by disturbing the CW clustering
+    
+    cout << "haplotypes after merge close clusters : " << endl;
+    for (auto h : haplotypes){
+        if (h > -1){
+            cout << h << " ";
+        }
+    }
+    cout << endl;
+    
     haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, posstart, posend); //by looking at the actual reads
 }
 
@@ -1084,7 +1147,7 @@ int main(int argc, char *argv[]){
     std::vector<long int> length_of_contigs;
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads);
-
+ 
     //choosing size of window: compute the mean length of the 1000 first reads
     int numberOfReadsHere = 0;
     int sumLength = 0;
@@ -1137,10 +1200,10 @@ int main(int argc, char *argv[]){
         vector<vector<pair<int,int>>> sims_and_diffs;
         if (!low_memory){
             sims_and_diffs = vector<vector<pair<int,int>>> (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
-            list_similarities_and_differences_between_reads(snps, sims_and_diffs);
+            list_similarities_and_differences_between_reads2(snps, sims_and_diffs);
         }
 
-        // cout << "similrities and differences computed " << numberOfReadsHere << endl;
+        cout << "similrities and differences computed " << numberOfReadsHere << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
@@ -1151,8 +1214,9 @@ int main(int argc, char *argv[]){
         int chunk = -1;
         int upperBound;
         while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
-            // if (chunk == 0){
+            // if (chunk*sizeOfWindow != 7000){
             //     cout << "csksdlk " << endl;
+            //     chunk++;
             //     continue;
             // }
             chunk++;
@@ -1222,7 +1286,9 @@ int main(int argc, char *argv[]){
                 for (auto v : neighbor_list_low_memory){
                     v.reserve(20);
                 }
+                // cout << "he qd q lll" << endl;
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
+                // cout << "ididinnd q" << endl;
                 neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
             }
@@ -1286,13 +1352,15 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
-            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            // if (low_memory){
-            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // }
-            // else{
-            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // }
+            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            if (low_memory){
+                outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            }
+            else{
+                outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+                vector<bool> nomask (haplotypes.size(), true);
+                outputGraph_several_clusterings(adjacency_matrix_high_memory, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
+            }
             // exit(0);
 
             // if (debug){

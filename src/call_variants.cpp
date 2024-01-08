@@ -198,7 +198,6 @@ float generate_msa(
         // cout << alignment << " ";
         //cout << alignment.size() << " " << std::count(alignment.begin(), alignment.end(), 'I') << " " << std::count(alignment.begin(), alignment.end(), 'D') << "\n";
 
-        totalLengthOfAlignment += alignment.size();
         // mappingQuality.push_back(float(-aligner.getAlignmentScore())/alignment.size());
 
         // if (n == 10) {break;}
@@ -268,6 +267,12 @@ float generate_msa(
                     //     }
                     // }
 
+                    //check if the two bases align
+                    if (polishingReads[n][indexTarget] != consensus[indexQuery]){
+                        totalDistance += 1;
+                    }
+                    totalLengthOfAlignment += 1;
+
                     indexQuery++;
                     indexTarget++;
                     numberOfInsertionsThere = 0;
@@ -314,6 +319,7 @@ float generate_msa(
                     // }
 
                     totalDistance += 1;
+                    totalLengthOfAlignment += 1;
 
                     localDivergence += 1;
                     divergences[l%lengthOfWindow] = true;
@@ -345,6 +351,7 @@ float generate_msa(
 
                     indexTarget++;
                     totalDistance += 1;
+                    totalLengthOfAlignment += 1;
                     
                     localDivergence += 1;
                     divergences[l%lengthOfWindow] = true;
@@ -527,22 +534,15 @@ vector<Column> call_variants(
             posoflastsnp = position;
             suspectPositions.push_back(position);
 
-            char ref_base;
-            if (position < ref.size()){
-                ref_base = ref[position];
-            } else {
-                ref_base = '-';
-            }
-            // cout << "\nAt first snp, dlsq , " << position << " " << (int) content_sorted[0].first << " " << (int) content_sorted[1].first << " " << (int) ref_base << endl;
+            char ref_base = content_sorted[0].first;
+            char second_frequent_base = content_sorted[1].first;
+
+            // cout << "\nAt first snp, dlsq , " << position << " " << (int) content_sorted[0].first << "(" << content_sorted[0].second << ") " << (int) content_sorted[1].first << " (" << content_sorted[1].second << ") " << (int) ref_base << endl;
             // int code = content_sorted[0].first-'!';
             // cout << "first alternative : " << "ACGT-"[(code%25) / 5] <<  "ACGT-"[code%5] << "ACGT-"[code/25] << endl;
             // cout << "second alternative : " << "ACGT-"[((content_sorted[1].first-'!')%25)/5] << "ACGT-"[(content_sorted[1].first-'!')%5] << "ACGT-"[((content_sorted[1].first-'!')/25)] << endl;
             // exit(1);
             //find the most frequent char in the reads (eexcept the ref base)
-            char second_frequent_base = content_sorted[0].first;
-            if (second_frequent_base == ref_base){
-                second_frequent_base = content_sorted[1].first;
-            }
 
             Column snp;
             snp.pos = position;
@@ -649,8 +649,8 @@ void keep_only_robust_variants(
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
 
-        // if (partitions[p1].number() > 5){
-        //     cout << "iqdoudofq non informative partition : "  << p1 << " " << snps.size()<< endl;
+        // if (partitions[p1].number() > 0){
+        //     cout << "iqdoudofq non informative partition : "  << p1 << " "<< endl;
         //     partitions[p1].print();
         // }
         

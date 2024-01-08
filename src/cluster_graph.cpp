@@ -298,7 +298,7 @@ void merge_close_clusters(std::vector<std::vector<int>> &neighbor_list, vector<v
             int changes = 3;
             auto countOfClusters = initialCountOfClusters;
             auto number_of_iterations = 0;
-            //iterate until less than 2 changes are made  
+            //iterate until less than 1 changes are made  
             while (changes > 0 && number_of_iterations < 10){
 
                 changes = 0;

@@ -331,7 +331,7 @@ string consensus_reads(
     int good_aln = check_alignment(nameOfFile);
     if (good_aln != 0){ //this means that no reads aligned really well, hence recompute a backbone
 
-        cout << "alignment does not check out fdstools " << good_aln << endl;
+        // cout << "alignment does not check out fdstools " << good_aln << endl;
         string newbackbone;
         if (good_aln == 1){ //only small indels
             std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");

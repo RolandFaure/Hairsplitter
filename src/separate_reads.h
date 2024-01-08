@@ -23,6 +23,10 @@ void list_similarities_and_differences_between_reads(
     std::vector<Column> &snps, 
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
 
+void list_similarities_and_differences_between_reads2(
+    std::vector<Column> &snps, 
+    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
+
 void create_read_graph(
     std::vector <bool> &mask,
     std::vector<Column> &snps, 
