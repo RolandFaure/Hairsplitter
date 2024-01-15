@@ -4,6 +4,7 @@
 
 #include "input_output.h"
 
+#include <Eigen/Sparse>
 #include <Eigen/Dense>
 
 #include <iostream>
@@ -349,15 +350,9 @@ void list_similarities_and_differences_between_reads3(
     std::vector<Column> &snps, 
     vector<vector<pair<int,int>>> &sims_and_diffs){
 
-
-    //time the function
-    double start = omp_get_wtime();
-    
     //convert snp to a matrix with three characters : dominant, second and other. By default, everything is filled with 'other'
     Eigen::MatrixXi matrix(sims_and_diffs.size(), snps.size());
     matrix.setConstant(-1); 
-
-    vector<bool> reads_used (sims_and_diffs.size()); //to only look at reads that are actually used
     
     //now fill the matrix with the snps
     for (int s = 0 ; s < snps.size() ; s++){
@@ -365,31 +360,10 @@ void list_similarities_and_differences_between_reads3(
         for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
             if (snp.content[r] == snp.ref_base){
                 matrix(snp.readIdxs[r], s) = 0;
-                reads_used[snp.readIdxs[r]] = true;
             }
             else if (snp.content[r] == snp.second_base){
                 matrix(snp.readIdxs[r], s) = 1;
-                reads_used[snp.readIdxs[r]] = true;
             }
-        }
-    }
-
-    //subsample the matrix, eliminating the rows of -1, where reads_used is false
-    //first compute how many rows there are
-    int nb_of_rows = 0;
-    for (auto r = 0 ; r < reads_used.size() ; r++){
-        if (reads_used[r]){
-            nb_of_rows++;
-        }
-    }
-
-    //now create the subsampled matrix
-    Eigen::MatrixXi subsampled_matrix(nb_of_rows, snps.size());
-    int row = 0;
-    for (auto r = 0 ; r < reads_used.size() ; r++){
-        if (reads_used[r]){
-            subsampled_matrix.row(row) = matrix.row(r);
-            row++;
         }
     }
 
@@ -397,53 +371,41 @@ void list_similarities_and_differences_between_reads3(
     //build 4 matrices from the subsampled matrix
 
     //first matrix : the same as the subsampled matrix, with 0 replacing -1
-    Eigen::MatrixXi matrix_1 = subsampled_matrix.array().max(0);
+    Eigen::MatrixXi matrix_1 = matrix.array().max(0);
+    Eigen::SparseMatrix<int> matrix_1s = matrix_1.sparseView();
 
     //second matrix : transpose of matrix_1
-    Eigen::MatrixXi matrix_2 = matrix_1.transpose();
+    Eigen::SparseMatrix<int> matrix_2s = matrix_1s.transpose();
 
     //third matrix : subsampled matrix but switching 0 and 1, and then replacing -1 by 0
-    Eigen::MatrixXi matrix_3 = (subsampled_matrix.array() == 0).cast<int>();
+    Eigen::MatrixXi matrix_3 = (matrix.array() == 0).cast<int>();
+    Eigen::SparseMatrix<int> matrix_3s = matrix_3.sparseView();
 
     //fourth matrix : transpose of matrix_3
-    Eigen::MatrixXi matrix_4 = matrix_3.transpose();
+    Eigen::SparseMatrix<int> matrix_4s = matrix_3s.transpose();
 
-    //compute the similarity matrix (1-1 and 0-0)
-    Eigen::MatrixXi similarity_matrix = matrix_1 * matrix_2 + 3*matrix_3 * matrix_4; //the 3 is to give more weight to the second most frequent base, this is more exceptionnal
-    
-    //compute the difference matrix (1-0 and 0-1)
-    Eigen::MatrixXi difference_matrix = matrix_1 * matrix_4 + matrix_3 * matrix_2;
+    //multiplication of matrices to obtain the similarity and difference matrices
+    Eigen::SparseMatrix<int> similarity = 3*matrix_1s * matrix_2s + matrix_3s * matrix_4s; //the 3 is to give more weight to the second most frequent base, this is more exceptionnal
+    Eigen::SparseMatrix<int> difference = matrix_1s * matrix_4s + matrix_3s * matrix_2s;
 
-    //end the timer
-    double end = omp_get_wtime();
-
-    //input the matrix in sims and diffs
-    int row_number = 0;
-    for (auto r1 = 0 ; r1 < sims_and_diffs.size() ; r1++){
-        if (reads_used[r1]){
-            int col_number = 0;
-            for (auto r2 = 0 ; r2 < sims_and_diffs.size() ; r2++){
-                if (reads_used[r2]){
-                    sims_and_diffs[r1][r2].first = similarity_matrix(row_number, col_number);
-                    sims_and_diffs[r1][r2].second = difference_matrix(row_number, col_number);
-                    col_number++;
-                }
+    //transfer the matrix in sims and diffs, where the first element of the pair is the similarity and the second is the difference
+    for (int k = 0; k < similarity.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<int>::InnerIterator it(similarity, k); it; ++it) {
+            if (it.row() > it.col()){ //be careful not to fill the diagonal, the values are not correct
+                sims_and_diffs[it.row()][it.col()].first = it.value();
+                sims_and_diffs[it.col()][it.row()].first = it.value();
             }
-            row_number++;
         }
     }
 
-    //print the matrix
-    // cout << "here is the matrix : " << endl;
-    // cout << subsampled_matrix << endl;
-    // cout << "here is the distance matrix : " << endl;
-    // cout << similarity_matrix << endl;
-    // cout << "here is the similarity matrix : " << endl;
-    // cout << difference_matrix << endl;
-
-
-    cout << "time to compute the matrix : " << end-start << endl;
-
+    for (int k = 0; k < difference.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<int>::InnerIterator it(difference, k); it; ++it) {
+            if (it.row() > it.col()){ //be careful not to fill the diagonal, the values are not correct
+                sims_and_diffs[it.row()][it.col()].second = it.value();
+                sims_and_diffs[it.col()][it.row()].second = it.value();
+            }
+        }
+    }
 }
 
 /**
@@ -458,7 +420,7 @@ void list_similarities_and_differences_between_reads3(
  */
 void create_read_graph(
     vector <bool> &mask,
-    std::vector<Column> &snps, 
+    // std::vector<Column> &snps, 
     int chunk, 
     int sizeOfWindow,
     std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
@@ -739,6 +701,108 @@ void create_read_graph_low_memory(
     }
 }
 
+/**
+ * @brief Create a graph linking very similar reads
+ * 
+ * @param mask Indicates which reads span the whole window - process only those
+ * @param chunk chunk of the contig that is being processed
+ * @param sizeOfWindow size of chunks
+ * @param similarity input, matrix of similarities
+ * @param difference input, matrix of differences
+ * @param adjacency_matrix Result, sparse adjacency matrix
+ * @param errorRate Error rate of the reads
+ */
+void create_read_graph_matrix(
+    std::vector <bool> &mask,
+    int chunk,
+    int sizeOfWindow,
+    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
+    Eigen::SparseMatrix<int> &adjacency_matrix, //containing only the 1s
+    float &errorRate){
+
+    set<int> listOfGroups;
+    int max_cluster = 0;
+
+    vector<Eigen::Triplet<int>> triplet_list; //i,j, value to build the sparse matrix efficiently
+
+    for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
+        if (mask[read1]){
+
+            vector <float> distance_with_other_reads (mask.size(), 0);
+            int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
+
+            //iterate through 
+
+            for (auto r = 0 ; r < mask.size() ; r++){
+                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first > 0){
+                    float diffs = max(0,sims_and_diffs[read1][r].second-1); //-1 to make sure that 1 difference does not make such a difference 
+                    distance_with_other_reads[r] = 1 - diffs / float(sims_and_diffs[read1][r].first+sims_and_diffs[read1][r].second);
+                    if (sims_and_diffs[read1][r].first > max_compat){
+                        max_compat = sims_and_diffs[read1][r].first;
+                    }
+                }
+            }
+
+            for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
+                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < max(5.0,0.7*max_compat) ){
+                    distance_with_other_reads[r] = 0;
+                }
+            }
+
+
+            vector<pair<int, float>> smallest;
+            for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
+                smallest.push_back(make_pair(r,distance_with_other_reads[r]));
+            }
+            //sort smallest by distance in decreasing order
+            sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
+                return a.second > b.second;
+            });
+
+            int nb_of_neighbors = 0;
+            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
+            float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
+            if (smallest.size() > 1){
+                distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
+            }
+            if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
+                //take the first five non-1 distance of smallest
+                int idx = 0;
+                while (idx < smallest.size() && smallest[idx].second == 1){
+                    idx+=1;
+                }
+                if (idx < smallest.size()){
+                    idx = min(idx+4, (int) smallest.size()-1);
+                    distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
+                }
+            }
+
+            for (auto neighbor : smallest){
+                if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
+                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
+                    && mask[neighbor.first]){
+                    nb_of_neighbors++;
+                    
+                    triplet_list.push_back(Eigen::Triplet<int>(read1,neighbor.first,1));
+                    triplet_list.push_back(Eigen::Triplet<int>(neighbor.first,read1,1));
+                }
+            }
+        }
+    }
+
+    //set matrix from triplet list, do not fill duplicates
+    adjacency_matrix.setFromTriplets(triplet_list.begin(), triplet_list.end());
+
+    //go through the matrix and set all the positive values to 1
+    for (int k = 0; k < adjacency_matrix.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, k); it; ++it) {
+            it.valueRef() = 1;
+        }
+    }
+
+    // adjacency_matrix.makeCompressed();
+
+}
 
 
 /**
@@ -751,7 +815,7 @@ void create_read_graph_low_memory(
  */
 std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
     std::vector<std::vector<int>> &neighbor_list, 
-    vector<vector<int>> &adjacency_matrix_high_memory, bool low_memory, std::vector <bool> &mask){
+    Eigen::SparseMatrix<int> &adjacency_matrix, bool low_memory, std::vector <bool> &mask){
 
     if (localClusters.size() == 0){
         return vector<int>(neighbor_list.size(), 0);
@@ -790,7 +854,7 @@ std::vector<int> merge_clusterings(std::vector<std::vector<int>> &localClusters,
         re_clustered = chinese_whispers(neighbor_list, cluster_aggregated_ints, mask);
     }
     else{
-        re_clustered = chinese_whispers_high_memory(adjacency_matrix_high_memory, cluster_aggregated_ints, mask);
+        re_clustered = chinese_whispers_high_memory(adjacency_matrix, cluster_aggregated_ints, mask);
     }
 
     return re_clustered;
@@ -810,7 +874,7 @@ void finalize_clustering(
     std::vector<Column> &snps,  
     vector<vector<int>> &localClusters, 
     std::vector<std::vector<int>> &strengthened_neighbor_list,
-    vector<vector<int>> &strengthened_adjacency_matrix_high_memory,
+    Eigen::SparseMatrix<int> &adjacency_matrix,
     bool low_memory, 
     vector<bool> &mask_at_this_position,
     vector<int> &haplotypes,
@@ -830,7 +894,7 @@ void finalize_clustering(
         return;
     }
  
-    vector<int> new_clusters = merge_clusterings(localClusters, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position);
+    vector<int> new_clusters = merge_clusterings(localClusters, strengthened_neighbor_list, adjacency_matrix, low_memory, mask_at_this_position);
     vector<int> clusteredReads = new_clusters;
 
     // find all clusters that are too small and flag them as a -1 cluster, so they can be rescued later
@@ -879,7 +943,7 @@ void finalize_clustering(
         haplotypes = chinese_whispers(strengthened_neighbor_list, mergedHaplotypes, mask_at_this_position);
     }
     else{
-        haplotypes = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, mergedHaplotypes, mask_at_this_position);
+        haplotypes = chinese_whispers_high_memory(adjacency_matrix, mergedHaplotypes, mask_at_this_position);
     }
 
     //re-number the haplotypes
@@ -900,9 +964,9 @@ void finalize_clustering(
         haplotypes[r] = haplotypeToIndex[haplotypes[r]];
     }
 
-    merge_close_clusters(strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, haplotypes, mask_at_this_position); //by disturbing the CW clustering
-    
-    haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_neighbor_list, strengthened_adjacency_matrix_high_memory, low_memory, posstart, posend); //by looking at the actual reads
+    merge_close_clusters(strengthened_neighbor_list, adjacency_matrix, low_memory, haplotypes, mask_at_this_position); //by disturbing the CW clustering
+
+    haplotypes = merge_wrongly_split_haplotypes(haplotypes, snps, strengthened_neighbor_list, adjacency_matrix, low_memory, posstart, posend); //by looking at the actual reads
 }
 
 /**
@@ -920,8 +984,8 @@ void finalize_clustering(
 std::vector<int> merge_wrongly_split_haplotypes(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps,  
-     std::vector<std::vector<int>> &neighbor_list,
-    vector<vector<int>> &adjacencyMatrix_high_memory,
+    std::vector<std::vector<int>> &neighbor_list,
+    Eigen::SparseMatrix<int> &adjacency_matrix,
     bool low_memory,
     int posstart,
     int posend){
@@ -1101,13 +1165,37 @@ std::vector<int> merge_wrongly_split_haplotypes(
     // list all the distances between different clusters
     std::map < pair<int, int>, double > number_of_links_between_the_two_clusters;
     unordered_map <int,int> number_of_links_in_each_cluster;
-    for (auto read1 = 0 ; read1 < clusteredReads.size() ; read1++){
-        for (auto read2 = 0 ; read2 < clusteredReads.size() ; read2++){
-            bool linked = false;
-            if (low_memory && std::binary_search(neighbor_list[read1].begin(), neighbor_list[read1].end(),read2) == true || !low_memory && adjacencyMatrix_high_memory[read1][read2] >= 1){
-                linked = true;
+    if (low_memory){
+        for (auto read1 = 0 ; read1 < clusteredReads.size() ; read1++){
+            for (auto read2 = 0 ; read2 < clusteredReads.size() ; read2++){
+                bool linked = false;
+                if (std::binary_search(neighbor_list[read1].begin(), neighbor_list[read1].end(),read2) == true){
+                    linked = true;
+                }
+                if (linked){
+                    int cluster1 = clusteredReads[read1];
+                    int cluster2 = clusteredReads[read2];
+                    if (cluster1 != cluster2){
+                        if (number_of_links_between_the_two_clusters.find(make_pair(cluster1, cluster2)) == number_of_links_between_the_two_clusters.end()){
+                            number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)] = 0;
+                        }
+                        number_of_links_between_the_two_clusters[make_pair(cluster1, cluster2)]++;
+                        
+                    }
+                    if (number_of_links_in_each_cluster.find(cluster1) == number_of_links_in_each_cluster.end()){
+                        number_of_links_in_each_cluster[cluster1] = 0;
+                    }
+                    number_of_links_in_each_cluster[cluster1]++;
+                }
             }
-            if (linked){
+        }
+    }
+    else{
+        for (int k = 0; k < adjacency_matrix.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, k); it; ++it) {
+                int read1 = it.row();
+                int read2 = it.col();
+
                 int cluster1 = clusteredReads[read1];
                 int cluster2 = clusteredReads[read2];
                 if (cluster1 != cluster2){
@@ -1124,6 +1212,7 @@ std::vector<int> merge_wrongly_split_haplotypes(
             }
         }
     }
+
     for (auto link : number_of_links_between_the_two_clusters){
         // cout << "qfiodududu " << link.second << " " << number_of_links_in_each_cluster[link.first.first] << endl;
         number_of_links_between_the_two_clusters[link.first] = link.second / number_of_links_in_each_cluster[link.first.first];
@@ -1136,7 +1225,6 @@ std::vector<int> merge_wrongly_split_haplotypes(
     sort(sorted_links.begin(), sorted_links.end(), [](const pair < pair<int, int>, double > &a, const pair < pair<int, int>, double > &b){
         return a.second > b.second;
     });
-
 
     //now that all the incompatibilities are computed, we can merge the clusters or not
     unordered_map <int, int> old_group_to_new_group;
@@ -1274,10 +1362,10 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,8) !=  "edge_134"){
-        //     cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
-        //     continue;
-        // }
+        if (name_of_contigs[n].substr(7,8) ==  "edge_628"){
+            cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
+            exit(1);
+        }
 
         auto snps = snps_in[n];
         int numberOfReadsHere = numberOfReads[n];
@@ -1291,33 +1379,14 @@ int main(int argc, char *argv[]){
         }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
+        Eigen::SparseMatrix<int> similarity;
+        Eigen::SparseMatrix<int> difference;
         if (!low_memory){
             sims_and_diffs = vector<vector<pair<int,int>>> (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
-            vector<vector<pair<int,int>>> sims_and_diffs2 = vector<vector<pair<int,int>>> (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
-            //compare speed of list_similarities_and_differences_between_reads3 and list_similarities_and_differences_between_reads2
-            //time
-            double start = omp_get_wtime();
-            list_similarities_and_differences_between_reads2(snps, sims_and_diffs);
-            double end = omp_get_wtime();
-            list_similarities_and_differences_between_reads3(snps, sims_and_diffs2);
-            double end2 = omp_get_wtime();
-            cout << "iddi compareis : " << end-start  << " vs " << end2-end << endl;
-
-            //check that sims_and_diffs and sims_and_diffs2 are the same
-            for (auto r1 = 0 ; r1 < sims_and_diffs.size() ; r1++){
-                for (auto r2 = 0 ; r2 < sims_and_diffs.size() ; r2++){
-                    if (sims_and_diffs[r1][r2] != sims_and_diffs2[r1][r2]){
-                        cout << "sims_and_diffs and sims_and_diffs2 are not the same" << endl;
-                        cout << r1 << " " << r2 << " " << sims_and_diffs[r1][r2].first << " " << sims_and_diffs[r1][r2].second << " " << sims_and_diffs2[r1][r2].first << " " << sims_and_diffs2[r1][r2].second << endl;
-                        exit(1);
-                    }
-                }
-            }
-            cout << "sims_and_diffs and sims_and_diffs2 are the same" << endl;
-            exit(1);
+            list_similarities_and_differences_between_reads3(snps, sims_and_diffs);
         }
 
-        cout << "similrities and differences computed " << numberOfReadsHere << endl;
+        // cout << "similrities and differences computed " << numberOfReadsHere << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
         // }
@@ -1388,13 +1457,10 @@ int main(int argc, char *argv[]){
             vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
             vector<vector<int>> adjacency_matrix_high_memory;
             vector<vector<int>> strengthened_adjacency_matrix_high_memory;
-            if (!low_memory){
-                adjacency_matrix_high_memory = vector<vector<int>> (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
-                strengthened_adjacency_matrix_high_memory = vector<vector<int>> (numberOfReadsHere, vector<int>(numberOfReadsHere, 0));
+            Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);
 
-                create_read_graph(mask_at_this_position, snps, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix_high_memory, errorRate);
-                strengthened_adjacency_matrix_high_memory = strengthen_adjacency_matrix_high_memory(adjacency_matrix_high_memory);
-                strengthened_adjacency_matrix_high_memory = adjacency_matrix_high_memory;
+            if (!low_memory){
+                create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix, errorRate);
             }
             else{
                 for (auto v : neighbor_list_low_memory){
@@ -1415,11 +1481,12 @@ int main(int argc, char *argv[]){
 
             vector<vector<int>> allclusters_debug;
             vector<int> clusteredReads1;
+            vector<int> clusteredReads1_2;
             if (low_memory){
                 clusteredReads1 = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart, mask_at_this_position);
             }
             else{
-                clusteredReads1 = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, clustersStart, mask_at_this_position);
+                clusteredReads1 = chinese_whispers_high_memory(adjacency_matrix, clustersStart, mask_at_this_position);
             }
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
@@ -1430,9 +1497,10 @@ int main(int argc, char *argv[]){
             // }
             // cout << endl;
             // cout << "runnignd cw again and again" << endl;
-
+            int lastpos = -10;
             for (auto snp : snps){
-                if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow){
+                if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow && snp.pos > lastpos+10){
+                    lastpos = snp.pos;
                     // cout << "in dldjk position " << position << " : " << endl;
 
                     unordered_map<unsigned char, int> charToIndex;
@@ -1455,7 +1523,7 @@ int main(int argc, char *argv[]){
                         clusteredReads_local = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart2, mask_at_this_position);
                     }
                     else{
-                        clusteredReads_local = chinese_whispers_high_memory(strengthened_adjacency_matrix_high_memory, clustersStart2, mask_at_this_position);
+                        clusteredReads_local = chinese_whispers_high_memory(adjacency_matrix, clustersStart2, mask_at_this_position);
                     }
                     localClusters.push_back(clusteredReads_local);
                     
@@ -1465,7 +1533,7 @@ int main(int argc, char *argv[]){
             }
 
             vector<int> haplotypes(numberOfReadsHere, -2);
-            finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, strengthened_adjacency_matrix_high_memory, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+            finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
             // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
             // if (low_memory){
             //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");

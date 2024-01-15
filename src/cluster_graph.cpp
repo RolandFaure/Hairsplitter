@@ -80,14 +80,53 @@ std::vector<std::vector<int>> strengthen_adjacency_matrix_high_memory(vector<vec
         //add 1 to the adjacency matrix for all nodes that are connected through i
         for (int j = 0; j < neighbors.size(); j++){
             for (int k = j+1; k < neighbors.size(); k++){
-                strengthened_adjacency_matrix[j][k] += 1;
-                strengthened_adjacency_matrix[k][j] += 1;
+                // if ((j==0 && k==1) || (j==1 && k==0)){
+                //     cout << "nodes 0 and 1 are connected through " << i << endl;
+                // }
+                strengthened_adjacency_matrix[neighbors[j]][neighbors[k]] += 1;
+                strengthened_adjacency_matrix[neighbors[k]][neighbors[j]] += 1;
             }
         }
     }
 
     return strengthened_adjacency_matrix;
 }
+
+/**
+ * @brief Strengthen the adjacency matrix by adding edges between nodes that are connected by a path of length 2
+ * 
+ * @param adjacency_matrix 
+ * @return 
+ */
+Eigen::SparseMatrix<int> strengthen_adjacency_matrix_high_memory2(Eigen::SparseMatrix<int> &adjacency_matrix){
+    
+    //create a triplet list
+    std::vector<Eigen::Triplet<int>> tripletList;
+
+    //iterate over all nodes
+    for (int r = 0; r < adjacency_matrix.rows(); r++){
+        //iterate over all nodes that are connected to i
+        vector<int> neighbors;
+        for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, r); it; ++it){
+            //row and col are connected
+            neighbors.push_back(it.row());
+        }
+        //add 1 to the adjacency matrix for all nodes that are connected through i
+        for (int j = 0; j < neighbors.size(); j++){
+            for (int k = j+1; k < neighbors.size(); k++){
+                tripletList.push_back(Eigen::Triplet<int>(neighbors[j], neighbors[k], 1));
+                tripletList.push_back(Eigen::Triplet<int>(neighbors[k], neighbors[j], 1));
+            }
+        }
+    }
+
+    //create the new adjacency matrix
+    Eigen::SparseMatrix<int> strengthened_adjacency_matrix(adjacency_matrix.rows(), adjacency_matrix.cols());
+    strengthened_adjacency_matrix.setFromTriplets(tripletList.begin(), tripletList.end());
+
+    return strengthened_adjacency_matrix + adjacency_matrix;
+}
+
 
 /**
  * @brief 
@@ -198,7 +237,7 @@ std::vector<int> chinese_whispers(std::vector<std::vector<int>> &neighbor_list, 
  * @param mask 
  * @return std::vector<int> 
  */
-std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
+std::vector<int> chinese_whispers_high_memory(Eigen::SparseMatrix<int> &adjacency_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
     auto clusters = initialClusters;
 
     //keep track of the number of changes in the clustering
@@ -212,7 +251,7 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
         //iterate over all nodes in a random order
         // for (int i = 0; i < adjacency_matrix.size(); i++){
         // generate a random order
-        vector<int> order(adjacency_matrix.size());
+        vector<int> order(initialClusters.size());
         std::iota(order.begin(), order.end(), 0);
         std::random_device rd;
         std::mt19937 g(rd());
@@ -224,9 +263,9 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
                 continue;
             }          
             vector<int> neighbors (mask.size(), 0);
-            for (int j = 0; j < mask.size(); j++){
-                if (adjacency_matrix[i][j] >= 1 && clusters[j] >= 0){
-                    neighbors[clusters[j]]+= 1;
+            for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, i); it; ++it){
+                if (clusters[it.row()] >= 0){
+                    neighbors[clusters[it.row()]]+= 1;
                 }
             }
 
@@ -238,8 +277,7 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
                     max_index = j;
                 }
             }
-
-            //choose the new cluster among the clusters that have more than one third of the links 
+ 
             if (max_value > 0){
                 if (clusters[i] != max_index){
                     changes++;
@@ -272,6 +310,88 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
 }
 
 /**
+ * @brief clusters a graph using the chinese whispers algorithm
+ * 
+ * @param adjacency_matrix 
+ * @param initialClusters 
+ * @param mask 
+ * @return std::vector<int> 
+ */
+std::vector<int> chinese_whispers_matrix(Eigen::SparseMatrix<int> &adj_matrix, std::vector<int> &initialClusters, std::vector<bool> &mask){
+
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    vector<int> new_clusters = initialClusters;
+
+    //convert the initial clusters to a sparse matrix, with a 1 on the row of the cluster
+    Eigen::SparseMatrix<int> clusters(initialClusters.size(), initialClusters.size());
+    for (int i = 0; i < initialClusters.size(); i++){
+        if (initialClusters[i] >= 0 && mask[i]){
+            clusters.insert(initialClusters[i],i) = 1;
+        }
+    }
+
+    //keep track of the number of changes in the clustering
+    int changes = 3;
+    int number_of_iterations = 0;
+    while (changes > 2 && number_of_iterations < 15){
+        
+        changes = 0;
+        Eigen::SparseMatrix<int> clusters_of_neighbors = clusters * adj_matrix;
+        Eigen::SparseMatrix<int> clusters_two_iterations_ago; //just to check if we're not oscillating
+        
+        // keep only the maximum value of each col and set it to 1
+        for (int c = 0; c < clusters_of_neighbors.outerSize(); ++c){
+            int max_value = 0;
+            vector<int> max_indices;
+            for (Eigen::SparseMatrix<int>::InnerIterator it(clusters_of_neighbors,c); it; ++it){
+                if (it.value() > max_value){
+                    max_value = it.value();
+                    max_indices.clear();
+                    max_indices.push_back(it.row());
+                }
+                else if (it.value() == max_value){
+                    max_indices.push_back(it.row());
+                }
+            }
+            //choose max_index randomly among the max_indices
+            if (max_indices.size() == 0){
+                continue;
+            }
+            int max_index = max_indices[std::uniform_int_distribution<int>(0, max_indices.size()-1)(g)];
+
+            for (Eigen::SparseMatrix<int>::InnerIterator it(clusters_of_neighbors,c); it; ++it){
+                if (it.row() != max_index){
+                    it.valueRef() = 0;
+                }
+                else{
+                    it.valueRef() = 1;
+                    if (new_clusters[c] != it.row()){
+                        changes++;
+                        new_clusters[c] = it.row();
+                    }
+                }
+            }
+        }
+
+        clusters = clusters_of_neighbors;
+
+        number_of_iterations++;
+    }
+
+    //put -2 for masked reads
+    for (int i = 0; i < mask.size(); i++){
+        if (!mask[i]){
+            new_clusters[i] = -2;
+        }
+    }
+
+    return new_clusters;
+}
+
+/**
  * @brief Merge close clusters by disrupting clusters and applying chinese whispers
  * 
  * @param adjacency_list Graph
@@ -279,7 +399,7 @@ std::vector<int> chinese_whispers_high_memory(std::vector<std::vector<int>> &adj
  * @param mask Masked reads
  * @return std::vector<int> merged clusters
  */
-void merge_close_clusters(std::vector<std::vector<int>> &neighbor_list, vector<vector<int>> & adjacency_matrix_high_memory, bool low_memory, std::vector<int> &clusters, std::vector<bool> &mask){
+void merge_close_clusters(std::vector<std::vector<int>> &neighbor_list, Eigen::SparseMatrix<int> &adjacency_matrix, bool low_memory, std::vector<int> &clusters, std::vector<bool> &mask){
 
     std::set<int> setOfTestedClusters;
     vector<int> initialCountOfClusters (clusters.size(), 0);
@@ -317,12 +437,18 @@ void merge_close_clusters(std::vector<std::vector<int>> &neighbor_list, vector<v
                         continue;
                     }          
                     vector<int> neighbors (mask.size(), 0);
-                    for (int j = 0; j < mask.size(); j++){
-                        if (low_memory && std::binary_search(neighbor_list[i].begin(), neighbor_list[i].end(),j) == true && newclusters[j] >= 0){
-                            neighbors[newclusters[j]]+= 1;
+                    if (low_memory){
+                        for (int j = 0 ; j < neighbor_list[i].size() ; j++){
+                            if (std::binary_search(neighbor_list[i].begin(), neighbor_list[i].end(),j) == true && newclusters[j] >= 0){
+                                neighbors[newclusters[j]]+= 1;
+                            }
                         }
-                        else if (!low_memory && adjacency_matrix_high_memory[i][j] >= 1 && newclusters[j] >= 0){
-                            neighbors[newclusters[j]]+= adjacency_matrix_high_memory[i][j];
+                    }
+                    else{
+                        for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, i); it; ++it){
+                            if (newclusters[it.row()] >= 0){
+                                neighbors[newclusters[it.row()]]+= it.value();
+                            }
                         }
                     }
 
