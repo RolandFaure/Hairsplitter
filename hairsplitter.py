@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 __date__ = "2024-01-15"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"

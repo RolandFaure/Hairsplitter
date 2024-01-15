@@ -7,6 +7,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
 
+#include <chrono> //for time measurement
 #include <iostream>
 #include <fstream> //for reading files
 #include <sstream> //for parsing strings
@@ -17,6 +18,7 @@
 #include <cmath> //for sqrt and pow
 #include <algorithm> //for sort and std::find
 
+using namespace std::chrono;
 using std::vector;
 using std::string;
 using std::cout;
@@ -1328,6 +1330,12 @@ int main(int argc, char *argv[]){
     std::vector<long int> length_of_contigs;
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads);
+
+    //to make a progress bar, compute the length of the assembly
+    long int total_length = 0;
+    for (auto l : length_of_contigs){
+        total_length += l;
+    }
  
     //choosing size of window: compute the mean length of the 1000 first reads
     int numberOfReadsHere = 0;
@@ -1357,15 +1365,20 @@ int main(int argc, char *argv[]){
         sizeOfWindow = 500;
     }
 
+    //to make the progress bar
+    int total_computed_length = 0; 
+    auto time_0 = high_resolution_clock::now();
+    auto last_time = time_0;
+
     //separate the reads on each contig parralelly
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        if (name_of_contigs[n].substr(7,8) ==  "edge_628"){
-            cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
-            exit(1);
-        }
+        // if (name_of_contigs[n].substr(7,8) ==  "edge_628"){
+        //     cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
+        //     exit(1);
+        // }
 
         auto snps = snps_in[n];
         int numberOfReadsHere = numberOfReads[n];
@@ -1373,10 +1386,10 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        #pragma omp critical (cout)
-        {
-            cout << "separating reads on contig " << name_of_contigs[n] << "\n";
-        }
+        // #pragma omp critical (cout)
+        // {
+        //     cout << "separating reads on contig " << name_of_contigs[n] << "\n";
+        // }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
         Eigen::SparseMatrix<int> similarity;
@@ -1389,8 +1402,7 @@ int main(int argc, char *argv[]){
         // cout << "similrities and differences computed " << numberOfReadsHere << endl;
         // for (auto i : sims_and_diffs[0]){
         //     cout << i.first << " " << i.second << endl;
-        // }
- 
+        // } 
 
         vector<pair<pair<int,int>, vector<int>>> threadedReads; //associates to each window the reads that are in it
         int suspectPostitionIdx = 0;
@@ -1545,28 +1557,21 @@ int main(int argc, char *argv[]){
             // }
             // exit(0);
 
-            // if (debug){
-            //     cout << "haploutypes sepreads : " << chunk*sizeOfWindow << endl;
-            //     for (auto h : haplotypes){
-            //         if (h > -1){
-            //             // cout << n << ":" <<h << " ";
-            //             cout << h;
-            //         }
-            //         // else{
-            //         //     cout << "*";
-            //         // }
-            //     }
-            //     cout << endl;
-            //     // for (auto h = 0 ; h < haplotypes.size() ; h++){
-            //     //     if (haplotypes[h] == 4){
-            //     //         cout << "haplotype 4 : " << names_of_reads[n][h] << endl;
-            //     //     }
-            //     // }
-            // }
 
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));
         }
         //recursively go through all the windows once again, seeing if a window can be inspired by its neighbors
+
+        //progress bar if time since last progress bar > 10 seconds
+        if (duration_cast<seconds>(high_resolution_clock::now() - last_time).count() > 10){
+            total_computed_length += length_of_contigs[n];
+            last_time = high_resolution_clock::now();
+            auto total_time_elapsed = duration_cast<seconds>(last_time - time_0).count();
+            #pragma omp critical (cout)
+            {
+                cout << "progress: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
+            }
+        }
         
         //append threadedReads to file
         #pragma omp critical
