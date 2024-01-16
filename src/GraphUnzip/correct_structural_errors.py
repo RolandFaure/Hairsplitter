@@ -658,7 +658,7 @@ def main():
     print("Alignment of the reads on the assembly graph...")
 
     alignmentFile = tmp_folder + "tmp.gaf"
-    minigraph_res = os.system(minigraph + " -c --secondary=no -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
+    # minigraph_res = os.system(minigraph + " -c --secondary=no -t " + str(threads) + " " + assembly + " " + reads + " > " + alignmentFile + " 2>" + tmp_folder + "log_minigraph.txt")
     if minigraph_res != 0:
         print("Error: could not run minigraph, was trying to run ", minigraph + " -c -t " + threads + " " + assembly + " " + reads + " > " + alignmentFile)
         exit(1)

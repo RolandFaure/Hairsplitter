@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.1"
-__date__ = "2024-01-15"
+__version__ = "1.7.2"
+__date__ = "2024-01-16"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -50,7 +50,7 @@ def parse_args():
 
     return parser.parse_args()
 
-def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python):
+def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     mini_run = os.system(minimap2 + com)
@@ -59,7 +59,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
         sys.exit(1)
 
     minigraph_run = os.system(minigraph + com)
-    if minigraph_run != 0:
+    if minigraph_run != 0 and not skip_minigraph:
         print("ERROR: minigraph could not run. Check the path to the executable. (command line tried by HairSplitter: "+minigraph+com+")")
         sys.exit(1)
 
@@ -150,7 +150,7 @@ def main():
         sys.exit(1)
 
     #check the dependencies
-    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python)
+    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, path_to_python, args.skip_minigraph)
 
     #check the read file and unzip it if needed
     if readsFile[-3:] == ".gz":
@@ -185,7 +185,7 @@ def main():
 
     # 1. Clean the assembly using correct_structural_errors.py
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
-    print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed by the assembler. Here, HairSplitter correct the assembly"
+    print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed by the assembler. Here, HairSplitter corrects the assembly"
         " by making sure that all reads align end-to-end of the assembly.\n")
     sys.stdout.flush()
     

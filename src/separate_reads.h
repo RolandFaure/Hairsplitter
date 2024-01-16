@@ -30,7 +30,8 @@ void list_similarities_and_differences_between_reads2(
 
 void list_similarities_and_differences_between_reads3(
     std::vector<Column> &snps, 
-    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs);
+    Eigen::SparseMatrix<int>& similarity,
+    Eigen::SparseMatrix<int>& difference);
 
 void create_read_graph(
     std::vector <bool> &mask,
@@ -52,7 +53,8 @@ void create_read_graph_matrix(
     std::vector <bool> &mask,
     int chunk,
     int sizeOfWindow,
-    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
+    Eigen::SparseMatrix<int>& similarity,
+    Eigen::SparseMatrix<int>& difference,
     Eigen::SparseMatrix<int> &adjacency_matrix, //containing only the 1s
     float &errorRate);
 

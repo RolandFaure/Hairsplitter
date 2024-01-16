@@ -28,6 +28,13 @@ struct hash_pair {
     }
 };
 
+struct equal_pair {
+    template <class T1, class T2>
+    bool operator () (const std::pair<T1, T2>& p1, const std::pair<T1, T2>& p2) const {
+        return p1.first == p2.first && p1.second == p2.second;
+    }
+};
+
 
 std::string convert_cigar(std::string &cigar);
 std::string convert_cigar2(std::string &cigar);

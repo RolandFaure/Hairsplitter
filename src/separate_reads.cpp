@@ -346,14 +346,16 @@ void list_similarities_and_differences_between_reads2(
  * @brief Compute pairwise similarities and differences between reads using matrix algebra using the Eigen library
  * 
  * @param snps All the snps in the contig
- * @param sims_and_diffs Resulting matrix of similarities and differences
+ * @param similarity sparse matrix numbering the number of identical loci between reads
+ * @param difference sparse matrix numbering the number of different loci between reads
  */
 void list_similarities_and_differences_between_reads3(
     std::vector<Column> &snps, 
-    vector<vector<pair<int,int>>> &sims_and_diffs){
+    Eigen::SparseMatrix<int>& similarity,
+    Eigen::SparseMatrix<int>& difference){
 
     //convert snp to a matrix with three characters : dominant, second and other. By default, everything is filled with 'other'
-    Eigen::MatrixXi matrix(sims_and_diffs.size(), snps.size());
+    Eigen::MatrixXi matrix(similarity.rows() , snps.size());
     matrix.setConstant(-1); 
     
     //now fill the matrix with the snps
@@ -387,24 +389,22 @@ void list_similarities_and_differences_between_reads3(
     Eigen::SparseMatrix<int> matrix_4s = matrix_3s.transpose();
 
     //multiplication of matrices to obtain the similarity and difference matrices
-    Eigen::SparseMatrix<int> similarity = 3*matrix_1s * matrix_2s + matrix_3s * matrix_4s; //the 3 is to give more weight to the second most frequent base, this is more exceptionnal
-    Eigen::SparseMatrix<int> difference = matrix_1s * matrix_4s + matrix_3s * matrix_2s;
+    similarity = 3*matrix_1s * matrix_2s + matrix_3s * matrix_4s; //the 3 is to give more weight to the second most frequent base, this is more exceptionnal
+    difference = matrix_1s * matrix_4s + matrix_3s * matrix_2s;
 
-    //transfer the matrix in sims and diffs, where the first element of the pair is the similarity and the second is the difference
-    for (int k = 0; k < similarity.outerSize(); ++k) {
-        for (Eigen::SparseMatrix<int>::InnerIterator it(similarity, k); it; ++it) {
-            if (it.row() > it.col()){ //be careful not to fill the diagonal, the values are not correct
-                sims_and_diffs[it.row()][it.col()].first = it.value();
-                sims_and_diffs[it.col()][it.row()].first = it.value();
+    //set the diagonals to 0
+    for (int i = 0 ; i < similarity.outerSize() ; ++i){
+        for (Eigen::SparseMatrix<int>::InnerIterator it(similarity, i); it; ++it){
+            if (it.row() == it.col()){
+                it.valueRef() = 0;
             }
         }
     }
 
-    for (int k = 0; k < difference.outerSize(); ++k) {
-        for (Eigen::SparseMatrix<int>::InnerIterator it(difference, k); it; ++it) {
-            if (it.row() > it.col()){ //be careful not to fill the diagonal, the values are not correct
-                sims_and_diffs[it.row()][it.col()].second = it.value();
-                sims_and_diffs[it.col()][it.row()].second = it.value();
+    for (int i = 0 ; i < difference.outerSize() ; ++i){
+        for (Eigen::SparseMatrix<int>::InnerIterator it(difference, i); it; ++it){
+            if (it.row() == it.col()){
+                it.valueRef() = 0;
             }
         }
     }
@@ -718,35 +718,52 @@ void create_read_graph_matrix(
     std::vector <bool> &mask,
     int chunk,
     int sizeOfWindow,
-    std::vector<std::vector<std::pair<int,int>>> &sims_and_diffs,
+    Eigen::SparseMatrix<int>& similarity,
+    Eigen::SparseMatrix<int>& difference,
     Eigen::SparseMatrix<int> &adjacency_matrix, //containing only the 1s
     float &errorRate){
 
     set<int> listOfGroups;
     int max_cluster = 0;
 
-    vector<Eigen::Triplet<int>> triplet_list; //i,j, value to build the sparse matrix efficiently
+    vector<Eigen::Triplet<int>> triplet_list; //i,j, value to build the sparse adjacnceny matrix efficiently
 
     for (int read1 = 0 ; read1 < mask.size() ; read1 ++){
         if (mask[read1]){
 
             vector <float> distance_with_other_reads (mask.size(), 0);
+            vector <int> sims (mask.size(), 0);
+            vector <int> diffs (mask.size(), 0);
             int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
 
-            //iterate through 
+            //iterate through all the other reads
+
+            for (Eigen::SparseMatrix<int>::InnerIterator it(similarity, read1); it; ++it){
+                int read2 = it.row();
+                if (mask[read2] && read1 != read2){
+                    sims[read2] = it.value();
+                }
+            }
+
+            for (Eigen::SparseMatrix<int>::InnerIterator it(difference, read1); it; ++it){
+                int read2 = it.row();
+                if (mask[read2] && read1 != read2){
+                    diffs[read2] = it.value();
+                }
+            }
 
             for (auto r = 0 ; r < mask.size() ; r++){
-                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first > 0){
-                    float diffs = max(0,sims_and_diffs[read1][r].second-1); //-1 to make sure that 1 difference does not make such a difference 
-                    distance_with_other_reads[r] = 1 - diffs / float(sims_and_diffs[read1][r].first+sims_and_diffs[read1][r].second);
-                    if (sims_and_diffs[read1][r].first > max_compat){
-                        max_compat = sims_and_diffs[read1][r].first;
+                if (mask[r] && r != read1 && sims[r]> 0){
+                    float diff = max(0,diffs[r]-1); //-1 to make sure that 1 difference does not make such a difference 
+                    distance_with_other_reads[r] = 1 - diff / float(sims[r]+diffs[r]);
+                    if (sims[r] > max_compat){
+                        max_compat = sims[r];
                     }
                 }
             }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && sims_and_diffs[read1][r].first + sims_and_diffs[read1][r].second < max(5.0,0.7*max_compat) ){
+                if (mask[r] && r != read1 && sims[r] + diffs[r] < max(5.0,0.7*max_compat) ){
                     distance_with_other_reads[r] = 0;
                 }
             }
@@ -801,10 +818,8 @@ void create_read_graph_matrix(
             it.valueRef() = 1;
         }
     }
-
-    // adjacency_matrix.makeCompressed();
-
 }
+
 
 
 /**
@@ -1392,11 +1407,11 @@ int main(int argc, char *argv[]){
         // }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
-        Eigen::SparseMatrix<int> similarity;
-        Eigen::SparseMatrix<int> difference;
+        
+        Eigen::SparseMatrix<int> similarity(numberOfReadsHere, numberOfReadsHere);
+        Eigen::SparseMatrix<int> difference(numberOfReadsHere, numberOfReadsHere);
         if (!low_memory){
-            sims_and_diffs = vector<vector<pair<int,int>>> (numberOfReadsHere, vector<pair<int,int>>(numberOfReadsHere, make_pair(0,0)));
-            list_similarities_and_differences_between_reads3(snps, sims_and_diffs);
+            list_similarities_and_differences_between_reads3(snps, similarity, difference);
         }
 
         // cout << "similrities and differences computed " << numberOfReadsHere << endl;
@@ -1472,7 +1487,7 @@ int main(int argc, char *argv[]){
             Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);
 
             if (!low_memory){
-                create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, sims_and_diffs, adjacency_matrix, errorRate);
+                create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
             }
             else{
                 for (auto v : neighbor_list_low_memory){
@@ -1481,7 +1496,7 @@ int main(int argc, char *argv[]){
                 // cout << "he qd q lll" << endl;
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
                 // cout << "ididinnd q" << endl;
-                neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
+                // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
             }
             // cout << "ociojccood" << endl;
@@ -1564,12 +1579,12 @@ int main(int argc, char *argv[]){
 
         //progress bar if time since last progress bar > 10 seconds
         if (duration_cast<seconds>(high_resolution_clock::now() - last_time).count() > 10){
-            total_computed_length += length_of_contigs[n];
             last_time = high_resolution_clock::now();
             auto total_time_elapsed = duration_cast<seconds>(last_time - time_0).count();
             #pragma omp critical (cout)
             {
-                cout << "progress: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
+                total_computed_length += length_of_contigs[n];
+                cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
             }
         }
         
