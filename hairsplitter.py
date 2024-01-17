@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.2"
+__version__ = "1.7.3"
 __date__ = "2024-01-16"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
+    parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--skip-minigraph", help="Skip the assembly correction step. Aligning reads on very complex graphs can be time-consuming", action="store_true")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
@@ -111,6 +112,7 @@ def main():
     path_to_python = args.path_to_python
     low_memory = args.low_memory
     skip_minigraph = args.skip_minigraph
+    rarest_strain_abundance = args.rarest_strain_abundance
 
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka" and polisher != "auto":
@@ -362,7 +364,7 @@ def main():
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
     command = path_to_src + "build/separate_reads " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(int(low_memory)) \
-        + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
+        + " " + str(rarest_strain_abundance) + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")
     f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")

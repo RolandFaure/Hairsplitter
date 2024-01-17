@@ -50,7 +50,8 @@ void parse_column_file(
     std::vector<std::vector<string>> &names_of_reads,
     std::vector<long int> &length_of_contigs,
     std::vector<std::vector<std::pair<int,int>>> &readLimits,
-    std::vector<int>& numberOfReads){
+    std::vector<int>& numberOfReads,
+    int max_coverage){
 
     std::ifstream infile(file);
     std::string line;
@@ -138,11 +139,15 @@ void parse_column_file(
             snp.pos = std::atoi(pos.c_str());
             snp.ref_base = ref_base;
             snp.second_base = second_frequent_base;
+            int cov = 0;
             for (int n = 0; n < content.size(); n++){
-                if (content[n] != ' '){
+                if (content[n] != ' ' && cov < max_coverage){ //ignore the reads after this
                     snp.content.push_back(content[n]);
                     snp.readIdxs.push_back(readIdxs[n]);
-                }                
+                }   
+                if (content[n] != ' ' && readIdxs[n] >= 0){
+                    cov++;
+                }  
             }
             snps[snps.size()-1].push_back(snp);                
 
@@ -354,19 +359,19 @@ void list_similarities_and_differences_between_reads3(
     Eigen::SparseMatrix<int>& similarity,
     Eigen::SparseMatrix<int>& difference){
 
-    //convert snp to a matrix with three characters : dominant, second and other. By default, everything is filled with 'other'
-    Eigen::MatrixXi matrix(similarity.rows() , snps.size());
-    matrix.setConstant(-1); 
+    //generate two triplet lists
+    vector<Eigen::Triplet<int>> triplet_list_ref;
+    vector<Eigen::Triplet<int>> triplet_list_alt;
     
     //now fill the matrix with the snps
     for (int s = 0 ; s < snps.size() ; s++){
         Column snp = snps[s];
         for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
             if (snp.content[r] == snp.ref_base){
-                matrix(snp.readIdxs[r], s) = 0;
+                triplet_list_ref.push_back(Eigen::Triplet<int>(snp.readIdxs[r], s, 1));
             }
             else if (snp.content[r] == snp.second_base){
-                matrix(snp.readIdxs[r], s) = 1;
+                triplet_list_alt.push_back(Eigen::Triplet<int>(snp.readIdxs[r], s, 1));
             }
         }
     }
@@ -374,16 +379,16 @@ void list_similarities_and_differences_between_reads3(
     //now use two linear algebra to formulate the distance if terms of matrix multiplication
     //build 4 matrices from the subsampled matrix
 
-    //first matrix : the same as the subsampled matrix, with 0 replacing -1
-    Eigen::MatrixXi matrix_1 = matrix.array().max(0);
-    Eigen::SparseMatrix<int> matrix_1s = matrix_1.sparseView();
+    //generate matrix_1s from triplet_list_alt
+    Eigen::SparseMatrix<int> matrix_1s(similarity.rows(), snps.size());
+    matrix_1s.setFromTriplets(triplet_list_alt.begin(), triplet_list_alt.end());
 
     //second matrix : transpose of matrix_1
     Eigen::SparseMatrix<int> matrix_2s = matrix_1s.transpose();
 
-    //third matrix : subsampled matrix but switching 0 and 1, and then replacing -1 by 0
-    Eigen::MatrixXi matrix_3 = (matrix.array() == 0).cast<int>();
-    Eigen::SparseMatrix<int> matrix_3s = matrix_3.sparseView();
+    //generate matrix_3s from triplet_list_ref
+    Eigen::SparseMatrix<int> matrix_3s(similarity.rows(), snps.size()); 
+    matrix_3s.setFromTriplets(triplet_list_ref.begin(), triplet_list_ref.end());
 
     //fourth matrix : transpose of matrix_3
     Eigen::SparseMatrix<int> matrix_4s = matrix_3s.transpose();
@@ -521,176 +526,122 @@ void create_read_graph_low_memory(
     std::vector<std::vector<int>> &neighbor_list_low_memory, //containing the ordered list of neighbors for each read
     float &errorRate){
 
-    //compute the graph by batches of reads
-    int batch_size = 1000;
-    for (int batch = 0 ; batch*batch_size < mask.size() ; batch++){
-
-        // if (batch != 11 && batch != 12 && batch != 22){
-        //     cout << "iqcsuibdbfoin" << endl;
-        //     continue;
-        // }
-
-        int firstRead = batch*batch_size;
-        int lastRead = min((batch+1)*batch_size-1, (int) mask.size()-1);
-        int nb_reads_batch = lastRead - firstRead + 1;
-
-        // cout << "idqsn bathc " << batch << " " << firstRead << " " << lastRead << " " << nb_reads_batch << endl;
-
-        vector<vector<pair<int,int>>> sims_and_diffs(nb_reads_batch, vector<pair<int,int>>(mask.size(), make_pair(0,0)));
-
-        for (Column snp : snps){
-
-            // cout << "sus cect position : " << snp.pos << endl;
-
-            //what bases occur in which cluster ?
-            robin_hood::unordered_map<unsigned char,int> bases_in_total;
-            for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
-                unsigned char base = snp.content[r];
-                if (bases_in_total.find(base) == bases_in_total.end()){
-                    bases_in_total[base] = 0;
-                }
-                bases_in_total[base]++;
+    //first convert snps to a sparse matrix
+    Eigen::MatrixXi matrix_1(mask.size(), snps.size());
+    //fill the matrix with -1
+    matrix_1.setConstant(-1);
+    int idx_snp;
+    for (Column snp : snps){
+        for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
+            if (snp.content[r] == snp.ref_base){
+                matrix_1(snp.readIdxs[r], idx_snp) = 0;
             }
-            //find the second most frequent base
-            unsigned char second_most_frequent_base = ' ';
-            unsigned char most_frequent_base = ' ';
-            int second_most_frequent_base_count = 0;
-            int most_frequent_base_count = 0;
-            for (auto b : bases_in_total){
-                if (b.second > most_frequent_base_count){
-                    second_most_frequent_base = most_frequent_base;
-                    second_most_frequent_base_count = most_frequent_base_count;
-                    most_frequent_base_count = b.second;
-                    most_frequent_base = b.first;
-                }
-                else if (b.second > second_most_frequent_base_count){
-                    second_most_frequent_base = b.first;
-                    second_most_frequent_base_count = b.second;
-                }
-            }
-
-            int idx1 = 0;
-            for (int r1 = 0 ; r1 < sims_and_diffs.size() ; r1++){
-                int read1 = r1 + firstRead;
-                while (idx1 < snp.readIdxs.size() && snp.readIdxs[idx1] < read1){
-                    idx1++;
-                }
-                if (idx1 >= snp.readIdxs.size() || snp.readIdxs[idx1] > read1){
-                    continue;
-                }
-                unsigned char base1 = snp.content[idx1];
-
-                int idx2 = 0;
-                for (int read2 = 0 ; read2 < sims_and_diffs[r1].size() ; read2 ++){
-
-                    if (read1 == read2){
-                        continue;
-                    }
-
-                    // cout << "fqljdklmf " << read2 << " " << sims_and_diffs[read1].size() << endl;
-                    while (idx2 < snp.readIdxs.size() && snp.readIdxs[idx2] < read2){
-                        idx2++;
-                    }
-                    if (idx2 >= snp.readIdxs.size() || snp.readIdxs[idx2] > read2){
-                        continue;
-                    }
-                    unsigned char base2 = snp.content[idx2];
-
-                    if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 != base2){
-                        sims_and_diffs[r1][read2].second++;
-                    }
-                    else if (bases_in_total[base1] >= second_most_frequent_base_count && bases_in_total[base2] >= second_most_frequent_base_count && base1 == base2){
-                        sims_and_diffs[r1][read2].first++;
-                        if (base1 == second_most_frequent_base){ //this is very strong signal
-                            sims_and_diffs[r1][read2].first+= 2;
-                        }
-                    }
-                }
+            else if (snp.content[r] == snp.second_base){
+                matrix_1(snp.readIdxs[r], idx_snp) = 1;
             }
         }
+        idx_snp++;
+    }
 
-        // cout << "ofoqdqqsss" << endl;
+    //go through the reads and to see which are full of -1 and add them to mask
+    vector<bool> mask_extend (mask.size(), false);
+    for (auto r = 0 ; r < mask.size() ; r++){
+        if (mask[r]){
+            bool all_minus_one = true;
+            for (auto s = 0 ; s < snps.size() ; s++){
+                if (matrix_1(r,s) != -1){
+                    all_minus_one = false;
+                    break;
+                }
+            }
+            if (all_minus_one == false){
+                mask_extend[r] = true;
+            }
+        }
+    }
 
-        set<int> listOfGroups;
-        int max_cluster = 0;
+    for (int read1=0 ; read1 < mask.size() ; read1++){
+        if (mask_extend[read1]){
+            vector<float> distance_with_other_reads (mask.size(), 0);
+            vector<int> similarity_with_other_reads (mask.size(), 0);
+            vector<int> difference_with_other_reads (mask.size(), 0); 
+            int max_compat = 5;
+            for (int read2 = 0 ; read2 < mask.size() ; read2++){
+                if (mask_extend[read2] && read1 != read2){
+                    //compare the sims and diffs between read1 and read2
+                    int nb_similar = 0;
+                    int nb_different = 0;
+                    //compute the number of cells where read1 and read2 have 1
+                    for (int pos = 0 ; pos < snps.size() ; pos++){
 
-        for (int r1 = 0 ; r1 < sims_and_diffs.size(); r1 ++){
-            int read1 = r1+firstRead;
-            // if (read1 != 11645 && read1 != 12747 && read1 != 22677){
-            //     cout << "dsiodiccsz " << read1 << endl;
-            //     continue;
-            // }
-            if (mask[read1]){
-
-                vector <float> distance_with_other_reads (mask.size(), 0);
-                int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
-                for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                    if (mask[r] && r != read1 && sims_and_diffs[r1][r].first > 0){
-                        float diffs = max(0,sims_and_diffs[r1][r].second-1); //-1 to make sure that 1 difference does not make such a difference 
-                        distance_with_other_reads[r] = 1 - diffs / float(sims_and_diffs[r1][r].first+sims_and_diffs[r1][r].second);
-                        if (sims_and_diffs[r1][r].first > max_compat){
-                            max_compat = sims_and_diffs[r1][r].first;
+                        if (matrix_1(read1, pos) == 1 && matrix_1(read2, pos) == 1){
+                            nb_similar+=3;
                         }
+                        else if (matrix_1(read1, pos) == 0 && matrix_1(read2, pos) == 0){
+                            nb_similar++;
+                        }
+                        else if (matrix_1(read1, pos) != -1 && matrix_1(read2, pos) != -1){
+                            nb_different++;
+                        }
+
                     }
-                }
 
-
-                for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                    if (mask[r] && r != read1 && sims_and_diffs[r1][r].first + sims_and_diffs[r1][r].second < max(5.0,0.7*max_compat) ){
-                        distance_with_other_reads[r] = 0;
+                    distance_with_other_reads[read2] = 1 - max(0, nb_different-1) / float(nb_different+nb_similar); //-1 to make sure that just 1 difference does not make a difference
+                    if (nb_similar > max_compat){
+                        max_compat = nb_similar;
                     }
+                    similarity_with_other_reads[read2] = nb_similar;
+                    difference_with_other_reads[read2] = nb_different;
                 }
+            }
 
-                vector<pair<int, float>> smallest;
-                for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
-                    smallest.push_back(make_pair(r,distance_with_other_reads[r]));
+            for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
+                if (mask[r] && r != read1 && similarity_with_other_reads[r] + difference_with_other_reads[r] < max(5.0,0.7*max_compat) ){
+                    distance_with_other_reads[r] = 0;
                 }
-                //sort smallest by distance in decreasing order
-                sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
-                    return a.second > b.second;
-                });
+            }
+            
+            vector<pair<int, float>> smallest;
+            for (int r = 0 ; r < distance_with_other_reads.size() ; r++){
+                smallest.push_back(make_pair(r,distance_with_other_reads[r]));
+            }
 
+            //sort smallest by distance in decreasing order
+            sort(smallest.begin(), smallest.end(), [](const pair<int, float>& a, const pair<int, float>& b) {
+                return a.second > b.second;
+            });
 
-                int nb_of_neighbors = 0;
-                float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
-                float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
-                if (smallest.size() > 1){
-                    distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
+            int nb_of_neighbors = 0;
+            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
+            float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
+            if (smallest.size() > 1){
+                distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
+            }
+            if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
+                //take the first five non-1 distance of smallest
+                int idx = 0;
+                while (idx < smallest.size() && smallest[idx].second == 1){
+                    idx+=1;
                 }
-                if (distance_threshold_above_which_two_reads_should_be_linked == 1){ //if there are actually identical reads, you still want to tolerate at least some errors, or you will end up making strictly clonal clusters
-                    //take the first five non-1 distance of smallest
-                    int idx = 0;
-                    while (idx < smallest.size() && smallest[idx].second == 1){
-                        idx+=1;
-                    }
-                    if (idx < smallest.size()){
-                        idx = min(idx+4, (int) smallest.size()-1);
-                        distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
-                    }
+                if (idx < smallest.size()){
+                    idx = min(idx+4, (int) smallest.size()-1);
+                    distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
                 }
+            }
 
-                for (auto neighbor : smallest){
-                    if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
-                        && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
-                        && mask[neighbor.first]){
-                        nb_of_neighbors++;
+            for (auto neighbor : smallest){
+                if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
+                    && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
+                    && mask[neighbor.first]){
+                    nb_of_neighbors++;
 
-                        // if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
-                        //     cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
-                        // }
+                    // if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
+                    //     cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
+                    // }
 
-                        neighbor_list_low_memory[read1].push_back(neighbor.first);
-                        neighbor_list_low_memory[neighbor.first].push_back(read1);
-                    }
+                    neighbor_list_low_memory[read1].push_back(neighbor.first);
+                    neighbor_list_low_memory[neighbor.first].push_back(read1);
                 }
-
-                // if (read1 == 11645){
-                //     cout << "here is sims for read 11645 : " << endl;
-                //     for (auto r = 0 ; r < sims_and_diffs[r1].size() ; r++){
-                //         cout << sims_and_diffs[r1][r].first << " " << sims_and_diffs[r1][r].second << " " << distance_with_other_reads[r] << endl;
-                //     }
-                //     exit(1);
-                // }
             }
         }
     }
@@ -1321,17 +1272,26 @@ std::vector<int> merge_wrongly_split_haplotypes(
 }
 
 int main(int argc, char *argv[]){
-    if (argc < 7){
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <outfile> <DEBUG>" << endl;
+    if (argc < 8){
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
     float errorRate = atof(argv[3]);
-    bool debug = bool(atoi(argv[6]));
-    string outfile = argv[5];
+    bool debug = bool(atoi(argv[7]));
+    string outfile = argv[6];
     bool low_memory = bool(atoi(argv[4]));
+
+    float rarest_strain_abundance = atof(argv[5]);
+    int max_coverage;
+    if (rarest_strain_abundance == 0){
+        max_coverage = 1000000000;
+    }
+    else{
+        int max_coverage = 50 / atof(argv[5]); //with a coverage of 50 a strain can be well recovered, thus we can downsample to 50/abundance
+    }
 
     //create empty output file
     ofstream out(outfile);
@@ -1344,7 +1304,7 @@ int main(int argc, char *argv[]){
     std::vector<std::vector<Column>> snps_in;
     std::vector<long int> length_of_contigs;
     vector<vector<pair<int,int>>> readLimits;
-    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads);
+    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads, max_coverage);
 
     //to make a progress bar, compute the length of the assembly
     long int total_length = 0;
@@ -1352,24 +1312,23 @@ int main(int argc, char *argv[]){
         total_length += l;
     }
  
-    //choosing size of window: compute the mean length of the 1000 first reads
+    //choosing size of window: compute the mean length of the reads (and compute coverge)
     int numberOfReadsHere = 0;
     int sumLength = 0;
     int numberOfReadsAbove4000 = 0;
+    vector<float> coverages (snps_in.size(), 0);
+    int readIdx = 0;
     for (auto c : readLimits){
         for (auto r : c){
             numberOfReadsHere++;
             sumLength += r.second-r.first+1;
+            coverages[readIdx] += r.second-r.first+1;
             if (r.second-r.first+1 > 4000){
                 numberOfReadsAbove4000++;
             }
-            if (numberOfReadsHere > 1000){
-                break;
-            }
         }
-        if (numberOfReadsHere > 1000){
-            break;
-        }
+        coverages[readIdx] /= length_of_contigs[readIdx];
+        readIdx++;
     }
     double meanLength = sumLength / double(numberOfReadsHere);
     int sizeOfWindow = 2000;
@@ -1390,10 +1349,15 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,8) ==  "edge_628"){
-        //     cout << "skipping contig " << name_of_contigs[n].substr(7,8) << endl;
-        //     exit(1);
+        // if (name_of_contigs[n].substr(7,9) != "edge_2877"){
+        //     cout << "skipping " << name_of_contigs[n] << endl;
+        //     continue;
         // }
+
+        bool low_memory_now = low_memory;
+        if (coverages[n] > 5000){
+            low_memory_now = true;
+        }
 
         auto snps = snps_in[n];
         int numberOfReadsHere = numberOfReads[n];
@@ -1401,16 +1365,16 @@ int main(int argc, char *argv[]){
             continue;
         }
 
-        // #pragma omp critical (cout)
-        // {
-        //     cout << "separating reads on contig " << name_of_contigs[n] << "\n";
-        // }
+        #pragma omp critical (cout)
+        {
+            cout << "separating reads on contig " << name_of_contigs[n] << "\n";
+        }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
         
         Eigen::SparseMatrix<int> similarity(numberOfReadsHere, numberOfReadsHere);
         Eigen::SparseMatrix<int> difference(numberOfReadsHere, numberOfReadsHere);
-        if (!low_memory){
+        if (!low_memory_now){
             list_similarities_and_differences_between_reads3(snps, similarity, difference);
         }
 
@@ -1486,7 +1450,7 @@ int main(int argc, char *argv[]){
             vector<vector<int>> strengthened_adjacency_matrix_high_memory;
             Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);
 
-            if (!low_memory){
+            if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
             }
             else{
@@ -1495,6 +1459,7 @@ int main(int argc, char *argv[]){
                 }
                 // cout << "he qd q lll" << endl;
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
+
                 // cout << "ididinnd q" << endl;
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
@@ -1509,7 +1474,7 @@ int main(int argc, char *argv[]){
             vector<vector<int>> allclusters_debug;
             vector<int> clusteredReads1;
             vector<int> clusteredReads1_2;
-            if (low_memory){
+            if (low_memory_now){
                 clusteredReads1 = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart, mask_at_this_position);
             }
             else{
@@ -1546,7 +1511,7 @@ int main(int argc, char *argv[]){
                     }
                     
                     vector<int> clusteredReads_local;// = chinese_whispers(strengthened_adjacency_matrix, clustersStart2, mask_at_this_position); 
-                    if (low_memory){
+                    if (low_memory_now){
                         clusteredReads_local = chinese_whispers(neighbor_list_low_memory_strengthened, clustersStart2, mask_at_this_position);
                     }
                     else{
