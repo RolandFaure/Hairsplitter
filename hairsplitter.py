@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--skip-minigraph", help="Skip the assembly correction step. Aligning reads on very complex graphs can be time-consuming", action="store_true")
+    parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
     parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
@@ -113,6 +114,7 @@ def main():
     low_memory = args.low_memory
     skip_minigraph = args.skip_minigraph
     rarest_strain_abundance = args.rarest_strain_abundance
+    minimap2_params = args.minimap2_params
 
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka" and polisher != "auto":
@@ -280,7 +282,7 @@ def main():
     else :
         techno_flag = "-x map-ont"
 
-    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a -N 1 -t "+ str(nb_threads) +" > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
+    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a -N 1 -t "+ str(nb_threads) + " " + minimap2_params + " > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
     print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
