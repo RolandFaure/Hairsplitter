@@ -116,6 +116,8 @@ def main():
     rarest_strain_abundance = args.rarest_strain_abundance
     minimap2_params = args.minimap2_params
 
+    logFile = args.output.rstrip('/') + "/hairsplitter.log"
+
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka" and polisher != "auto":
         print("ERROR: polisher must be either racon, medaka or auto")
@@ -128,6 +130,12 @@ def main():
     print("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__)
     if args.version:
         sys.exit(0)
+
+    #output the command line used to run HairSplitter and the version in the log file
+    f = open(logFile, "w")
+    f.write("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__+"\n")
+    f.write("Command line used to run HairSplitter: "+" ".join(sys.argv)+"\n")
+    f.close()
 
     #check if all the files and dependencies are here
     # check if output folder exists
@@ -170,8 +178,6 @@ def main():
     # run the pipeline
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
     sys.stdout.flush()
-
-    logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
     # 0. Convert the assembly to gfa if needed
     if args.assembly[-3:] == "gfa":
@@ -296,7 +302,7 @@ def main():
 
     #write in log file that alignment went smoothly
     f = open(logFile, "a")
-    f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully")
+    f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully\n")
     f.close()
 
     print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
@@ -312,7 +318,7 @@ def main():
         + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
     f = open(logFile, "a")
     f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
-    f.write(command)
+    f.write(command+"\n")
     f.close()
     # print(" - Calling variants with a basic pileup")
     print(" Running: ", command)
@@ -323,7 +329,7 @@ def main():
 
     #write in the log file that variant calling went smoothly
     f = open(logFile, "a")
-    f.write("STAGE 3: Variant calling computed, call_variants exited successfully. Variants are stored in "+tmp_dir+"/variants.vcf and "+tmp_dir+"/variants.col")
+    f.write("STAGE 3: Variant calling computed, call_variants exited successfully. Variants are stored in "+tmp_dir+"/variants.vcf and "+tmp_dir+"/variants.col\n")
     f.close()
 
     #reading the error rate
