@@ -173,11 +173,14 @@ def simple_unzip(segments, names, gafFile) :
 
     toDelete = set()
     go_on = True
+    debug_count = 0
     while go_on :
         go_on = False
         for segment in segments :
 
             # print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
+            if "edge_1_" not in segment.names[0] :
+                continue
 
             segment_to_duplicate = False
             #see if it should be duplicated
@@ -290,7 +293,7 @@ def simple_unzip(segments, names, gafFile) :
                 if segment_to_duplicate and len(pairs) > 0 :#and segment.names == ['NC_038882.1_9000_0'] :
                     for pair in pairs.keys() :
                         # print("On contig ", segment.names, " a pair is ", pair[0], " ", pair[1], " ", pairs[pair] )
-                        # print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names, " ", pairs[pair] )
+                        print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names, " ", pairs[pair] )
 
                         #create a new segment
                         new_segment = sg.Segment(segment.names, segment.orientations, segment.lengths, segInsideCIGARs=segment.insideCIGARs)
@@ -299,7 +302,7 @@ def simple_unzip(segments, names, gafFile) :
                         if pair[1] >= 0 :
                             sg.add_link(segment.links[1][pair[1]], segment.otherEndOfLinks[1][pair[1]], new_segment, 1, CIGAR = segment.CIGARs[1][pair[1]])
 
-                        print("Pair to duplicate : ", pair, " ", pair_to_paths[pair])
+                        # print("Pair to duplicate : ", pair, " ", pair_to_paths[pair])
                         for pa in pair_to_paths[pair] :
                             # if pa[0] == 6 :
                             #     print("1055 is heer e ", paths[pa[0]], " ", segment.ID, " ", new_segment.ID, " ", [i.ID for i in paths[pa[0]].get_contigs()])
@@ -327,6 +330,10 @@ def simple_unzip(segments, names, gafFile) :
                     on_which_paths_is_this_contig[segment] = []
 
                     go_on = True
+                    debug_count += 1
+                    if debug_count > 0 :
+                        go_on = False
+                        break
             
     delIdx = 0
     while delIdx < len(segments) :
@@ -336,7 +343,7 @@ def simple_unzip(segments, names, gafFile) :
         else :
             delIdx += 1
 
-    segments = detach_tips(segments)
+    # segments = detach_tips(segments)
 
     return segments
 
@@ -387,7 +394,7 @@ def detach_tips(segments):
                                               
     #detach short dead ends
     changes = True
-    max_tip_length = 20000
+    max_tip_length = 2000
     while changes :
         changes = False
         for s, seg in enumerate(segments):

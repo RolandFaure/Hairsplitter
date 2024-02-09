@@ -86,9 +86,12 @@ add_executable(fa2gfa ${CONVERT_SOURCE})
 file (GLOB CONVERT_SOURCE2 "gfa2fa.cpp")
 add_executable(gfa2fa ${CONVERT_SOURCE2})
 
-file (GLOB SOURCE_CLEAN_GRAPH "clean_graph.cpp" "input_output.cpp" "tools.cpp" "read.cpp" "sequence.cpp" "Partition.cpp")
-add_executable(clean_graph ${SOURCE_CLEAN_GRAPH} edlib/src/edlib.cpp)
-target_include_directories(clean_graph PRIVATE edlib/include)
+# file (GLOB SOURCE_CLEAN_GRAPH "clean_graph.cpp" "input_output.cpp" "tools.cpp" "read.cpp" "sequence.cpp" "Partition.cpp")
+# add_executable(clean_graph ${SOURCE_CLEAN_GRAPH} edlib/src/edlib.cpp)
+# target_include_directories(clean_graph PRIVATE edlib/include)
+
+# compile GenomeTailor, which is a folder in the same directory as Hairsplitter
+add_subdirectory(GenomeTailor)
 
 file (GLOB SOURCE_CALL_VARIANTS "call_variants.cpp" "input_output.cpp" "robin_hood.h" "tools.cpp" "read.cpp" "sequence.cpp" "Partition.cpp")
 add_executable(call_variants ${SOURCE_CALL_VARIANTS} edlib/src/edlib.cpp)

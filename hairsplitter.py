@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.5"
+__version__ = "1.7.6"
 __date__ = "2024-02-09"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -206,9 +206,12 @@ def main():
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
     N50 = 0
     if not skip_minigraph :
-        command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
-            + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
-            + " --folder " + tmp_dir
+
+        command = path_to_src + "GenomeTailor/build/GenomeTailor -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
+            + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " > " + tmp_dir + "/logGenomeTailor.txt"
+        # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
+        #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
+        #     + " --folder " + tmp_dir
         print(" Running: ", command)
         #write in the log file where to look in case of error
         f = open(logFile, "w")
