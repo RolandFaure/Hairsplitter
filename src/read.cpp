@@ -27,9 +27,16 @@ void Read::set_sequence(std::string s){ //s can be empty if we want to free the 
     //include a mutex here so that only one thread at a time can modify the sequence
     std::mutex mutx;
     mutx.lock();
-    sequence_ = Sequence(s);
-    if (s != ""){
+    if (s != "" && number_of_threads_in_which_it_is_loaded == 0){
+        sequence_ = Sequence(s);
         size_ = s.size();
+    }
+    else if (s == "" && number_of_threads_in_which_it_is_loaded == 1){
+        sequence_ = Sequence();
+        size_ = 0;
+    }
+
+    if (s != ""){
         number_of_threads_in_which_it_is_loaded += 1;
     }
     else{

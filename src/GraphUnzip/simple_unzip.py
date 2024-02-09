@@ -340,7 +340,7 @@ def simple_unzip(segments, names, gafFile) :
 
     return segments
 
-#function that removes the links that are not supported by any path
+#function that removes the links that are not supported by any path and for which supported alternative links exist
 #input : a list of segments and of paths
 #output : the same list of segments, but with the links that are not supported by any path removed
 def remove_unsupported_links(segments, names, lines):
@@ -364,9 +364,16 @@ def remove_unsupported_links(segments, names, lines):
     toRemove = set()
     for segment in segments :
         for end in range(2) :
+            one_supported = False
             for n, neighbor in enumerate(segment.links[end]) :
-                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
-                    toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
+                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) in links :
+                    one_supported = True
+                    break
+            
+            if one_supported:
+                for n, neighbor in enumerate(segment.links[end]) :
+                    if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
+                        toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
 
     for segment, end, neighbor, otherEnd in toRemove :
         sg.delete_link(segment, end, neighbor, otherEnd, warning=False)

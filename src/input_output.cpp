@@ -332,7 +332,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 1){ //this is the flag
                     flag = stoi(field);
-                    if (flag%8 >= 4){ //this means that 1) the reads does not map well 
+                    if (flag%8 >= 4){ //this means that the reads does not map well 
                         allgood = false;
                     }
                     if (flag%32 >= 16){
@@ -470,7 +470,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     allgood = false;
                     //cout << "inpout outpout qkdldkj c " << line << endl;
                 }
-                else if(flag%512 >= 256 || flag >= 2048){ //i.e. secondary alignment
+                else if(flag%512 >= 256){ //i.e. secondary alignment
                     allgood=false;
                 }
 

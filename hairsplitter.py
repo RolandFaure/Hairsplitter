@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.3"
-__date__ = "2024-01-16"
+__version__ = "1.7.5"
+__date__ = "2024-02-09"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
-    parser.add_argument("-p", "--polisher", help="{racon,medaka,auto} medaka is more accurate but much slower. auto uses medaka on genomes <100kb, racon elsewhise [auto]", default="auto")
+    parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
@@ -118,9 +118,26 @@ def main():
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
+    # check if output folder exists
+    if os.path.exists(args.output) and not args.force:
+        print("ERROR: output folder already exists. Use -F to overwrite.")
+        sys.exit(1)
+    elif not os.path.exists(args.output) :
+        # create output folder
+        os.mkdir(args.output)
+
+    #output the command line used to run HairSplitter and the version in the log file
+    f = open(logFile, "w")
+    f.write("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__+"\n")
+    f.write("Command line used to run HairSplitter: "+" ".join(sys.argv)+"\n")
+    f.close()
+
     polisher = args.polisher.lower()
-    if polisher != "racon" and polisher != "medaka" and polisher != "auto":
-        print("ERROR: polisher must be either racon, medaka or auto")
+    if polisher != "racon" and polisher != "medaka":
+        print("ERROR: polisher must be either racon or medaka")
+        f = open(logFile, "w")
+        f.write("ERROR: polisher must be either racon or medaka\n")
+        f.close()
         sys.exit(1)
 
     reads_on_asm = tmp_dir + "/reads_on_asm.sam"
@@ -131,20 +148,7 @@ def main():
     if args.version:
         sys.exit(0)
 
-    #output the command line used to run HairSplitter and the version in the log file
-    f = open(logFile, "w")
-    f.write("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__+"\n")
-    f.write("Command line used to run HairSplitter: "+" ".join(sys.argv)+"\n")
-    f.close()
-
     #check if all the files and dependencies are here
-    # check if output folder exists
-    if os.path.exists(args.output) and not args.force:
-        print("ERROR: output folder already exists. Use -F to overwrite.")
-        sys.exit(1)
-    elif not os.path.exists(args.output) :
-        # create output folder
-        os.mkdir(args.output)
 
     if not os.path.exists(tmp_dir):
         os.mkdir(tmp_dir)
@@ -288,7 +292,7 @@ def main():
     else :
         techno_flag = "-x map-ont"
 
-    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a -N 1 -t "+ str(nb_threads) + " " + minimap2_params + " > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
+    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
     print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
@@ -393,12 +397,6 @@ def main():
     print("\n===== STAGE 5: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     sys.stdout.flush()
     #"Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <split_file> <tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <MINIMAP> <RACON> <python> <debug>" 
-
-    if polisher == "auto" :
-        if os.path.getsize(args.assembly) < 1000000 and args.technology == "ont" :
-            polisher = "medaka"
-        else :
-            polisher = "racon"
     
     gaffile = tmp_dir + "/reads_on_new_contig.gaf"
     zipped_GFA = tmp_dir + "/zipped_assembly.gfa"

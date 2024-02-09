@@ -471,6 +471,7 @@ void modify_GFA(
                         if (!allOverlaps[allreads[backbone].neighbors_[r]].strand){
                             seq = allreads[idxRead].sequence_.reverse_complement().str();
                         }
+
                         string clippedRead = seq.substr(posOnReadStart, posOnReadEnd-posOnReadStart);
                         string clippedCIGAR = converted_cigar.substr(posOnCIGARStart, posOnCIGAREnd-posOnCIGARStart);
 
@@ -538,7 +539,7 @@ void modify_GFA(
                         //     cout << "ioudjqfdkljdqsmjf" << endl;
                         //     continue;
                         // }
-                        cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << group.second.size() << endl;
+                        // cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << group.second.size() << endl;
                         if (group.second.size() == 0){
                             newcontig = "";
                         }
@@ -1131,9 +1132,9 @@ void output_GAF(
 
             std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
             
-            // if (allreads[r].name.substr(0,19) == ">SRR14289618.827569"){
+            // if (readPaths[r].size() > 1){
 
-            //     cout << "on backbone 228 is feed aligned " << allreads[r].name.substr(0, 19) << endl;
+            //     cout << "on backbone qsldl is feed aligned " << allreads[r].name.substr(0, 19) << endl;
             //     for (auto p = 0 ; p < readPaths[r].size() ; p++){
             //         Path path = readPaths[r][p];
             //         cout << "path " << p << " : ";
