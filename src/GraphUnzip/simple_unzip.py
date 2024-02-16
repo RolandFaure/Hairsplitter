@@ -286,9 +286,9 @@ def simple_unzip(segments, names, gafFile) :
                     if pair[1] > -1 :
                         all_links_right[pair[1]] = True
 
-                # segment_to_duplicate = all([i for i in all_links_right+all_links_left])
+                segment_to_duplicate = all([i for i in all_links_right+all_links_left])
                 # segment_to_duplicate = True #this means that a link that is not supported by a path will be deleted
-                segment_to_duplicate = any([pairs[p]>=3 for p in pairs.keys()])
+                # segment_to_duplicate = any([pairs[p]>=3 for p in pairs.keys()])
 
                 if segment_to_duplicate and len(pairs) > 0 :#and segment.names == ['NC_038882.1_9000_0'] :
                     for pair in pairs.keys() :
