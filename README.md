@@ -58,7 +58,12 @@ Let's say `reads.fastq` (ONT reads) were used to build assembly `assembly.gfa` (
 python /path/to/hairsplitter/folder/hairsplitter.py -f reads.fastq -i assembly.gfa -x ont -o hairsplitter_out/
 ```
 
-In the folder hairsplitter_out, you will find the new assembly, named `hairsplitter\_final\_assembly.gfa`. Another generated file is `hairsplitter\_summary.txt`, in which are written which contigs are duplicated and merged.
+In the folder hairsplitter\_out, you will find the new assembly, named `hairsplitter_final_assembly.gfa`. Another generated file is `hairsplitter_summary.txt`, in which are written which contigs are duplicated and merged.
+
+You can test the installation on the mock instance provided and check that HairSplitter exits without problems.
+```
+python hairsplitter.py -i test/simple_mock/assembly.gfa -f test/simple_mock/mock_reads.fasta -o test_hairsplitter/ -F
+```
 
 ## Options
 
