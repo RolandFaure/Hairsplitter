@@ -32,10 +32,12 @@ If Minimap2, Racon, Medaka or samtools are not in the PATH, their location shoul
  
 ### Quick conda dependencies
 
-The recommended way to install HairSplitter is to create and activate a conda/mamba environment with all dependencies: 
+The recommended way to install HairSplitter is to create and activate a conda environment with all dependencies: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 samtools medaka binutils gzip
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 "samtools>=1.16" binutils
 conda activate hairsplitter
+
+conda install -c bioconda -c conda-forge medaka #only if you specifically want to use medaka /!\ Very heavy installation
 ```
  
 ## Download & Compilation
