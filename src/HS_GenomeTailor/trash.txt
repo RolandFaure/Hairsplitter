@@ -1,0 +1,294 @@
+
+/**
+ * @brief Very fast pseudo-alignment vaguely based on CGK embedding
+ * 
+ * @param s1 
+ * @param start1 
+ * @param end1 
+ * @param s2 
+ * @param end1 
+ * @param end2 
+ * @return int 
+ */
+int edit_distance_fast(string &s1, size_t start1, size_t end1, string &s2, size_t start2, size_t end2){
+
+    int index1 = start1;
+    int index2 = start2;
+    int number_of_consecutive_matches = 0;
+
+    int num_match = 0;
+    int num_indel = 0;
+
+    int lost_path_1 = 0;
+    int lost_path_2 = 0;
+
+    int length_of_boaring = 1;
+    int num_indel_in_boaring = 0;
+    bool now_insert = false; //if true first insert, if false first delete
+
+    while (index1 < end1 && index2 < end2){
+        if (s1[index1] == s2[index2]){
+            index1++;
+            index2++;
+            number_of_consecutive_matches++;
+            if (number_of_consecutive_matches > 3){
+                num_match++;
+            }
+            else if (number_of_consecutive_matches == 3){ //entering a new stretch
+                cout << "entering a new stretch at index " << index1 << " " << index2 << endl;
+                cout << "lost path is " << lost_path_1 << " " << lost_path_2 << endl;
+                //link to lost index
+                int local_index1, local_index2;
+                if (lost_path_1 - index1 > lost_path_2 -index2){
+                    num_indel += (lost_path_1 - index1) - (lost_path_2 -index2);
+                    local_index1 = lost_path_1;
+                    local_index2 = index2 + (lost_path_1 - index1);
+                }
+                else{
+                    num_indel += (lost_path_2 - index2) - (lost_path_1 -index1);
+                    local_index1 = index1 + (lost_path_2 - index2);
+                    local_index2 = lost_path_2;
+                }
+                while(local_index1 < index1 && local_index2 < index2){
+                    if (s1[local_index1] == s2[local_index2]){
+                        num_match++;
+                    }
+                    else{
+                        num_indel++;
+                    }
+                    local_index1++;
+                    local_index2++;
+                }
+
+                int length_of_boaring = 1;
+                int num_indel_in_boaring = 0;
+                bool now_insert = false;
+            }
+        }
+        else{
+            if (number_of_consecutive_matches >= 3){
+                lost_path_1 = index1;
+                lost_path_2 = index2;
+            }
+
+            //now boar through the matrix
+            if (now_insert){
+                index2++;
+                num_indel_in_boaring++;
+            }
+            else{
+                index1++;
+                num_indel_in_boaring++;
+            }
+            if (num_indel_in_boaring >= length_of_boaring){
+                now_insert = !now_insert;
+                num_indel_in_boaring = 0;
+                length_of_boaring*=2;
+            }            
+            number_of_consecutive_matches = 0;
+        }
+    }
+
+    num_indel += (end1 - index1) + (end2 - index2);
+
+    cout << "num_match is " << num_match << endl;
+    cout << "num_indel is " << num_indel << endl;
+    return num_indel;
+}
+
+/**
+ * @brief index the assembly
+ * 
+ * @param assembly_file 
+ * @param assembly_index 
+ * @param k 
+ * @param downsampling_factor 
+ */
+void index_assembly(std::string assembly_file, 
+    robin_hood::unordered_map<string, int>& contig_to_int, 
+    robin_hood::unordered_map<int, string>& int_to_contig,
+    robin_hood::unordered_map<uint64_t, Position>& assembly_index, 
+    int k, int downsampling_factor){
+
+    //index the canonical kmers of the assembly file using nthash
+    set<uint64_t> kmers_present_multiple_times;
+
+    //open the assembly file
+    std::ifstream assembly_stream(assembly_file);
+    if (!assembly_stream.is_open())
+    {
+        std::cout << "Error: could not open assembly file" << std::endl;
+        exit(1);
+    }
+
+    //read the assembly file line by line
+    std::string line;
+    int contig_number = 0;
+    while (std::getline(assembly_stream, line))
+    {
+        //skip the line if it is a comment
+        if (line[0] == '#')
+        {
+            continue;
+        }
+
+        //split the line into tokens
+        std::istringstream iss(line);
+        std::vector<std::string> tokens;
+        std::string token;
+        while (std::getline(iss, token, '\t'))
+        {
+            tokens.push_back(token);
+        }
+
+        //skip the line if it is not a segment line
+        if (tokens[0] != "S")
+        {
+            continue;
+        }
+
+        //get the sequence of the segment
+        std::string contig = tokens[1];
+        std::string sequence = tokens[2];
+
+        nthash::NtHash nth(sequence, 1, k);
+        while (nth.roll())
+        {
+            if (nth.get_forward_hash() % downsampling_factor == 0 && kmers_present_multiple_times.find(nth.get_forward_hash()) == kmers_present_multiple_times.end())
+            {
+                if (assembly_index.find(nth.get_forward_hash()) != assembly_index.end() || assembly_index.find(nth.get_reverse_hash()) != assembly_index.end())
+                {
+                    kmers_present_multiple_times.insert(nth.get_forward_hash());
+                    kmers_present_multiple_times.insert(nth.get_reverse_hash());
+                    assembly_index.erase(nth.get_forward_hash());
+                    assembly_index.erase(nth.get_reverse_hash());
+                }
+                else
+                {
+                    Position position;
+                    position.contig = contig_number;
+                    position.position = nth.get_pos();
+                    assembly_index[nth.get_forward_hash()] = position;
+                }
+            }
+        }
+
+        //add the contig to the contig to int map
+        if (contig_to_int.find(contig) != contig_to_int.end())
+        {
+            std::cout << "Error: contig " << contig << " appears multiple times in the assembly file" << std::endl;
+            exit(1);
+        }
+        contig_to_int[contig] = contig_number;
+        int_to_contig[contig_number] = contig;
+        contig_number++;
+    }
+}
+
+/**
+ * @brief bridges are when a read links two contigs. This function inventoriate the bridges of a read file
+ * 
+ * @param read_file fasta or fastq file of reads
+ * @param assembly_index links kmers to positions in the assembly
+ * @param k 
+ * @param downsampling_factor 
+ * @param bridges result of the inventoriation
+ * @param contig_to_int 
+ * @param int_to_contig 
+ */
+void inventoriate_bridges(std::string& read_file, robin_hood::unordered_map<uint64_t, Position>& assembly_index, int k, int downsampling_factor, vector<Bridge>& bridges, unordered_map<string, int>& contig_to_int, unordered_map<int, string>& int_to_contig){
+
+    //open read file
+    string format = read_file.substr(read_file.find_last_of(".") + 1);
+    std::ifstream read_stream(read_file);
+    if (!read_stream.is_open())
+    {
+        std::cout << "Error: could not open read file" << std::endl;
+        exit(1);
+    }
+
+    //read the read file line by line
+    std::string line;
+    bool next_is_sequence = false;
+    string name_of_read;
+    while (std::getline(read_stream, line)){
+        if (((format == "fa" || format == "fasta") && line[0] == '>') || ((format == "fq" || format == "fastq") && line[0] == '@')){
+            next_is_sequence = true;
+            name_of_read = line.substr(1);
+
+            if ("ec810419" != name_of_read.substr(0, 8)){
+                next_is_sequence = false;
+            }
+        }
+        else if (next_is_sequence){
+            //get the sequence of the read
+            std::string sequence = line;
+
+            //inventoriate the bridges of the sequence by going through all the kmers
+            int contig_now = -1;
+            int pos_on_contig = -1;
+            bool strand_on_contig = true;
+            int pos_on_read = -1;
+            nthash::NtHash nth(sequence, 1, k);
+            while (nth.roll())
+            {
+                if (nth.get_forward_hash() % downsampling_factor == 0 || nth.get_reverse_hash() % downsampling_factor == 0)
+                {   
+                    bool is_in_foward = assembly_index.find(nth.get_forward_hash()) != assembly_index.end();
+                    bool is_in_reverse = assembly_index.find(nth.get_reverse_hash()) != assembly_index.end();
+                    if (is_in_foward || is_in_reverse)
+                    {
+                        string kmer = sequence.substr(nth.get_pos(), k);
+                        Position new_pos;
+                        if (is_in_foward){
+                            new_pos = assembly_index[nth.get_forward_hash()];
+                        }
+                        else{
+                            new_pos = assembly_index[nth.get_reverse_hash()];
+                            kmer = reverse_complement(kmer);
+                        }
+
+                        cout << "doncti " << int_to_contig[new_pos.contig] << " " << name_of_read.substr(0,6) << " " << kmer << " " << nth.get_pos() << endl;
+
+                        if (contig_now != -1 && contig_now != new_pos.contig) //then we have a bridge
+                        {
+                            Bridge bridge;
+                            bridge.contig1 = contig_now;
+                            bridge.contig2 = new_pos.contig;
+                            bridge.position1 = pos_on_contig;
+                            bridge.position2 = new_pos.position;
+                            bridge.strand1 = strand_on_contig;
+                            bridge.strand2 = !is_in_foward;
+
+                            bridge.read_name = name_of_read;
+                            bridge.pos_read_on_contig1 = pos_on_read;
+                            bridge.pos_read_on_contig2 = nth.get_pos();
+
+                            // cout << "Bridge found between contig " << int_to_contig[bridge.contig1] << " and contig " << int_to_contig[bridge.contig2] << endl;
+                            // cout << "Bridge found between position " << bridge.position1 << " and position " << bridge.position2 << endl;
+                            // cout << "Bridge found between strand " << bridge.strand1 << " and strand " << bridge.strand2 << endl;
+                            // cout << "Bridge found between read position " << bridge.pos_read_on_contig1 << " and read position " << bridge.pos_read_on_contig2 << endl;
+                            // cout << "Bridge found between read " << bridge.read_name << endl;
+                            // cout << "the two kmers are " << sequence.substr(bridge.pos_read_on_contig1, k) << " and " << sequence.substr(bridge.pos_read_on_contig2, k) << endl;
+                            // cout << endl;
+                            bridges.push_back(bridge);
+                        }
+
+                        contig_now = new_pos.contig;
+                        pos_on_contig = new_pos.position;
+                        strand_on_contig = is_in_foward;
+                        pos_on_read = nth.get_pos();
+                    }
+                }
+            }
+
+            next_is_sequence = false;
+        }
+        else{
+            next_is_sequence = false;
+        }
+    }
+
+}
+
+
