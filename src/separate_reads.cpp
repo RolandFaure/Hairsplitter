@@ -17,6 +17,7 @@
 #include <set>
 #include <cmath> //for sqrt and pow
 #include <algorithm> //for sort and std::find
+#include <ctime>
 
 using namespace std::chrono;
 using std::vector;
@@ -1272,7 +1273,13 @@ std::vector<int> merge_wrongly_split_haplotypes(
 }
 
 int main(int argc, char *argv[]){
+
     if (argc < 8){
+        if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            return 0;
+        }
+
         cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
@@ -1367,7 +1374,8 @@ int main(int argc, char *argv[]){
 
         #pragma omp critical (cout)
         {
-            cout << "separating reads on contig " << name_of_contigs[n] << "\n";
+            time_t now = time(NULL);
+            cout << "separating reads on contig " << name_of_contigs[n] << " [" << std::ctime(&now) <<"]\n";
         }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
@@ -1548,8 +1556,13 @@ int main(int argc, char *argv[]){
             auto total_time_elapsed = duration_cast<seconds>(last_time - time_0).count();
             #pragma omp critical (cout)
             {
-                total_computed_length += length_of_contigs[n];
-                cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
+                if (length_of_contigs[n] < 0){
+                    cout << "NEGATIVE LENGTH OF CONTIG " << name_of_contigs[n] << " " << length_of_contigs[n] << endl;
+                }
+                else{
+                    total_computed_length += length_of_contigs[n];
+                    cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
+                }
             }
         }
         

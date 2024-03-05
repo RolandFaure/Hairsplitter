@@ -12,13 +12,13 @@ from transform_gfa import gfa_to_fasta
 from finish_untangling import merge_adjacent_contigs
 from finish_untangling import duplicate_contigs
 from finish_untangling import trim_overlaps
-from solve_with_long_reads import bridge_with_long_reads
+#from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
-from solve_with_HiC import solve_with_HiC
-from determine_multiplicity import determine_multiplicity
-from contig_DBG import DBG_long_reads
-import contig_DBG
-from contig_DBG import DBG_long_reads
+#from solve_with_HiC import solve_with_HiC
+#from determine_multiplicity import determine_multiplicity
+#from contig_DBG import DBG_long_reads
+#import contig_DBG
+#from contig_DBG import DBG_long_reads
 from simple_unzip import simple_unzip
 from repolish import repolish_contigs
 import segment as sg
