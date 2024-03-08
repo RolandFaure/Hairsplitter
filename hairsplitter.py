@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.7"
-__date__ = "2024-03-04"
+__version__ = "1.7.8"
+__date__ = "2024-03-08"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -70,9 +70,6 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
 
     command = path_to_python + " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     python_run = os.system(command)
-
-    command = path_to_python + " " + path_to_src+"GraphUnzip/graphunzip.py --help > "+tmp_dir+"/trash.txt 2> "+tmp_dir+"/dependancies_log.txt"
-    graphunzip_run = os.system(command)
 
     #print a table listing the dependencies that are ok or not
     print("\n===== Checking dependencies =====\n")
@@ -146,22 +143,11 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
         for i in range(0, 33-len(path_to_python)):
             print(" ", end="")
         print("|")
-
-    if graphunzip_run == 0:
-        print("| graphunzip   |   \033[92mOK\033[0m     | "+path_to_src+"GraphUnzip/graphunzip.py", end="")
-        for i in range(0, 33-len(path_to_src+"GraphUnzip/graphunzip.py")):
-            print(" ", end="")
-        print("|")
-    else:
-        print("| graphunzip   |  \033[91mERROR\033[0m   | "+path_to_python, end="")
-        for i in range(0, 33-len(path_to_python)):
-            print(" ", end="")
-        print("|")
-
+    
     print("______________________________________________________________\n")
 
     #if any of the dependencies is not ok, exit
-    if mini_run != 0 or minigraph_run != 0 or (polisher != "medaka" and racon_run != 0) or (polisher != "racon" and medaka_run != 0) or samtools_run != 0 or python_run != 0 or graphunzip_run != 0:
+    if mini_run != 0 or minigraph_run != 0 or (polisher != "medaka" and racon_run != 0) or (polisher != "racon" and medaka_run != 0) or samtools_run != 0 or python_run != 0:
         print("ERROR: Some dependencies could not run. Check the path to the executables.")
         sys.exit(1)
 

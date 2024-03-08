@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.8.12)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-project(GenomeTailor)
+project(HS_GenomeTailor)
 
 # Local header files here ONLY
 set(TARGET_H

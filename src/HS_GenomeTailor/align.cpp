@@ -188,6 +188,8 @@ std::string polish(std::string &toPolish, std::vector<std::string> &reads, std::
     if (racon_success == 0){
         //read the polished sequence
         ifstream polishedStream(polished);
+        string header;
+        getline (polishedStream, header);
         getline(polishedStream, polishedSeq);
         polishedStream.close();
     }
