@@ -24,6 +24,7 @@ A conda package is in preparation but is not available yet. For now, it is neces
 - [minimap2](https://github.com/lh3/minimap2)
 - [racon](https://github.com/isovic/racon) and/or [medaka](https://github.com/nanoporetech/medaka)
 - [samtools](www.htslib.org)
+- [raven](github.com/lbcb-sci/raven)
 - CMake >= 3.8.12, make, gcc >= 11, g++ >= 11
 - Python3 with numpy and scipy
 - gzip
@@ -34,7 +35,7 @@ If Minimap2, Racon, Medaka or samtools are not in the PATH, their location shoul
 
 The recommended way to install HairSplitter is to create and activate a conda environment with all dependencies: 
 ```
-conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon htslib==1.16 "samtools>=1.16" binutils
+conda create -c bioconda -c conda-forge -c anaconda -n hairsplitter cmake gxx gcc python scipy numpy minimap2 minigraph=0.20 racon "samtools>=1.16" raven-assembler
 conda activate hairsplitter
 
 conda install -c bioconda -c conda-forge medaka #only if you specifically want to use medaka /!\ Very heavy installation

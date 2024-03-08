@@ -1884,7 +1884,7 @@ int main(int argc, char *argv[])
     minimap_ok = (system((path_minimap2 + " -h >trash.tmp 2>trash.tmp").c_str()) == 0);
     minigraph_ok = (system((path_minigraph + " --version >trash.tmp 2>trash.tmp").c_str()) == 0);
     racon_ok = (system((path_racon + " -h >trash.tmp 2>trash.tmp").c_str()) == 0);
-    raven_ok = (path_to_raven != "" && system((path_to_raven + " -h >trash.tmp 2>trash.tmp").c_str()) == 0);
+    raven_ok = (path_to_raven != "" && system((path_to_raven + " --version >trash.tmp 2>trash.tmp").c_str()) == 0);
     system("rm trash.tmp");
 
     // Print the table of dependencies

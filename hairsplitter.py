@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
+    parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
     parser.add_argument("-v", "--version", help="Print version and exit", action="store_true")
@@ -53,7 +54,8 @@ def parse_args():
     return parser.parse_args()
 
 def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph\
-                       , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_graphunzip):
+                       , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_graphunzip\
+                        , path_raven):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     mini_run = os.system(minimap2 + com)
@@ -65,6 +67,9 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
 
     if polisher != "racon" :
         medaka_run = os.system(medaka + com)
+
+    if not skip_minigraph :
+        raven_run = os.system(path_raven + com)
 
     samtools_run = os.system(samtools + com)
 
@@ -89,12 +94,12 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print(" ", end="")
         print("|")
 
-    if minigraph_run == 0:
+    if minigraph_run == 0 and not skip_minigraph:
         print("| minigraph    |   \033[92mOK\033[0m     | "+minigraph, end="")
         for i in range(0, 33-len(minigraph)):
             print(" ", end="")
         print("|")
-    else:
+    elif not skip_minigraph:
         print("| minigraph    |  \033[91mERROR\033[0m   | "+minigraph, end="")
         for i in range(0, 33-len(minigraph)):
             print(" ", end="")
@@ -119,6 +124,17 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
     elif polisher != "racon":
         print("| medaka       |  \033[91mERROR\033[0m   | "+medaka, end="")
         for i in range(0, 33-len(medaka)):
+            print(" ", end="")
+        print("|")
+
+    if not skip_minigraph and raven_run == 0:
+        print("| raven        |   \033[92mOK\033[0m     | "+path_raven, end="")
+        for i in range(0, 33-len(path_raven)):
+            print(" ", end="")
+        print("|")
+    elif not skip_minigraph:
+        print("| raven        |  \033[91mERROR\033[0m   | "+path_raven, end="")
+        for i in range(0, 33-len(path_raven)):
             print(" ", end="")
         print("|")
 
@@ -147,7 +163,8 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
     print("______________________________________________________________\n")
 
     #if any of the dependencies is not ok, exit
-    if mini_run != 0 or minigraph_run != 0 or (polisher != "medaka" and racon_run != 0) or (polisher != "racon" and medaka_run != 0) or samtools_run != 0 or python_run != 0:
+    if mini_run != 0 or (minigraph_run != 0 and not skip_minigraph) or (polisher != "medaka" and racon_run != 0) or (polisher != "racon" and medaka_run != 0) or samtools_run != 0 or python_run != 0 \
+        or (not skip_minigraph and raven_run != 0):
         print("ERROR: Some dependencies could not run. Check the path to the executables.")
         sys.exit(1)
 
@@ -267,6 +284,7 @@ def main():
     path_to_src = sys.argv[0].split("hairsplitter.py")[0]+"src/"
     path_to_minimap2 = args.path_to_minimap2
     path_to_minigraph = args.path_to_minigraph
+    path_to_raven = args.path_to_raven
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
     path_to_python = args.path_to_python
@@ -338,7 +356,7 @@ def main():
                        args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, \
                         path_to_python, skip_minigraph, path_GenomeTailor, path_cut_gfa, path_fa2gfa, \
                         path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, \
-                        path_graphunzip)
+                        path_graphunzip, path_to_raven)
 
     #check the read file and unzip it if needed (converting it to fasta if in fastq)
     if readsFile[-3:] == ".gz":
@@ -382,7 +400,8 @@ def main():
     if not skip_minigraph :
 
         command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
-            + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " > " + tmp_dir + "/logGenomeTailor.txt"
+            + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
+            + " > " + tmp_dir + "/logGenomeTailor.txt"
         # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
         #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
         #     + " --folder " + tmp_dir
