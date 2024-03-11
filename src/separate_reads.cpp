@@ -1276,28 +1276,29 @@ int main(int argc, char *argv[]){
 
     if (argc < 8){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
-            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <meta> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
             return 0;
         }
 
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <meta> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
-    float errorRate = atof(argv[3]);
-    bool debug = bool(atoi(argv[7]));
-    string outfile = argv[6];
-    bool low_memory = bool(atoi(argv[4]));
+    bool meta = bool(atoi(argv[3]));
+    float errorRate = atof(argv[4]);
+    bool debug = bool(atoi(argv[8]));
+    string outfile = argv[7];
+    bool low_memory = bool(atoi(argv[5]));
 
-    float rarest_strain_abundance = atof(argv[5]);
+    float rarest_strain_abundance = atof(argv[6]);
     int max_coverage;
     if (rarest_strain_abundance == 0){
         max_coverage = 1000000000;
     }
     else{
-        int max_coverage = 50 / atof(argv[5]); //with a coverage of 50 a strain can be well recovered, thus we can downsample to 50/abundance
+        int max_coverage = 50 / atof(argv[6]); //with a coverage of 50 a strain can be well recovered, thus we can downsample to 50/abundance
     }
 
     //create empty output file
@@ -1345,6 +1346,26 @@ int main(int argc, char *argv[]){
     else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
         sizeOfWindow = 500;
     }
+
+    // estimate the haploid coverage as the min coverage of the 90% most covered contigs (weighted by length)
+    vector<pair<float,int>> weighted_coverages;
+    for (auto i = 0 ; i < coverages.size() ; i++){
+        weighted_coverages.push_back(make_pair(coverages[i]*length_of_contigs[i], i));
+    }
+    sort(weighted_coverages.begin(), weighted_coverages.end(), [](const pair<float,int>& a, const pair<float,int>& b) {
+        return a.first > b.first;
+    });
+    float haploid_coverage = 0;
+    float total_length_covered = 0;
+    for (auto i = 0 ; i < weighted_coverages.size() ; i++){
+        total_length_covered += length_of_contigs[weighted_coverages[i].second];
+        if (total_length_covered > 0.9*total_length){
+            haploid_coverage = coverages[weighted_coverages[i].second];
+            break;
+        }
+    }
+    cout << "HAPOLOID COVERAGE " << haploid_coverage << endl;
+
 
     //to make the progress bar
     int total_computed_length = 0; 
@@ -1565,6 +1586,50 @@ int main(int argc, char *argv[]){
                 }
             }
         }
+
+        //if the assembly is not meta, check that all haplotypes are abundant enough to correspond to a chromosome. Suppress the ones that are not
+        if (!meta){
+            for (auto r : threadedReads){
+                //count each haplotype in threadedReads.second
+                unordered_map<int, int> haplotypeToCount;
+                for (auto h : r.second){
+                    if (h >= 0){
+                        if (haplotypeToCount.find(h) == haplotypeToCount.end()){
+                            haplotypeToCount[h] = 0;
+                        }
+                        haplotypeToCount[h]++;
+                    }
+                }
+
+                double coverage_limit = min(haploid_coverage*0.7, 25.0); //above this, the haplotype is trustworthy
+
+                //count how many haplotypes are above the coverage limit
+                int numberOfHaplotypesAboveLimit = 0;
+                for (auto h : haplotypeToCount){
+                    if (h.second > coverage_limit){
+                        numberOfHaplotypesAboveLimit++;
+                    }
+                    else{
+                        cout << "Dismissing haplotype " << h.first << " on contig " << name_of_contigs[n] << " between " << r.first.first << " and " << r.first.second << " because it has a coverage of " << h.second << " < " << coverage_limit << endl;
+                    }
+                }
+
+                for (auto h = 0 ; h < r.second.size() ; h++){
+                    if (haplotypeToCount[r.second[h]] < coverage_limit){
+                        r.second[h] = -1;
+                    }
+                }
+
+                if (numberOfHaplotypesAboveLimit <= 1){
+                    for (auto h = 0 ; h < r.second.size() ; h++){
+                        if (r.second[h] != -2){
+                            r.second[h] = 0;
+                        }
+                    }
+                }
+            }
+        }
+
         
         //append threadedReads to file
         #pragma omp critical

@@ -28,6 +28,7 @@ def parse_args():
 
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
+    parser.add_argument("-u", "--use-case", help="Type of assembly, metagenomics or single-genome {meta,single}", required=True)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
     parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
@@ -292,6 +293,7 @@ def main():
     skip_minigraph = not args.correct_assembly
     rarest_strain_abundance = args.rarest_strain_abundance
     minimap2_params = args.minimap2_params
+    usecase = args.use_case
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
     path_cut_gfa = path_to_src + "cut_gfa.py"
@@ -329,6 +331,13 @@ def main():
         print("ERROR: polisher must be either racon or medaka")
         f = open(logFile, "w")
         f.write("ERROR: polisher must be either racon or medaka\n")
+        f.close()
+        sys.exit(1)
+
+    if usecase != "meta" and usecase != "single":
+        print("ERROR: use-case must be either meta or single")
+        f = open(logFile, "w")
+        f.write("ERROR: use-case must be either meta or single\n")
         f.close()
         sys.exit(1)
 
@@ -552,7 +561,7 @@ def main():
     sys.stdout.flush()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
-    command = path_separate_reads + " " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(int(low_memory)) \
+    command = path_separate_reads + " " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(int(usecase=="meta")) + " " + str(int(low_memory)) \
         + " " + str(rarest_strain_abundance) + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")

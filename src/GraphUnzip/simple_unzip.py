@@ -179,8 +179,8 @@ def simple_unzip(segments, names, gafFile) :
         for segment in segments :
 
             # print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
-            if "edge_1_" not in segment.names[0] :
-                continue
+            # if "edge_388_0_1931705_0_1931705_0_1931705@3_300001_0" not in segment.names[0] :
+            #     continue
 
             segment_to_duplicate = False
             #see if it should be duplicated
@@ -293,7 +293,7 @@ def simple_unzip(segments, names, gafFile) :
                 if segment_to_duplicate and len(pairs) > 0 :#and segment.names == ['NC_038882.1_9000_0'] :
                     for pair in pairs.keys() :
                         # print("On contig ", segment.names, " a pair is ", pair[0], " ", pair[1], " ", pairs[pair] )
-                        print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names, " ", pairs[pair] )
+                        # print("On contig ", segment.names, " a pair is ", segment.links[0][pair[0]].names, " ", segment.links[1][pair[1]].names, " ", pairs[pair] )
 
                         #create a new segment
                         new_segment = sg.Segment(segment.names, segment.orientations, segment.lengths, segInsideCIGARs=segment.insideCIGARs)
