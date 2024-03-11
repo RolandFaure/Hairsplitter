@@ -1032,7 +1032,7 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
             if (read.depth != -1){
                 out << "DP:f:" << std::to_string(read.depth);
             }
-            out << " LN:i:" << std::to_string(read.sequence_.size()) << "\n";
+            out << "\tLN:i:" << std::to_string(read.sequence_.size()) << "\n";
         }
     }
     for (auto l : allLinks){

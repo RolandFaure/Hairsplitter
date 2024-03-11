@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.8"
-__date__ = "2024-03-08"
+__version__ = "1.7.9"
+__date__ = "2024-03-11"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -488,7 +488,9 @@ def main():
     else :
         techno_flag = "-x map-ont"
 
-    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
+    #run minimap but do not store the sequences, they are still in the file of reads
+    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt" \
+        + " | awk 'BEGIN{FS=OFS=\"\t\"} {if($1 ~ /^@/) print $0; else {for(i=1; i<=NF; i++) {if(i==10) $i=\"*\";} print $0}}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
     print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
