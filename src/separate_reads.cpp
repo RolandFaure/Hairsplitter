@@ -470,7 +470,7 @@ void create_read_graph(
             });
 
             int nb_of_neighbors = 0;
-            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
+            float distance_threshold_below_which_two_reads_are_considered_different = min(1 - errorRate*2, (float)0.99);
             float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
@@ -1286,8 +1286,8 @@ int main(int argc, char *argv[]){
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
-    bool meta = bool(atoi(argv[3]));
-    float errorRate = atof(argv[4]);
+    bool meta = bool(atoi(argv[4]));
+    float errorRate = atof(argv[3]);
     bool debug = bool(atoi(argv[8]));
     string outfile = argv[7];
     bool low_memory = bool(atoi(argv[5]));
@@ -1347,24 +1347,24 @@ int main(int argc, char *argv[]){
         sizeOfWindow = 500;
     }
 
-    // estimate the haploid coverage as the min coverage of the 90% most covered contigs (weighted by length)
-    vector<pair<float,int>> weighted_coverages;
-    for (auto i = 0 ; i < coverages.size() ; i++){
-        weighted_coverages.push_back(make_pair(coverages[i]*length_of_contigs[i], i));
-    }
-    sort(weighted_coverages.begin(), weighted_coverages.end(), [](const pair<float,int>& a, const pair<float,int>& b) {
-        return a.first > b.first;
-    });
-    float haploid_coverage = 0;
-    float total_length_covered = 0;
-    for (auto i = 0 ; i < weighted_coverages.size() ; i++){
-        total_length_covered += length_of_contigs[weighted_coverages[i].second];
-        if (total_length_covered > 0.9*total_length){
-            haploid_coverage = coverages[weighted_coverages[i].second];
-            break;
-        }
-    }
-    cout << "HAPOLOID COVERAGE " << haploid_coverage << endl;
+    // // estimate the haploid coverage as the min coverage of the 90% most covered contigs (weighted by length)
+    // vector<pair<float,int>> weighted_coverages;
+    // for (auto i = 0 ; i < coverages.size() ; i++){
+    //     weighted_coverages.push_back(make_pair(coverages[i]*length_of_contigs[i], i));
+    // }
+    // sort(weighted_coverages.begin(), weighted_coverages.end(), [](const pair<float,int>& a, const pair<float,int>& b) {
+    //     return a.first > b.first;
+    // });
+    // float haploid_coverage = 0;
+    // float total_length_covered = 0;
+    // for (auto i = 0 ; i < weighted_coverages.size() ; i++){
+    //     total_length_covered += length_of_contigs[weighted_coverages[i].second];
+    //     if (total_length_covered > 0.9*total_length){
+    //         haploid_coverage = coverages[weighted_coverages[i].second];
+    //         break;
+    //     }
+    // }
+    // cout << "HAPOLOID COVERAGE " << haploid_coverage << endl;
 
 
     //to make the progress bar
@@ -1377,8 +1377,8 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,9) != "edge_2877"){
-        //     cout << "skipping " << name_of_contigs[n] << endl;
+        // if (name_of_contigs[n].substr(7,40) != "edge_388_0_1931705_0_1931705_0_1931705@4"){
+        //     cout << "skipping " << name_of_contigs[n].substr(7,40) << endl;
         //     continue;
         // }
 
@@ -1396,7 +1396,9 @@ int main(int argc, char *argv[]){
         #pragma omp critical (cout)
         {
             time_t now = time(NULL);
-            cout << "separating reads on contig " << name_of_contigs[n] << " [" << std::ctime(&now) <<"]\n";
+            if (debug){
+                cout << "separating reads on contig " << name_of_contigs[n] << "\n";
+            }
         }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
@@ -1408,18 +1410,19 @@ int main(int argc, char *argv[]){
         }
 
         // cout << "similrities and differences computed " << numberOfReadsHere << endl;
-        // for (auto i : sims_and_diffs[0]){
-        //     cout << i.first << " " << i.second << endl;
-        // } 
 
         vector<pair<pair<int,int>, vector<int>>> threadedReads; //associates to each window the reads that are in it
         int suspectPostitionIdx = 0;
         int chunk = -1;
         int upperBound;
         while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
-            // if (chunk*sizeOfWindow != 7000){
+            // if (chunk*sizeOfWindow != 38000){
             //     cout << "csksdlk " << endl;
             //     chunk++;
+            //     while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < (chunk+1)*sizeOfWindow){
+            //         suspectPostitionIdx++;
+            //     }
+            //     suspectPostitionIdx--;
             //     continue;
             // }
             chunk++;
@@ -1427,6 +1430,7 @@ int main(int argc, char *argv[]){
             if ((chunk+1)*sizeOfWindow + 100 > length_of_contigs[n]){ //to avoid having extremely short terminal windows
                 upperBound = length_of_contigs[n]+1;
             }
+
 
             if (suspectPostitionIdx >= snps.size() || snps[suspectPostitionIdx].pos > upperBound-1){
                 //no snp in this window, just add the reads, with -2 for the reads that are not here and 0 for the reads that are here
@@ -1477,10 +1481,11 @@ int main(int argc, char *argv[]){
             vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
             vector<vector<int>> adjacency_matrix_high_memory;
             vector<vector<int>> strengthened_adjacency_matrix_high_memory;
-            Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);
+            Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);            
 
             if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
+                // cout << "adjacency matrix computed " << errorRate << endl;
             }
             else{
                 for (auto v : neighbor_list_low_memory){
@@ -1493,7 +1498,7 @@ int main(int argc, char *argv[]){
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
             }
-            // cout << "ociojccood" << endl;
+            // cout << "ociojccood " << endl;
 
             vector<int> clustersStart (numberOfReadsHere, 0);
             for (auto r = 0 ; r < numberOfReadsHere ; r++){
@@ -1512,11 +1517,6 @@ int main(int argc, char *argv[]){
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
-            // cout << "here are all the interesting positions" << endl;
-            // for (auto p : interestingPositions){
-            //     cout << p << " ";
-            // }
-            // cout << endl;
             // cout << "runnignd cw again and again" << endl;
             int lastpos = -10;
             for (auto snp : snps){
@@ -1560,10 +1560,11 @@ int main(int argc, char *argv[]){
             //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             // }
             // else{
-            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            //     outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             //     vector<bool> nomask (haplotypes.size(), true);
-            //     outputGraph_several_clusterings(adjacency_matrix_high_memory, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
+            //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
             // }
+            // cout << "Done" << endl;
             // exit(0);
 
 
@@ -1588,47 +1589,47 @@ int main(int argc, char *argv[]){
         }
 
         //if the assembly is not meta, check that all haplotypes are abundant enough to correspond to a chromosome. Suppress the ones that are not
-        if (!meta){
-            for (auto r : threadedReads){
-                //count each haplotype in threadedReads.second
-                unordered_map<int, int> haplotypeToCount;
-                for (auto h : r.second){
-                    if (h >= 0){
-                        if (haplotypeToCount.find(h) == haplotypeToCount.end()){
-                            haplotypeToCount[h] = 0;
-                        }
-                        haplotypeToCount[h]++;
-                    }
-                }
+        // if (!meta){
+        //     for (auto r : threadedReads){
+        //         //count each haplotype in threadedReads.second
+        //         unordered_map<int, int> haplotypeToCount;
+        //         for (auto h : r.second){
+        //             if (h >= 0){
+        //                 if (haplotypeToCount.find(h) == haplotypeToCount.end()){
+        //                     haplotypeToCount[h] = 0;
+        //                 }
+        //                 haplotypeToCount[h]++;
+        //             }
+        //         }
 
-                double coverage_limit = min(haploid_coverage*0.7, 25.0); //above this, the haplotype is trustworthy
+        //         double coverage_limit = min(haploid_coverage*0.7, 25.0); //above this, the haplotype is trustworthy
 
-                //count how many haplotypes are above the coverage limit
-                int numberOfHaplotypesAboveLimit = 0;
-                for (auto h : haplotypeToCount){
-                    if (h.second > coverage_limit){
-                        numberOfHaplotypesAboveLimit++;
-                    }
-                    else{
-                        cout << "Dismissing haplotype " << h.first << " on contig " << name_of_contigs[n] << " between " << r.first.first << " and " << r.first.second << " because it has a coverage of " << h.second << " < " << coverage_limit << endl;
-                    }
-                }
+        //         //count how many haplotypes are above the coverage limit
+        //         int numberOfHaplotypesAboveLimit = 0;
+        //         for (auto h : haplotypeToCount){
+        //             if (h.second > coverage_limit){
+        //                 numberOfHaplotypesAboveLimit++;
+        //             }
+        //             else{
+        //                 cout << "Dismissing haplotype " << h.first << " on contig " << name_of_contigs[n] << " between " << r.first.first << " and " << r.first.second << " because it has a coverage of " << h.second << " < " << coverage_limit << endl;
+        //             }
+        //         }
 
-                for (auto h = 0 ; h < r.second.size() ; h++){
-                    if (haplotypeToCount[r.second[h]] < coverage_limit){
-                        r.second[h] = -1;
-                    }
-                }
+        //         for (auto h = 0 ; h < r.second.size() ; h++){
+        //             if (haplotypeToCount[r.second[h]] < coverage_limit){
+        //                 r.second[h] = -1;
+        //             }
+        //         }
 
-                if (numberOfHaplotypesAboveLimit <= 1){
-                    for (auto h = 0 ; h < r.second.size() ; h++){
-                        if (r.second[h] != -2){
-                            r.second[h] = 0;
-                        }
-                    }
-                }
-            }
-        }
+        //         if (numberOfHaplotypesAboveLimit <= 1){
+        //             for (auto h = 0 ; h < r.second.size() ; h++){
+        //                 if (r.second[h] != -2){
+        //                     r.second[h] = 0;
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         
         //append threadedReads to file

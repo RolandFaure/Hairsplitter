@@ -893,7 +893,7 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
 
         int limit_read_left = allOverlaps[allreads[backbone].neighbors_[c]].position_1_1;
         int limit_read_right = allOverlaps[allreads[backbone].neighbors_[c]].position_1_2;
-        newCoverage[partition[c]] += max(0.0, double(limit_read_right-limit_read_left)/lengthOfInterval );
+        newCoverage[partition[c]] += max(0.0, double(min(limit_read_right, limits.second)-max(limit_read_left, limits.first))/lengthOfInterval );
 
     }
 
