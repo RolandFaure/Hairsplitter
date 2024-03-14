@@ -17,6 +17,7 @@ void parse_column_file(
     std::unordered_map<int, std::string> &name_of_contigs,
     std::vector<std::vector<std::string>> &names_of_reads,
     std::vector<long int> &length_of_contigs,
+    std::vector<double> &coverage_of_contigs,
     std::vector<std::vector<std::pair<int,int>>>& readLimits,
     std::vector<int>& numberOfReads);
 

@@ -216,11 +216,18 @@ void modify_GFA(
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     string log_text = ""; //text that will be printed out in the output.txt
 
+    //compute total length of assembly for the progress bar
+    double total_length = 0;
+    for (auto r : backbones_reads){
+        total_length += allreads[r].size();
+    }
+    double computed_length = 0;
+
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "edge_811_1078894_2131943_0_1053049_0_1053049@2"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_1056_0_2341986_0_2341986_0_2341986@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -266,7 +273,6 @@ void modify_GFA(
 
 
         if (partitions.find(backbone) != partitions.end() && partitions.at(backbone).size() > 0 && !dont_recompute_contig){
-
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
@@ -338,8 +344,9 @@ void modify_GFA(
             int n = 0;
             while (n < partitions.at(backbone).size()){
                 
+
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 230000){
+                // if (interval.first.first != 218000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -703,7 +710,7 @@ void modify_GFA(
             else {
                 right = "";
             }
-            std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
+            std::pair<int,int> limits= std::make_pair(max(0,min(left,(int)allreads[backbone].sequence_.size()-100)) , allreads[backbone].sequence_.size()-1);
             string contig = right;
 
             //compute the depth from the number of aligning reads
@@ -713,6 +720,7 @@ void modify_GFA(
             Read r (contig, contig.size());
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = newdepths[0];
+
             
             #pragma omp critical
             {
@@ -789,6 +797,13 @@ void modify_GFA(
             else{
                 allreads[allOverlaps[n].sequence2].set_sequence(empty);
             }
+        }
+
+        //update the progress bar
+        #pragma omp critical
+        {
+            computed_length += allreads[backbones_reads[b]].size();
+            cout << "Progress: " << int(100*computed_length/total_length) << "%\n";
         }
 
     }
@@ -891,8 +906,8 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
             newCoverage[partition[c]] = 0;
         }
 
-        int limit_read_left = allOverlaps[allreads[backbone].neighbors_[c]].position_1_1;
-        int limit_read_right = allOverlaps[allreads[backbone].neighbors_[c]].position_1_2;
+        int limit_read_left = allOverlaps[allreads[backbone].neighbors_[c]].position_2_1;
+        int limit_read_right = allOverlaps[allreads[backbone].neighbors_[c]].position_2_2;
         newCoverage[partition[c]] += max(0.0, double(min(limit_read_right, limits.second)-max(limit_read_left, limits.first))/lengthOfInterval );
 
     }
@@ -1399,6 +1414,7 @@ int main(int argc, char *argv[])
 
     cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
+    // cout << "SKIPPING GAF OUTPUT" << endl;
 
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 

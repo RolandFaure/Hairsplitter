@@ -425,7 +425,9 @@ def main():
         print(" Repolishing the contigs we can repolish")
         copies = sg.compute_copiesNumber(segments)
         if fastqFile != "" : 
-            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
+            os.system("mkdir graphunzip_tmp")
+            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, "graphunzip_tmp", threads=1)
+            os.system("rm -rf graphunzip_tmp")
 
         # now exporting the output  
         print("Now exporting the result")

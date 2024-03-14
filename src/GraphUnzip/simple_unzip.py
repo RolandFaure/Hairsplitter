@@ -179,14 +179,14 @@ def simple_unzip(segments, names, gafFile) :
         for segment in segments :
 
             # print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
-            # if "edge_388_0_1931705_0_1931705_0_1931705@3_300001_0" not in segment.names[0] :
+            # if "edge_897_2274805_5262868_0_2988063_0_2988063@3_0_0" not in segment.names :
             #     continue
 
             segment_to_duplicate = False
             #see if it should be duplicated
             if len(segment.links[0]) > 1 or len(segment.links[1]) > 1 : 
 
-                # print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]))
+                # print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", on_which_paths_is_this_contig[segment])
 
                 #list the paths going through the contig
                 pairs = {}
@@ -241,18 +241,18 @@ def simple_unzip(segments, names, gafFile) :
                         pairs[pair] += 1
                         pair_to_paths[pair].append(p)
 
-                        # if segment.names == ['edge_37@15_62000_0'] :
+                        # if segment.names == ['edge_897_2274805_5262868_0_2988063_0_2988063@3_0_0'] :
                         #     print("On contig ", segment.names, ", path ", path.name(), " supports the links towards ", segment.links[1-orientations[p[1]]][index_left].names, \
                         #             " and ", segment.links[orientations[p[1]]][index_right].names)
 
-                # if segment.names == ['edge_37@15_62000_0'] :
-                #     # print("Looking at segment ", segment.names, " ", pairs, " ", [(segment.links[0][i[0]].names, segment.links[1][i[1]].names) for i in pairs])
-                #     # print("qldjl present on ",[paths[i[0]] for i in on_which_paths_is_this_contig[segment]])
-                #     for i in on_which_paths_is_this_contig[segment] :
-                #         print("idc : ", paths[i[0]])
+                # if segment.names == ['edge_1170_75134_3007100_0_2931966_0_2931966@6_300001_0'] or True:
+                    # print("Looking at segment ", segment.names, " ", pairs, " ", [(segment.links[0][i[0]].names, segment.links[1][i[1]].names) for i in pairs])
+                    # print("qldjl present on ",[paths[i[0]] for i in on_which_paths_is_this_contig[segment]])
+                    # for i in on_which_paths_is_this_contig[segment] :
+                    #     print("idc : ", paths[i[0]])
 
                 # print(segment.names, " ", pairs)
-                # if segment.names == ['edge_4_5000_1'] :
+                # if segment.names == ['edge_4_5000_1'] or True :
                 #     print("Pairs off ccncnc : ", pairs)
 
                 #test if the pairs are enough to support a duplication
@@ -330,10 +330,6 @@ def simple_unzip(segments, names, gafFile) :
                     on_which_paths_is_this_contig[segment] = []
 
                     go_on = True
-                    debug_count += 1
-                    if debug_count > 0 :
-                        go_on = False
-                        break
             
     delIdx = 0
     while delIdx < len(segments) :
@@ -353,7 +349,7 @@ def simple_unzip(segments, names, gafFile) :
 def remove_unsupported_links(segments, names, lines):
 
     #inventory of the links in the lines
-    links = set()
+    links = {}
     for line in lines :
         cont = re.split('[><]' , line[1].rstrip())
         orientations = "".join(re.findall("[<>]", line[1]))
@@ -364,26 +360,45 @@ def remove_unsupported_links(segments, names, lines):
             continue
 
         for i in range(len(contigs)-1) :
-            links.add((contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1])))
-            links.add((contigs[i+1], "><".index(orientations[i+1]), contigs[i], "<>".index(orientations[i])))
+            if (contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1])) not in links :
+                links[(contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1]))] = 1
+                links[(contigs[i+1], "><".index(orientations[i+1]), contigs[i], "<>".index(orientations[i]))] = 1
+            
+            links[(contigs[i], "<>".index(orientations[i]), contigs[i+1], "><".index(orientations[i+1]))] += 1
+            links[(contigs[i+1], "><".index(orientations[i+1]), contigs[i], "<>".index(orientations[i]))] += 1
 
-    #remove the links that are not supported by any path
+    #remove the links that are not supported by any path and that do not create dead ends when removed
     toRemove = set()
+    toKeep = set() #links that cannot be removed without creating dead ends
     for segment in segments :
         for end in range(2) :
             one_supported = False
+            best_link = -1
+            best_link_support = 0
             for n, neighbor in enumerate(segment.links[end]) :
-                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) in links :
+                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) in links and links[(segment, end, neighbor, segment.otherEndOfLinks[end][n])] > 4:
                     one_supported = True
                     break
+                if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) in links and links[(segment, end, neighbor, segment.otherEndOfLinks[end][n])] > best_link_support:
+                    best_link = n
+                    best_link_support = links[(segment, end, neighbor, segment.otherEndOfLinks[end][n])]
             
             if one_supported:
                 for n, neighbor in enumerate(segment.links[end]) :
-                    if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
+                    if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links or links[(segment, end, neighbor, segment.otherEndOfLinks[end][n])] < 2:
                         toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
+            else:
+                if best_link > -1:
+                    toKeep.add((segment, end, segment.links[end][best_link], segment.otherEndOfLinks[end][best_link]))
+                    toKeep.add((segment.links[end][best_link], segment.otherEndOfLinks[end][best_link], segment, end))
+                else:
+                    for n, neighbor in enumerate(segment.links[end]) :
+                        toKeep.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
+                        toKeep.add((neighbor, segment.otherEndOfLinks[end][n], segment, end))
 
     for segment, end, neighbor, otherEnd in toRemove :
-        sg.delete_link(segment, end, neighbor, otherEnd, warning=False)
+        if (neighbor, otherEnd, segment, end) not in toKeep:
+            sg.delete_link(segment, end, neighbor, otherEnd, warning=False)
 
     return segments
 

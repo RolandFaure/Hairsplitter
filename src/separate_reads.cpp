@@ -50,6 +50,7 @@ void parse_column_file(
     std::unordered_map<int, string> &name_of_contigs,
     std::vector<std::vector<string>> &names_of_reads,
     std::vector<long int> &length_of_contigs,
+    std::vector<double> &coverage_of_contigs,
     std::vector<std::vector<std::pair<int,int>>> &readLimits,
     std::vector<int>& numberOfReads,
     int max_coverage){
@@ -70,8 +71,10 @@ void parse_column_file(
             //parse the length of the contig, which is the third field of the line
             string name;
             string length;
-            iss >> name >> length;
+            double cov;
+            iss >> name >> length >> cov;
             length_of_contigs.push_back(std::atoi(length.c_str()));
+            coverage_of_contigs.push_back(cov);
             snps.push_back(std::vector<Column>());
             numberOfReads.push_back(0);
             names_of_reads.push_back(vector<string>(0));
@@ -1272,21 +1275,90 @@ std::vector<int> merge_wrongly_split_haplotypes(
 
 }
 
+/**
+ * @brief If there is a maximum number of haplotypes wanted on a contig, merge the haplotypes to fit within this limit
+ * 
+ * @param max_haplotypes
+ * @param clusters
+ * @param neighbor_list
+ * @param adjacency_matrix
+ * @param low_memory
+ * @param posstart
+ * @param posend
+ * @return std::vector<int> 
+ */
+std::vector<int> merge_haplotypes_to_fit_within_limit(
+    int max_haplotypes,
+    std::vector<int> &clusters,
+    std::vector<bool> &mask,
+    std::vector<std::vector<int>> &neighbor_list,
+    Eigen::SparseMatrix<int> &adjacency_matrix,
+    bool low_memory,
+    int posstart,
+    int posend){
+
+    //first count the number of clusters to see if the limit is exceeded
+    unordered_map<int,int> countOfGroups;
+    for (auto i = 0 ; i < clusters.size() ; i++){
+        if (clusters[i] >= 0){
+            if (countOfGroups.find(clusters[i]) == countOfGroups.end()){
+                countOfGroups[clusters[i]] = 1;
+            }
+            else{
+                countOfGroups[clusters[i]] += 1;
+            }
+        }
+    }
+
+    if (countOfGroups.size() <= max_haplotypes){
+        return clusters;
+    }
+
+    set<int> keptHalotypes;
+    vector<pair<int,int>> countOfGroupsVector;
+    for (auto c : countOfGroups){
+        countOfGroupsVector.push_back(make_pair(c.second, c.first));
+    }
+    sort(countOfGroupsVector.begin(), countOfGroupsVector.end(), std::greater<pair<int,int>>());
+    for (auto i = 0 ; i < max_haplotypes ; i++){
+        keptHalotypes.insert(countOfGroupsVector[i].second);
+    }
+
+    vector<int> new_clusters = clusters;
+    for (auto i = 0 ; i < clusters.size() ; i++){
+        if (clusters[i] >= 0 && keptHalotypes.find(clusters[i]) == keptHalotypes.end()){
+            new_clusters[i] = -1;
+        }
+    }
+
+    //re-cluster the reads to rescue the reads that lost their haplotypes
+    vector<int> re_clustered;
+    if (low_memory){
+        re_clustered = chinese_whispers(neighbor_list, new_clusters, mask);
+    }
+    else{
+        re_clustered = chinese_whispers_high_memory(adjacency_matrix, new_clusters, mask);
+    }
+
+    return re_clustered;
+
+}
+
 int main(int argc, char *argv[]){
 
     if (argc < 8){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
-            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <meta> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <max_haplotypes> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
             return 0;
         }
 
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <meta> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <max_haplotypes> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
-    bool meta = bool(atoi(argv[4]));
+    int max_haplotypes = int(atoi(argv[4])); //max number of haplotypes athorized on a contig (0 means infinite)
     float errorRate = atof(argv[3]);
     bool debug = bool(atoi(argv[8]));
     string outfile = argv[7];
@@ -1311,11 +1383,12 @@ int main(int argc, char *argv[]){
     std::vector<int> numberOfReads;
     std::vector<std::vector<Column>> snps_in;
     std::vector<long int> length_of_contigs;
+    std::vector<double> coverages_contigs;
     vector<vector<pair<int,int>>> readLimits;
-    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads, max_coverage);
+    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
 
     //to make a progress bar, compute the length of the assembly
-    long int total_length = 0;
+    double total_length = 0;
     for (auto l : length_of_contigs){
         total_length += l;
     }
@@ -1347,28 +1420,8 @@ int main(int argc, char *argv[]){
         sizeOfWindow = 500;
     }
 
-    // // estimate the haploid coverage as the min coverage of the 90% most covered contigs (weighted by length)
-    // vector<pair<float,int>> weighted_coverages;
-    // for (auto i = 0 ; i < coverages.size() ; i++){
-    //     weighted_coverages.push_back(make_pair(coverages[i]*length_of_contigs[i], i));
-    // }
-    // sort(weighted_coverages.begin(), weighted_coverages.end(), [](const pair<float,int>& a, const pair<float,int>& b) {
-    //     return a.first > b.first;
-    // });
-    // float haploid_coverage = 0;
-    // float total_length_covered = 0;
-    // for (auto i = 0 ; i < weighted_coverages.size() ; i++){
-    //     total_length_covered += length_of_contigs[weighted_coverages[i].second];
-    //     if (total_length_covered > 0.9*total_length){
-    //         haploid_coverage = coverages[weighted_coverages[i].second];
-    //         break;
-    //     }
-    // }
-    // cout << "HAPOLOID COVERAGE " << haploid_coverage << endl;
-
-
     //to make the progress bar
-    int total_computed_length = 0; 
+    double total_computed_length = 0; 
     auto time_0 = high_resolution_clock::now();
     auto last_time = time_0;
 
@@ -1377,10 +1430,10 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,40) != "edge_388_0_1931705_0_1931705_0_1931705@4"){
-        //     cout << "skipping " << name_of_contigs[n].substr(7,40) << endl;
-        //     continue;
-        // }
+        if (name_of_contigs[n].substr(7,46) != "edge_897_2274805_5262868_0_2988063_0_2988063@1"){
+            cout << "skipping " << name_of_contigs[n].substr(7,42) << endl;
+            continue;
+        }
 
         bool low_memory_now = low_memory;
         if (coverages[n] > 5000){
@@ -1416,7 +1469,7 @@ int main(int argc, char *argv[]){
         int chunk = -1;
         int upperBound;
         while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
-            // if (chunk*sizeOfWindow != 38000){
+            // if (chunk*sizeOfWindow != 284000){ //2000 below the one you actually want
             //     cout << "csksdlk " << endl;
             //     chunk++;
             //     while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < (chunk+1)*sizeOfWindow){
@@ -1446,6 +1499,7 @@ int main(int argc, char *argv[]){
                         middlePoint = max(int(length_of_contigs[n]/2), int(length_of_contigs[n])-500);
                     }
 
+                    
                     if (readLimits[n][r].first <= middlePoint && readLimits[n][r].second >= middlePoint){
                         readsHere[r] = 0;
                     }
@@ -1522,7 +1576,6 @@ int main(int argc, char *argv[]){
             for (auto snp : snps){
                 if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow && snp.pos > lastpos+10){
                     lastpos = snp.pos;
-                    // cout << "in dldjk position " << position << " : " << endl;
 
                     unordered_map<unsigned char, int> charToIndex;
                     vector<int> clustersStart2 (numberOfReadsHere, 0);
@@ -1555,6 +1608,13 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+
+            //if necessary, merge the haplotypes hierarchically until there are less than max_haplotypes haplotypes
+            if (max_haplotypes > 0){
+                vector<int> mergedHaplotypes = merge_haplotypes_to_fit_within_limit(max_haplotypes, haplotypes, mask_at_this_position, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+                haplotypes = mergedHaplotypes;
+            }
+
             // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
             // if (low_memory){
             //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
@@ -1565,6 +1625,15 @@ int main(int argc, char *argv[]){
             //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
             // }
             // cout << "Done" << endl;
+            // cout << "haplotypes: " << endl;
+            // int idd = 0;
+            // for (auto h : haplotypes){
+            //     if (h > -2){
+            //         cout << idd << " " << h << endl;
+            //     }
+            //     idd++;
+            // }
+            // cout << endl;
             // exit(0);
 
 
@@ -1573,64 +1642,15 @@ int main(int argc, char *argv[]){
         //recursively go through all the windows once again, seeing if a window can be inspired by its neighbors
 
         //progress bar if time since last progress bar > 10 seconds
+        total_computed_length += length_of_contigs[n];
         if (duration_cast<seconds>(high_resolution_clock::now() - last_time).count() > 10){
             last_time = high_resolution_clock::now();
             auto total_time_elapsed = duration_cast<seconds>(last_time - time_0).count();
             #pragma omp critical (cout)
             {
-                if (length_of_contigs[n] < 0){
-                    cout << "NEGATIVE LENGTH OF CONTIG " << name_of_contigs[n] << " " << length_of_contigs[n] << endl;
-                }
-                else{
-                    total_computed_length += length_of_contigs[n];
-                    cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
-                }
+                cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
             }
         }
-
-        //if the assembly is not meta, check that all haplotypes are abundant enough to correspond to a chromosome. Suppress the ones that are not
-        // if (!meta){
-        //     for (auto r : threadedReads){
-        //         //count each haplotype in threadedReads.second
-        //         unordered_map<int, int> haplotypeToCount;
-        //         for (auto h : r.second){
-        //             if (h >= 0){
-        //                 if (haplotypeToCount.find(h) == haplotypeToCount.end()){
-        //                     haplotypeToCount[h] = 0;
-        //                 }
-        //                 haplotypeToCount[h]++;
-        //             }
-        //         }
-
-        //         double coverage_limit = min(haploid_coverage*0.7, 25.0); //above this, the haplotype is trustworthy
-
-        //         //count how many haplotypes are above the coverage limit
-        //         int numberOfHaplotypesAboveLimit = 0;
-        //         for (auto h : haplotypeToCount){
-        //             if (h.second > coverage_limit){
-        //                 numberOfHaplotypesAboveLimit++;
-        //             }
-        //             else{
-        //                 cout << "Dismissing haplotype " << h.first << " on contig " << name_of_contigs[n] << " between " << r.first.first << " and " << r.first.second << " because it has a coverage of " << h.second << " < " << coverage_limit << endl;
-        //             }
-        //         }
-
-        //         for (auto h = 0 ; h < r.second.size() ; h++){
-        //             if (haplotypeToCount[r.second[h]] < coverage_limit){
-        //                 r.second[h] = -1;
-        //             }
-        //         }
-
-        //         if (numberOfHaplotypesAboveLimit <= 1){
-        //             for (auto h = 0 ; h < r.second.size() ; h++){
-        //                 if (r.second[h] != -2){
-        //                     r.second[h] = 0;
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
         
         //append threadedReads to file
         #pragma omp critical
@@ -1646,6 +1666,7 @@ int main(int argc, char *argv[]){
             for (auto r : threadedReads){
                 readsHere.clear();
                 groups.clear();
+
                 out << "GROUP\t" << r.first.first << "\t" << r.first.second << "\t";
                 for (auto h = 0 ; h < r.second.size() ; h++){
                     int group = r.second[h];
