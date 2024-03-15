@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.12"
+__version__ = "1.7.13"
 __date__ = "2024-03-15"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -29,7 +29,7 @@ def parse_args():
 
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
-    parser.add_argument("-n", "--ploidy", help="Maximum ploidy of the input contigs. 0=no a priori limit [0]", default=0)
+    parser.add_argument("-c", "--haploid-coverage", help="Expected haploid coverage. 0 if does not apply [0]", default=0)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
     parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
@@ -56,7 +56,8 @@ def parse_args():
     return parser.parse_args()
 
 def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph\
-                       , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_graphunzip\
+                       , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs\
+                        , path_determine_multiplicity,  path_graphunzip\
                         , path_raven):
 
     com = " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
@@ -271,6 +272,19 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
         else:
             path_graphunzip = "graphunzip.py"
 
+    command = path_to_python + " " + path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    determine_multiplicity_run = os.system(command)
+    if determine_multiplicity_run != 0:
+        command = path_to_python + " determine_multiplicity.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+        determine_multiplicity_run = os.system(command)
+        if determine_multiplicity_run != 0:
+            print("ERROR: determine_multiplicity.py could not run. Problem in the installation.")
+            print("Was trying to run first: " + path_to_python + " " + path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
+            print("Was trying to run: " + command)
+            sys.exit(1)
+        else:
+            path_determine_multiplicity = "determine_multiplicity.py"
+
 def main():
 
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
@@ -294,7 +308,7 @@ def main():
     skip_minigraph = not args.correct_assembly
     rarest_strain_abundance = args.rarest_strain_abundance
     minimap2_params = args.minimap2_params
-    max_ploidy = args.ploidy
+    haploid_coverage = float(args.haploid_coverage)
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
     path_cut_gfa = path_to_src + "cut_gfa.py"
@@ -304,6 +318,7 @@ def main():
     path_separate_reads = path_to_src + "build/HS_separate_reads"
     path_create_new_contigs = path_to_src + "build/HS_create_new_contigs"
     path_graphunzip = path_to_src + "GraphUnzip/graphunzip.py"
+    path_determine_multiplicity = path_to_src + "GraphUnzip/determine_multiplicity.py"
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
@@ -359,6 +374,7 @@ def main():
                        args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, \
                         path_to_python, skip_minigraph, path_GenomeTailor, path_cut_gfa, path_fa2gfa, \
                         path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, \
+                        path_determine_multiplicity,
                         path_graphunzip, path_to_raven)
 
     #check the read file and unzip it if needed (converting it to fasta if in fastq)
@@ -395,7 +411,7 @@ def main():
     # 1. Clean the assembly using correct_structural_errors.py
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
     print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed by the assembler. Here, HairSplitter corrects the assembly"
-        " by making sure that all reads align end-to-end of the assembly.\n")
+        " by making sure that all reads align end-to-end of the assembly. This module is now a standalone tool available at github.com/rolandfaure/genometailor\n")
     sys.stdout.flush()
     
     new_assembly = tmp_dir + "/cleaned_assembly.gfa"
@@ -554,9 +570,27 @@ def main():
     print("\n===== STAGE 4: Separating reads by haplotype of origin   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
+    #estimate the ploidy of all the contigs if --haploid-coverage is used
+    if haploid_coverage > 0 :
+        print(" - Estimating the ploidy of the contigs")
+        command = path_to_python + " " + path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
+        print(" Running: ", command)
+        res_estimate_ploidy = os.system(command)
+        if res_estimate_ploidy != 0:
+            print("ERROR: estimate_ploidy.py failed. Was trying to run: " + command)
+            sys.exit(1)
+
+        #write in the log file that ploidy estimation went smoothly
+        f = open(logFile, "a")
+        f.write("STAGE 4: Ploidy estimation computed, estimate_ploidy.py exited successfully. Ploidy is stored in "+tmp_dir+"/ploidy.txt")
+        f.close()
+    else:
+        #create empty ploidy file
+        f = open(tmp_dir + "/ploidy.txt", "w")
+        f.close()
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
-    command = path_separate_reads + " " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " " + str(max_ploidy) + " " + str(int(low_memory)) \
+    command = path_separate_reads + " " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " hs/tmp/ploidy.txt " + str(int(low_memory)) \
         + " " + str(rarest_strain_abundance) + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")

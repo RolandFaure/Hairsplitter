@@ -7,33 +7,36 @@ Created on Fri Oct  8 13:02:36 2021
 """
 
 import argparse
+import input_output as io
 
 #main function of the file : tries to estimate how many copies of each contig is actually present in the actual assembly, based on the topology of the graph and the coverage
 #input : a gfa (as a list of segments), with mandatory coverage information ; names (to know at what index to put each contig)
 #output : computed_multiplicity, which is a list containing the theoretical multiplicity of contig 'a' at position names[a], as well as updated supported_links, telling which links actually exist
-def determine_multiplicity(segments, names, reliable_coverage=True) :
+def determine_multiplicity(segments, names, reliable_coverage=True, haploid_coverage=0) :
 
     computed_multiplicity = [0 for i in range(len(segments))]
     
     #first compute the 'reference haploid coverage', the average coverage for all reads with exactly one neighbors at each end
-    refCoverages = 0
-    weightedNumberOfRefContigs = 1 #1 and not 0 to be sure not to divide by 0
-    for s in segments :
-        
-        links = s.get_links()
-        if len(links[0]) <= 1 and len(links[1]) <= 1 : #if the contig has less than 1 neighbor at each end we can suppose it is haploid
-        
-            weightedNumberOfRefContigs += s.length
-            refCoverages += s.length * s.depths[0]
+    refCoverage = haploid_coverage
+    if refCoverage == 0 :
+        refCoverages = 0
+        weightedNumberOfRefContigs = 1 #1 and not 0 to be sure not to divide by 0
+        for s in segments :
+            
+            links = s.get_links()
+            if len(links[0]) <= 1 and len(links[1]) <= 1 : #if the contig has less than 1 neighbor at each end we can suppose it is haploid
+            
+                weightedNumberOfRefContigs += s.length
+                refCoverages += s.length * s.depths[0]
 
-    #print(len(segments), refCoverages, weightedNumberOfRefContigs)
-    refCoverage = refCoverages / weightedNumberOfRefContigs
-    
-    if (refCoverage == 1 or refCoverage == 0) and reliable_coverage :
-        reliable_coverage = False
+        #print(len(segments), refCoverages, weightedNumberOfRefContigs)
+        refCoverage = refCoverages / weightedNumberOfRefContigs
         
-    if not reliable_coverage :
-        refCoverage = 1
+        if (refCoverage == 1 or refCoverage == 0) and reliable_coverage :
+            reliable_coverage = False
+            
+        if not reliable_coverage :
+            refCoverage = 1
         
     #then inventoriate all haploid contigs
     for s in segments :
@@ -209,7 +212,23 @@ def propagate_multiplicity(multiplicities, segments, names, contigIdx, refCovera
                             #print("Inferring multiplicity of ", neighbor.names, " at ", round(computed_multiplicity[s] * neighbor.depths[0]/covTot) , ", from contig ", seg.names)
                         propagate_multiplicity(multiplicities, segments, names, names[neighbor.names[0]], refCoverage)
         
-        
+if __name__ == "__main__" :
+    
+    parser = argparse.ArgumentParser(description='Determine the multiplicity of each contig in the assembly')
+    parser.add_argument('gfa', type=str, help='The gfa file to process')
+    parser.add_argument('haploid_coverage', type=float, help='The coverage file to process')
+    parser.add_argument('output', type=str, help='The file to write the output to')
+    args = parser.parse_args()
+    
+    segments, names = io.load_gfa(args.gfa)
+
+    haploid_coverage = args.haploid_coverage
+    refCoverage, computed_multiplicity = determine_multiplicity(segments, names, haploid_coverage=haploid_coverage)
+
+    with open(args.output, 'w') as f:
+        for i in names.keys():
+            f.write(i + "\t" + str(computed_multiplicity[names[i]]) + "\n")
+
 
         
         

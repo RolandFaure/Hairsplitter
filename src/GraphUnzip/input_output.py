@@ -582,7 +582,7 @@ def export_to_fasta(listOfSegments, gfaFile, exportFile="results/newAssembly.fas
 # Also returns the list of the contig's names
 def load_gfa(file):
 
-    print('Loading contigs')
+    # print('Loading contigs')
     gfa_read = open(file, "r")
 
     segments = []

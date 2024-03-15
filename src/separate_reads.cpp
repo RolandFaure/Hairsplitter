@@ -1348,17 +1348,17 @@ int main(int argc, char *argv[]){
 
     if (argc < 8){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
-            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <max_haplotypes> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
             return 0;
         }
 
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <max_haplotypes> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
-    int max_haplotypes = int(atoi(argv[4])); //max number of haplotypes athorized on a contig (0 means infinite)
+    string ploidy_file = argv[4]; //max number of haplotypes athorized on a contig (0 means infinite)
     float errorRate = atof(argv[3]);
     bool debug = bool(atoi(argv[8]));
     string outfile = argv[7];
@@ -1386,6 +1386,24 @@ int main(int argc, char *argv[]){
     std::vector<double> coverages_contigs;
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
+
+    std::unordered_map<string, int> ploidy_of_contigs;
+    std::ifstream ploidy_file_stream(ploidy_file);
+    if (ploidy_file_stream){
+        std::string line;
+        while (std::getline(ploidy_file_stream, line)){
+            std::istringstream iss(line);
+            std::string contig;
+            int ploidy;
+            if (!(iss >> contig >> ploidy)) { break; }
+            ploidy_of_contigs[contig] = ploidy;
+        }
+    }
+    else{
+        for (auto c : name_of_contigs){
+            ploidy_of_contigs[c.second] = 0;
+        }
+    }
 
     //to make a progress bar, compute the length of the assembly
     double total_length = 0;
@@ -1610,8 +1628,9 @@ int main(int argc, char *argv[]){
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
 
             //if necessary, merge the haplotypes hierarchically until there are less than max_haplotypes haplotypes
-            if (max_haplotypes > 0){
-                vector<int> mergedHaplotypes = merge_haplotypes_to_fit_within_limit(max_haplotypes, haplotypes, mask_at_this_position, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+            string name_of_contig_clipped = name_of_contigs[n].substr(name_of_contigs[n].find("\t")+1).substr(0, name_of_contigs[n].substr(name_of_contigs[n].find("\t")+1).find("\t"));
+            if (ploidy_of_contigs.find(name_of_contig_clipped) != ploidy_of_contigs.end() && ploidy_of_contigs[name_of_contig_clipped] > 0){
+                vector<int> mergedHaplotypes = merge_haplotypes_to_fit_within_limit(ploidy_of_contigs[name_of_contig_clipped], haplotypes, mask_at_this_position, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
                 haplotypes = mergedHaplotypes;
             }
 
