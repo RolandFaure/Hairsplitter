@@ -12,6 +12,7 @@ from transform_gfa import gfa_to_fasta
 from finish_untangling import merge_adjacent_contigs
 from finish_untangling import duplicate_contigs
 from finish_untangling import trim_overlaps
+from finish_untangling import remove_contigs_of_length_0
 #from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
 #from solve_with_HiC import solve_with_HiC
@@ -428,6 +429,8 @@ def main():
             os.system("mkdir graphunzip_tmp")
             repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, "graphunzip_tmp", threads=1)
             os.system("rm -rf graphunzip_tmp")
+
+        segments = remove_contigs_of_length_0(segments)
 
         # now exporting the output  
         print("Now exporting the result")

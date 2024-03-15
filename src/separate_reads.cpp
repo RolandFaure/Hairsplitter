@@ -1430,10 +1430,10 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        if (name_of_contigs[n].substr(7,46) != "edge_897_2274805_5262868_0_2988063_0_2988063@1"){
-            cout << "skipping " << name_of_contigs[n].substr(7,42) << endl;
-            continue;
-        }
+        // if (name_of_contigs[n].substr(7,46) != "edge_897_2274805_5262868_0_2988063_0_2988063@1"){
+        //     cout << "skipping " << name_of_contigs[n].substr(7,42) << endl;
+        //     continue;
+        // }
 
         bool low_memory_now = low_memory;
         if (coverages[n] > 5000){
