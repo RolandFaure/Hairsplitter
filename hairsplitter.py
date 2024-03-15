@@ -335,13 +335,6 @@ def main():
         f.close()
         sys.exit(1)
 
-    if usecase != "meta" and usecase != "single":
-        print("ERROR: use-case must be either meta or single")
-        f = open(logFile, "w")
-        f.write("ERROR: use-case must be either meta or single\n")
-        f.close()
-        sys.exit(1)
-
     reads_on_asm = tmp_dir + "/reads_on_asm.sam"
 
     #check if all the files and dependencies are here
@@ -390,7 +383,7 @@ def main():
         gfaAssembly = args.assembly
     elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa" or args.assembly[-3:]=="fna":
         gfaAssembly = tmp_dir + "/assembly.gfa"
-        command = path_to_src + "build/fa2gfa " + args.assembly + " > " + gfaAssembly
+        command = path_fa2gfa + " " + args.assembly + " > " + gfaAssembly
         res_fasta2gfa = os.system(command)
         if res_fasta2gfa != 0:
             print("ERROR: Conversion from fasta to gfa failed while running the command:\n" + command)
