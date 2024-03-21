@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.13"
-__date__ = "2024-03-15"
+__version__ = "1.7.14"
+__date__ = "2024-03-21"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -183,16 +183,16 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_GenomeTailor = "GenomeTailor"
+            path_GenomeTailor = "HS_GenomeTailor"
 
     command = path_to_python + " " + path_cut_gfa + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     cut_gfa_run = os.system(command)
     if cut_gfa_run != 0:
-        command = path_to_python + " cut_gfa.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+        command = "cut_gfa.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
         cut_gfa_run = os.system(command)
         if cut_gfa_run != 0:
             print("ERROR: cut_gfa.py could not run. Problem in the installation.")
-            print("Was trying to run first: " + path_to_python + " " + path_cut_gfa + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
+            print("Was trying to run first: " + path_cut_gfa + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
             print("Was trying to run: " + command)
             sys.exit(1)
         else:  
@@ -208,7 +208,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_fa2gfa = "fa2gfa"
+            path_fa2gfa = "HS_fa2gfa"
 
     command = path_gfa2fa + " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     gfa2fa_run = os.system(command)
@@ -220,7 +220,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_gfa2fa = "gfa2fa"
+            path_gfa2fa = "HS_gfa2fa"
 
     command = path_call_variants + " --version > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     call_variants_run = os.system(command)
@@ -232,7 +232,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_call_variants = "call_variants"
+            path_call_variants = "HS_call_variants"
 
     command = path_separate_reads + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     separate_reads_run = os.system(command)
@@ -245,7 +245,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_separate_reads = "separate_reads"
+            path_separate_reads = "HS_separate_reads"
 
     command = path_create_new_contigs + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     create_new_contigs_run = os.system(command)
@@ -257,33 +257,35 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
-            path_create_new_contigs = "create_new_contigs"
+            path_create_new_contigs = "HS_create_new_contigs"
 
-    command = path_to_python + " " + path_graphunzip + " unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    command = path_graphunzip + " unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     graphunzip_run = os.system(command)
     if graphunzip_run != 0:
-        command = path_to_python + " graphunzip.py unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+        command = "graphunzip.py unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
         graphunzip_run = os.system(command)
         if graphunzip_run != 0:
             print("ERROR: graphunzip.py could not run. Problem in the installation.")
-            print("Was trying to run first: " + path_to_python + " " + path_graphunzip + " unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
+            print("Was trying to run first: " + path_graphunzip + " unzip --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
             path_graphunzip = "graphunzip.py"
 
-    command = path_to_python + " " + path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    command = path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     determine_multiplicity_run = os.system(command)
     if determine_multiplicity_run != 0:
-        command = path_to_python + " determine_multiplicity.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+        command = "determine_multiplicity.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
         determine_multiplicity_run = os.system(command)
         if determine_multiplicity_run != 0:
             print("ERROR: determine_multiplicity.py could not run. Problem in the installation.")
-            print("Was trying to run first: " + path_to_python + " " + path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
+            print("Was trying to run first: " + path_determine_multiplicity + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt")
             print("Was trying to run: " + command)
             sys.exit(1)
         else:
             path_determine_multiplicity = "determine_multiplicity.py"
+
+    return path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_determine_multiplicity, path_graphunzip
 
 def main():
 
@@ -311,14 +313,14 @@ def main():
     haploid_coverage = float(args.haploid_coverage)
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
-    path_cut_gfa = path_to_src + "cut_gfa.py"
+    path_cut_gfa = path_to_python + " " + path_to_src + "cut_gfa.py"
     path_fa2gfa = path_to_src + "build/HS_fa2gfa"
     path_gfa2fa = path_to_src + "build/HS_gfa2fa"
     path_call_variants = path_to_src + "build/HS_call_variants"
     path_separate_reads = path_to_src + "build/HS_separate_reads"
     path_create_new_contigs = path_to_src + "build/HS_create_new_contigs"
-    path_graphunzip = path_to_src + "GraphUnzip/graphunzip.py"
-    path_determine_multiplicity = path_to_src + "GraphUnzip/determine_multiplicity.py"
+    path_graphunzip = path_to_python + " " +path_to_src + "GraphUnzip/graphunzip.py"
+    path_determine_multiplicity = path_to_python + " " + path_to_src + "GraphUnzip/determine_multiplicity.py"
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
@@ -370,7 +372,8 @@ def main():
         sys.exit(1)
 
     #check the dependencies
-    check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, \
+    path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_determine_multiplicity, path_graphunzip =\
+        check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, \
                        args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, \
                         path_to_python, skip_minigraph, path_GenomeTailor, path_cut_gfa, path_fa2gfa, \
                         path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, \
@@ -471,7 +474,7 @@ def main():
 
     # 2.1. Cut the contigs in chunks of 300000bp to avoid memory issues
     print(" - Cutting the contigs in chunks of 300000bp to avoid memory issues")
-    command = "python " + path_to_src + "cut_gfa.py -a " + new_assembly + " -l 300000 -o " + tmp_dir + "/cut_assembly.gfa"
+    command = path_cut_gfa + " -a " + new_assembly + " -l 300000 -o " + tmp_dir + "/cut_assembly.gfa"
     #write in the log file the time at which the alignment starts
     f = open(logFile, "a")
     f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
@@ -573,7 +576,7 @@ def main():
     #estimate the ploidy of all the contigs if --haploid-coverage is used
     if haploid_coverage > 0 :
         print(" - Estimating the ploidy of the contigs")
-        command = path_to_python + " " + path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
+        command = path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
         print(" Running: ", command)
         res_estimate_ploidy = os.system(command)
         if res_estimate_ploidy != 0:
@@ -667,7 +670,7 @@ def main():
     # if args.multiploid :
     #     meta = ""
 
-    command = "python " + path_graphunzip + " unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
+    command = path_graphunzip + " unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
           + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")

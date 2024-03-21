@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 '''
 Function to cut the long contigs of a gfa in smaller contigs
 '''
