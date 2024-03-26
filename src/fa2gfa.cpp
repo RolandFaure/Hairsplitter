@@ -23,6 +23,12 @@ int main(int argc, char *argv[])
                 std::cout << "S\t" << name << "\t" << sequence << "\n";
             }
             name = line.substr(1);
+            //stop the name at the first space
+            size_t pos = name.find(" ");
+            if (pos != std::string::npos)
+            {
+                name = name.substr(0, pos);
+            }
             sequence = "";
             i++;
         }

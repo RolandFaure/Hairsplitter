@@ -1032,7 +1032,7 @@ void output_GFA(vector <Read> &allreads, vector<unsigned long int> &backbone_rea
             if (read.depth != -1){
                 out << "DP:f:" << std::to_string(read.depth);
             }
-            out << " LN:i:" << std::to_string(read.sequence_.size()) << "\n";
+            out << "\tLN:i:" << std::to_string(read.sequence_.size()) << "\n";
         }
     }
     for (auto l : allLinks){
@@ -1097,26 +1097,19 @@ void outputTruePar(Partition truePar, std::string id){
 }
 
 
-void outputGraph(std::vector<std::vector<int>> &adj,std::vector<int> &clusters, std::string fileOut){
+void outputGraph(Eigen::SparseMatrix<int> &adj,std::vector<int> &clusters, std::string fileOut){
 
     ofstream out(fileOut);
 
     out << "nodedef>name VARCHAR,label VARCHAR, cluster VARCHAR\n";
-    for (auto i = 0 ; i < adj.size() ; i++){
+    for (auto i = 0 ; i < clusters.size() ; i++){
         out << i << ", " << i << ", " <<clusters[i] << "\n";
     }
     out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
-    for (auto i = 0 ; i < adj.size() ; i++){
-        // cout << "line " << i << ", length of line i : " << 
-        for (auto j=0 ; j < adj[i].size(); j++){
-            if (adj[i][j] > 0){
-                out << i << ", " << j << ", " << adj[i][j] << "\n";
-            }
-            // else{
-            //     // cout << "Not working on me : " << adj[i][j] << endl;
-            // }
+    for (int k = 0; k < adj.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<int>::InnerIterator it(adj, k); it; ++it) {
+            out << it.row() << ", " << it.col() << ", " << it.value()  << "\n";
         }
-        
     }
 }
 
@@ -1140,7 +1133,7 @@ void outputGraph_low_memory(std::vector<std::vector<int>> &neighbor_list , std::
     }
 }
 
-void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vector<std::vector<int>> &clusters, std::vector<bool> &mask, std::string fileOut){
+void outputGraph_several_clusterings(Eigen::SparseMatrix<int> &adj,std::vector<std::vector<int>> &clusters, std::vector<bool> &mask, std::string fileOut){
 
     ofstream out(fileOut);
 
@@ -1149,7 +1142,7 @@ void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vec
         out << "cluster_" << i << " VARCHAR, ";
     }
     out << "\n";
-    for (auto i = 0 ; i < adj.size() ; i++){
+    for (auto i = 0 ; i < clusters.size() ; i++){
         if (mask[i]){
             out << i << ", " << i << ", ";
             for (auto j = 0 ; j < clusters.size() ; j++){
@@ -1159,17 +1152,10 @@ void outputGraph_several_clusterings(std::vector<std::vector<int>> &adj,std::vec
         }
     }
     out << "edgedef>node1 VARCHAR,node2 VARCHAR, weight DOUBLE\n";
-    for (auto i = 0 ; i < adj.size() ; i++){
-        // cout << "line " << i << ", length of line i : " << 
-        for (auto j=0 ; j < adj[i].size(); j++){
-            if (adj[i][j] > 0){
-                out << i << ", " << j << ", " << adj[i][j] << "\n";
-            }
-            // else{
-            //     // cout << "Not working on me : " << adj[i][j] << endl;
-            // }
+    for (int k = 0; k < adj.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<int>::InnerIterator it(adj, k); it; ++it) {
+            out << it.row() << ", " << it.col() << ", " << it.value() << "\n";
         }
-        
     }
 }
 

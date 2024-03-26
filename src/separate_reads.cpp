@@ -50,6 +50,7 @@ void parse_column_file(
     std::unordered_map<int, string> &name_of_contigs,
     std::vector<std::vector<string>> &names_of_reads,
     std::vector<long int> &length_of_contigs,
+    std::vector<double> &coverage_of_contigs,
     std::vector<std::vector<std::pair<int,int>>> &readLimits,
     std::vector<int>& numberOfReads,
     int max_coverage){
@@ -70,8 +71,10 @@ void parse_column_file(
             //parse the length of the contig, which is the third field of the line
             string name;
             string length;
-            iss >> name >> length;
+            double cov;
+            iss >> name >> length >> cov;
             length_of_contigs.push_back(std::atoi(length.c_str()));
+            coverage_of_contigs.push_back(cov);
             snps.push_back(std::vector<Column>());
             numberOfReads.push_back(0);
             names_of_reads.push_back(vector<string>(0));
@@ -470,7 +473,7 @@ void create_read_graph(
             });
 
             int nb_of_neighbors = 0;
-            float distance_threshold_below_which_two_reads_are_considered_different = 1 - errorRate*2;
+            float distance_threshold_below_which_two_reads_are_considered_different = min(1 - errorRate*2, (float)0.99);
             float distance_threshold_above_which_two_reads_should_be_linked= 1 ;
             if (smallest.size() > 1){
                 distance_threshold_above_which_two_reads_should_be_linked = smallest[0].second - (smallest[0].second - smallest[1].second)*3;
@@ -1272,32 +1275,102 @@ std::vector<int> merge_wrongly_split_haplotypes(
 
 }
 
+/**
+ * @brief If there is a maximum number of haplotypes wanted on a contig, merge the haplotypes to fit within this limit
+ * 
+ * @param max_haplotypes
+ * @param clusters
+ * @param neighbor_list
+ * @param adjacency_matrix
+ * @param low_memory
+ * @param posstart
+ * @param posend
+ * @return std::vector<int> 
+ */
+std::vector<int> merge_haplotypes_to_fit_within_limit(
+    int max_haplotypes,
+    std::vector<int> &clusters,
+    std::vector<bool> &mask,
+    std::vector<std::vector<int>> &neighbor_list,
+    Eigen::SparseMatrix<int> &adjacency_matrix,
+    bool low_memory,
+    int posstart,
+    int posend){
+
+    //first count the number of clusters to see if the limit is exceeded
+    unordered_map<int,int> countOfGroups;
+    for (auto i = 0 ; i < clusters.size() ; i++){
+        if (clusters[i] >= 0){
+            if (countOfGroups.find(clusters[i]) == countOfGroups.end()){
+                countOfGroups[clusters[i]] = 1;
+            }
+            else{
+                countOfGroups[clusters[i]] += 1;
+            }
+        }
+    }
+
+    if (countOfGroups.size() <= max_haplotypes){
+        return clusters;
+    }
+
+    set<int> keptHalotypes;
+    vector<pair<int,int>> countOfGroupsVector;
+    for (auto c : countOfGroups){
+        countOfGroupsVector.push_back(make_pair(c.second, c.first));
+    }
+    sort(countOfGroupsVector.begin(), countOfGroupsVector.end(), std::greater<pair<int,int>>());
+    for (auto i = 0 ; i < max_haplotypes ; i++){
+        keptHalotypes.insert(countOfGroupsVector[i].second);
+    }
+
+    vector<int> new_clusters = clusters;
+    for (auto i = 0 ; i < clusters.size() ; i++){
+        if (clusters[i] >= 0 && keptHalotypes.find(clusters[i]) == keptHalotypes.end()){
+            new_clusters[i] = -1;
+        }
+    }
+
+    //re-cluster the reads to rescue the reads that lost their haplotypes
+    vector<int> re_clustered;
+    if (low_memory){
+        re_clustered = chinese_whispers(neighbor_list, new_clusters, mask);
+    }
+    else{
+        re_clustered = chinese_whispers_high_memory(adjacency_matrix, new_clusters, mask);
+    }
+
+    return re_clustered;
+
+}
+
 int main(int argc, char *argv[]){
 
     if (argc < 8){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
-            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
             return 0;
         }
 
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
     string columns_file = argv[1];
     int num_threads = atoi(argv[2]);
+    string ploidy_file = argv[4]; //max number of haplotypes athorized on a contig (0 means infinite)
     float errorRate = atof(argv[3]);
-    bool debug = bool(atoi(argv[7]));
-    string outfile = argv[6];
-    bool low_memory = bool(atoi(argv[4]));
+    bool debug = bool(atoi(argv[8]));
+    string outfile = argv[7];
+    bool low_memory = bool(atoi(argv[5]));
 
-    float rarest_strain_abundance = atof(argv[5]);
+    float rarest_strain_abundance = atof(argv[6]);
     int max_coverage;
     if (rarest_strain_abundance == 0){
         max_coverage = 1000000000;
     }
     else{
-        int max_coverage = 50 / atof(argv[5]); //with a coverage of 50 a strain can be well recovered, thus we can downsample to 50/abundance
+        int max_coverage = 50 / atof(argv[6]); //with a coverage of 50 a strain can be well recovered, thus we can downsample to 50/abundance
     }
 
     //create empty output file
@@ -1310,11 +1383,30 @@ int main(int argc, char *argv[]){
     std::vector<int> numberOfReads;
     std::vector<std::vector<Column>> snps_in;
     std::vector<long int> length_of_contigs;
+    std::vector<double> coverages_contigs;
     vector<vector<pair<int,int>>> readLimits;
-    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, readLimits, numberOfReads, max_coverage);
+    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
+
+    std::unordered_map<string, int> ploidy_of_contigs;
+    std::ifstream ploidy_file_stream(ploidy_file);
+    if (ploidy_file_stream){
+        std::string line;
+        while (std::getline(ploidy_file_stream, line)){
+            std::istringstream iss(line);
+            std::string contig;
+            int ploidy;
+            if (!(iss >> contig >> ploidy)) { break; }
+            ploidy_of_contigs[contig] = ploidy;
+        }
+    }
+    else{
+        for (auto c : name_of_contigs){
+            ploidy_of_contigs[c.second] = 0;
+        }
+    }
 
     //to make a progress bar, compute the length of the assembly
-    long int total_length = 0;
+    double total_length = 0;
     for (auto l : length_of_contigs){
         total_length += l;
     }
@@ -1347,7 +1439,7 @@ int main(int argc, char *argv[]){
     }
 
     //to make the progress bar
-    int total_computed_length = 0; 
+    double total_computed_length = 0; 
     auto time_0 = high_resolution_clock::now();
     auto last_time = time_0;
 
@@ -1356,8 +1448,8 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,9) != "edge_2877"){
-        //     cout << "skipping " << name_of_contigs[n] << endl;
+        // if (name_of_contigs[n].substr(7,46) != "edge_897_2274805_5262868_0_2988063_0_2988063@1"){
+        //     cout << "skipping " << name_of_contigs[n].substr(7,42) << endl;
         //     continue;
         // }
 
@@ -1375,7 +1467,9 @@ int main(int argc, char *argv[]){
         #pragma omp critical (cout)
         {
             time_t now = time(NULL);
-            cout << "separating reads on contig " << name_of_contigs[n] << " [" << std::ctime(&now) <<"]\n";
+            if (debug){
+                cout << "separating reads on contig " << name_of_contigs[n] << "\n";
+            }
         }
 
         vector<vector<pair<int,int>>> sims_and_diffs;
@@ -1387,18 +1481,19 @@ int main(int argc, char *argv[]){
         }
 
         // cout << "similrities and differences computed " << numberOfReadsHere << endl;
-        // for (auto i : sims_and_diffs[0]){
-        //     cout << i.first << " " << i.second << endl;
-        // } 
 
         vector<pair<pair<int,int>, vector<int>>> threadedReads; //associates to each window the reads that are in it
         int suspectPostitionIdx = 0;
         int chunk = -1;
         int upperBound;
         while ((chunk+1)*sizeOfWindow + 100 <= length_of_contigs[n]){
-            // if (chunk*sizeOfWindow != 7000){
+            // if (chunk*sizeOfWindow != 284000){ //2000 below the one you actually want
             //     cout << "csksdlk " << endl;
             //     chunk++;
+            //     while (suspectPostitionIdx < snps.size() && snps[suspectPostitionIdx].pos < (chunk+1)*sizeOfWindow){
+            //         suspectPostitionIdx++;
+            //     }
+            //     suspectPostitionIdx--;
             //     continue;
             // }
             chunk++;
@@ -1406,6 +1501,7 @@ int main(int argc, char *argv[]){
             if ((chunk+1)*sizeOfWindow + 100 > length_of_contigs[n]){ //to avoid having extremely short terminal windows
                 upperBound = length_of_contigs[n]+1;
             }
+
 
             if (suspectPostitionIdx >= snps.size() || snps[suspectPostitionIdx].pos > upperBound-1){
                 //no snp in this window, just add the reads, with -2 for the reads that are not here and 0 for the reads that are here
@@ -1421,6 +1517,7 @@ int main(int argc, char *argv[]){
                         middlePoint = max(int(length_of_contigs[n]/2), int(length_of_contigs[n])-500);
                     }
 
+                    
                     if (readLimits[n][r].first <= middlePoint && readLimits[n][r].second >= middlePoint){
                         readsHere[r] = 0;
                     }
@@ -1456,10 +1553,11 @@ int main(int argc, char *argv[]){
             vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
             vector<vector<int>> adjacency_matrix_high_memory;
             vector<vector<int>> strengthened_adjacency_matrix_high_memory;
-            Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);
+            Eigen::SparseMatrix<int> adjacency_matrix (numberOfReadsHere, numberOfReadsHere);            
 
             if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
+                // cout << "adjacency matrix computed " << errorRate << endl;
             }
             else{
                 for (auto v : neighbor_list_low_memory){
@@ -1472,7 +1570,7 @@ int main(int argc, char *argv[]){
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
             }
-            // cout << "ociojccood" << endl;
+            // cout << "ociojccood " << endl;
 
             vector<int> clustersStart (numberOfReadsHere, 0);
             for (auto r = 0 ; r < numberOfReadsHere ; r++){
@@ -1491,17 +1589,11 @@ int main(int argc, char *argv[]){
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
 
-            // cout << "here are all the interesting positions" << endl;
-            // for (auto p : interestingPositions){
-            //     cout << p << " ";
-            // }
-            // cout << endl;
             // cout << "runnignd cw again and again" << endl;
             int lastpos = -10;
             for (auto snp : snps){
                 if (snp.pos >= chunk*sizeOfWindow && snp.pos < chunk*sizeOfWindow + sizeOfWindow && snp.pos > lastpos+10){
                     lastpos = snp.pos;
-                    // cout << "in dldjk position " << position << " : " << endl;
 
                     unordered_map<unsigned char, int> charToIndex;
                     vector<int> clustersStart2 (numberOfReadsHere, 0);
@@ -1534,15 +1626,33 @@ int main(int argc, char *argv[]){
 
             vector<int> haplotypes(numberOfReadsHere, -2);
             finalize_clustering(snps, localClusters, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, mask_at_this_position, haplotypes, errorRate, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+
+            //if necessary, merge the haplotypes hierarchically until there are less than max_haplotypes haplotypes
+            string name_of_contig_clipped = name_of_contigs[n].substr(name_of_contigs[n].find("\t")+1).substr(0, name_of_contigs[n].substr(name_of_contigs[n].find("\t")+1).find("\t"));
+            if (ploidy_of_contigs.find(name_of_contig_clipped) != ploidy_of_contigs.end() && ploidy_of_contigs[name_of_contig_clipped] > 0){
+                vector<int> mergedHaplotypes = merge_haplotypes_to_fit_within_limit(ploidy_of_contigs[name_of_contig_clipped], haplotypes, mask_at_this_position, neighbor_list_low_memory_strengthened, adjacency_matrix, low_memory, chunk*sizeOfWindow, chunk*sizeOfWindow + sizeOfWindow);
+                haplotypes = mergedHaplotypes;
+            }
+
             // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
             // if (low_memory){
             //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             // }
             // else{
-            //     outputGraph(adjacency_matrix_high_memory, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            //     outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             //     vector<bool> nomask (haplotypes.size(), true);
-            //     outputGraph_several_clusterings(adjacency_matrix_high_memory, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
+            //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
             // }
+            // cout << "Done" << endl;
+            // cout << "haplotypes: " << endl;
+            // int idd = 0;
+            // for (auto h : haplotypes){
+            //     if (h > -2){
+            //         cout << idd << " " << h << endl;
+            //     }
+            //     idd++;
+            // }
+            // cout << endl;
             // exit(0);
 
 
@@ -1551,18 +1661,13 @@ int main(int argc, char *argv[]){
         //recursively go through all the windows once again, seeing if a window can be inspired by its neighbors
 
         //progress bar if time since last progress bar > 10 seconds
+        total_computed_length += length_of_contigs[n];
         if (duration_cast<seconds>(high_resolution_clock::now() - last_time).count() > 10){
             last_time = high_resolution_clock::now();
             auto total_time_elapsed = duration_cast<seconds>(last_time - time_0).count();
             #pragma omp critical (cout)
             {
-                if (length_of_contigs[n] < 0){
-                    cout << "NEGATIVE LENGTH OF CONTIG " << name_of_contigs[n] << " " << length_of_contigs[n] << endl;
-                }
-                else{
-                    total_computed_length += length_of_contigs[n];
-                    cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
-                }
+                cout << "Progress in separate_reads: " << 100*total_computed_length/total_length << "%. Estimated time left: " << total_time_elapsed*total_length/(total_computed_length) - total_time_elapsed << " seconds. \n";
             }
         }
         
@@ -1580,6 +1685,7 @@ int main(int argc, char *argv[]){
             for (auto r : threadedReads){
                 readsHere.clear();
                 groups.clear();
+
                 out << "GROUP\t" << r.first.first << "\t" << r.first.second << "\t";
                 for (auto h = 0 ; h < r.second.size() ; h++){
                     int group = r.second[h];

@@ -196,7 +196,7 @@ void modify_GFA(
     vector <Read> &allreads, 
     vector<unsigned long int> &backbones_reads, 
     vector <Overlap> &allOverlaps,
-    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > & partitions,
+    std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > &partitions,
     vector<Link> &allLinks,
     int num_threads,
     string &outFolder, 
@@ -216,9 +216,21 @@ void modify_GFA(
     int max_backbone = backbones_reads.size(); //fix that because backbones will be added to the list but not separated 
     string log_text = ""; //text that will be printed out in the output.txt
 
+    //compute total length of assembly for the progress bar
+    double total_length = 0;
+    for (auto r : backbones_reads){
+        total_length += allreads[r].size();
+    }
+    double computed_length = 0;
+
     omp_set_num_threads(num_threads);
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
+
+        // if (allreads[backbones_reads[b]].name != "edge_1056_0_2341986_0_2341986_0_2341986@0"){ //DEBUG
+        //     cout << "continuuinng" << endl;
+        //     continue;
+        // }
 
         if (partitions.find((backbones_reads[b])) == partitions.end()){
             continue;
@@ -239,10 +251,6 @@ void modify_GFA(
                 cout << "Thread " << omp_get_thread_num() << " looking at " << allreads[backbones_reads[b]].name  << endl;
             }
         }
-        // if (allreads[backbones_reads[b]].name != "edge_4_0_46484@0"){ //DEBUG
-        //     cout << "continuuinng" << endl;
-        //     continue;
-        // }
 
         local_log_text += "---- contig: " + allreads[backbones_reads[b]].name + " ----\n\n";
 
@@ -266,7 +274,6 @@ void modify_GFA(
 
         if (partitions.find(backbone) != partitions.end() && partitions.at(backbone).size() > 0 && !dont_recompute_contig){
 
-
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
             int stricthsizedebug = stitches.size();
@@ -277,22 +284,10 @@ void modify_GFA(
                     std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions.at(backbone).at(n).second, 
                                                                             partitions.at(backbone).at(n-1).second, 
                                                                             partitions.at(backbone).at(n).first.first);
-                    // std::unordered_map<int, std::set<int>> stitchRight = stitch(
-                    //                                                         partitions[backbone][n-1].second.first,
-                    //                                                         partitions[backbone][n].second.first,
-                    //                                                         partitions[backbone][n].first.first, 
-                    //                                                         readLimits[backbone]);
-
 
                     for (auto s : stitchLeft){
                         stitches[n][s.first] = s.second;
                     }
-
-                    // for (auto s : stitchRight){
-                    //     for (int neighbor : s.second){
-                    //         stitches[n][neighbor].emplace(s.first);
-                    //     }
-                    // }
 
                     //make sure all contigs on the left and right are stitched
                     set<int> all_contigs_left;
@@ -329,27 +324,6 @@ void modify_GFA(
                             }
                         }
                     }
-                    // cout << "stitched contigs : "; for(auto i : stitchedContigs) {cout <<i << ";";} cout << endl;
-                    // for (auto s : stitchRight){
-                    //     if (stitchedContigs.find(s.first) == stitchedContigs.end()){
-                    //         // cout << "gluing back" << endl;
-                    //         for (auto s2 : stitchLeft){
-                    //             stitches[n][s2.first].emplace(s.first);
-                    //         }
-                    //     }
-                    // }
-
-                    // if (partitions[backbone][n].first.first > 63100 && partitions[backbone][n].first.first < 64900 ){
-                    //     cout << "stiddvtching : ";
-                    //     for (auto s: stitches[n]){
-                    //         cout << s.first << "<->" ;
-                    //         for (auto s2 : s.second) {cout << s2 << ",";}
-                    //         cout << "  ;  ";
-                    //     } 
-                    //     cout << endl;
-                    // }
-                        
-                    // }
                 }
             }
             // cout << "sticch size 2 " << stitches.size() << endl;
@@ -367,16 +341,12 @@ void modify_GFA(
                 hangingLinks.push_back(linkIdx);
             }
 
-            //compute the depth from the number of aligning reads
-            std::pair<int,int> limitsAll= std::make_pair(0, allreads[backbone].sequence_.size()-1);
-            vector<int> partition1 (allreads[backbone].neighbors_.size(), 1);
-            unordered_map <int, double> newdepths = recompute_depths(limitsAll , partition1, allreads[backbone].depth);
-
             int n = 0;
             while (n < partitions.at(backbone).size()){
                 
+
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 0){
+                // if (interval.first.first != 218000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -488,6 +458,7 @@ void modify_GFA(
                         //     allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 << " " <<
                         //     clippedRead.substr(0,30) << endl;
 
+
                         if (readsPerPart.find(clust) == readsPerPart.end()){
                             readsPerPart[clust] = {clippedRead};
                             fullReadsPerPart[clust] = {allreads[idxRead].sequence_.str()};
@@ -520,7 +491,7 @@ void modify_GFA(
 
                 vector<int> futureHangingLinks;
 
-                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads[backbone].depth);
+                unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads, allOverlaps, backbone);
 
                 for (auto group : readsPerPart){
                     
@@ -739,12 +710,17 @@ void modify_GFA(
             else {
                 right = "";
             }
-            std::pair<int,int> limits= std::make_pair(left, allreads[backbone].sequence_.size()-1);
+            std::pair<int,int> limits= std::make_pair(max(0,min(left,(int)allreads[backbone].sequence_.size()-100)) , allreads[backbone].sequence_.size()-1);
             string contig = right;
+
+            //compute the depth from the number of aligning reads
+            vector<int> partition1 (allreads[backbone].neighbors_.size(), 0);
+            unordered_map <int, double> newdepths = recompute_depths(limits , partition1, allreads, allOverlaps, backbone);
             
             Read r (contig, contig.size());
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
-            r.depth = newdepths[1];
+            r.depth = newdepths[0];
+
             
             #pragma omp critical
             {
@@ -821,6 +797,13 @@ void modify_GFA(
             else{
                 allreads[allOverlaps[n].sequence2].set_sequence(empty);
             }
+        }
+
+        //update the progress bar
+        #pragma omp critical
+        {
+            computed_length += allreads[backbones_reads[b]].size();
+            cout << "Progress: " << int(100*computed_length/total_length) << "%\n";
         }
 
     }
@@ -910,9 +893,9 @@ unordered_map<int, set<int>> stitch(vector<int> par, vector<int> neighbor, int p
     return stitch;
 }
 
-//input : an interval, the list of the limits of the reads on the backbone, the depth of the contig of origin
+//input : an interval, the partition, the list of the limits of the reads on the backbone, the depth of the contig of origin
 //output : the recomputed read coverage for each of the new contigs, (scaled so that the total is the original depth)
-std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, double originalDepth){
+std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<Read> &allreads, std::vector<Overlap> &allOverlaps, long int backbone){
 
     unordered_map <int, double> newCoverage;
     int lengthOfInterval = limits.second-limits.first+1; //+1 to make sure we do not divide by 0
@@ -923,7 +906,9 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
             newCoverage[partition[c]] = 0;
         }
 
-        newCoverage[partition[c]] += max(0.0, double(limits.second-limits.first)/lengthOfInterval );
+        int limit_read_left = allOverlaps[allreads[backbone].neighbors_[c]].position_2_1;
+        int limit_read_right = allOverlaps[allreads[backbone].neighbors_[c]].position_2_2;
+        newCoverage[partition[c]] += max(0.0, double(min(limit_read_right, limits.second)-max(limit_read_left, limits.first))/lengthOfInterval );
 
     }
 
@@ -1429,6 +1414,7 @@ int main(int argc, char *argv[])
 
     cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
+    // cout << "SKIPPING GAF OUTPUT" << endl;
 
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 

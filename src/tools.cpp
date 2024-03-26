@@ -413,9 +413,9 @@ string consensus_reads(
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
     if (polishres != 0){
-        cout << "WARNING racon failed, while running " << commandPolish << endl;
+        // cout << "WARNING racon failed, while running " << commandPolish << endl;
         return backbone;
-        //exit(1);
+        // exit(1);
     }
 
     std::ifstream polishedRead(outFolder +"polished_"+id+".fasta");
@@ -1182,7 +1182,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         }
     }
     if (current_read == ""){
-        cout << "DEBUG did not manage to assemblef fdfdqcc " << endl;
+        // cout << "DEBUG did not manage to assemblef fdfdqcc " << endl;
         return ""; //did not manage to assemble
     }
 

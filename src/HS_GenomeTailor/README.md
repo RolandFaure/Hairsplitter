@@ -5,7 +5,7 @@
 ### Dependencies
 
 To compile the project you will need CMake>=3.8.12 and GCC (tested with GCC=11.3.1).
-You will need to have `racon`, `minimap2` and optionnally `minigraph`.
+You will need to have `racon`, `minimap2`, `raven` and optionnally `minigraph`.
 
 ### Download & install
 

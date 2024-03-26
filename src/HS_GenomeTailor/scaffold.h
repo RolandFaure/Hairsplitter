@@ -42,6 +42,15 @@ struct Bridge{ //a bridge is a bridge between two contigs defined by a read
     int pos_read_on_contig2;
 };
 
+struct Pier{ // a pier happens when a read is mapped on a contig and finishes brutally
+    std::string contig;
+    int position;
+    bool strand; //if unknown points toward the right of the contig
+    std::string read_name;
+    int pos_read_on_contig;
+    bool strand_read; //if unknown points toward the right of the read
+};
+
 struct SolidBridge{ //a bridge is a bridge between two contigs defined by several read, e.g. by agregating Bridge
     std::string contig1;
     std::string contig2;
@@ -56,6 +65,16 @@ struct SolidBridge{ //a bridge is a bridge between two contigs defined by severa
     std::vector<bool> strand;
 };
 
+struct SolidPier{ // a pier happens when several reads are mapped on a contig and finish brutally at the same position
+    std::string contig;
+    int position;
+    bool strand;
+
+    std::vector<std::string> read_names;
+    std::vector<int> pos_read_on_contig;
+    std::vector<bool> strands_read;
+};
+
 struct Link{ //a link is a link between two contigs, containing a CIGAR and optionnaly an extra sequence to insert between the two contigs
     std::string contig1;
     std::string contig2;
@@ -68,6 +87,16 @@ struct Link{ //a link is a link between two contigs, containing a CIGAR and opti
     std::string extra_sequence;
 
     int coverage;
+};
+
+struct End_contig{
+    std::string contig;
+    int position;
+    bool strand; //strand on the contig
+
+    std::string extra_sequence;
+    int coverage;
+    bool strand_read;
 };
 
 #endif 

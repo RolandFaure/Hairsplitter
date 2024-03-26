@@ -270,8 +270,23 @@ def trim_overlaps(segments):
 
     return segments
 
+#input: segments
+#output : segments with length 0 suppressed and their links updated
+def remove_contigs_of_length_0(segments):
+    toDelete = []
+    for s in segments:
+        s.delete_subcontigs_of_length_0()
+        if s.length <= len(s.names) : #all the subcontigs have length 0
+            toDelete.append(s)
+            #now rearrange the links: every nighbor to the left should be linked to every neighbor to the right
+            for i, n in enumerate(s.links[0]):
+                for j, m in enumerate(s.links[1]):
+                    add_link(n, s.otherEndOfLinks[0][i] , m, s.otherEndOfLinks[1][j], "0M")
 
-
+    for s in toDelete:
+        s.cut_all_links()
+        segments.remove(s)
+    return segments
 
 
               

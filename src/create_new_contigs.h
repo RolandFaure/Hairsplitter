@@ -38,7 +38,7 @@ void modify_GFA(
     bool DEBUG);
 
 std::unordered_map<int, std::set<int>> stitch(std::vector<int> par, std::vector<int> neighbor, int position);
-std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, double originalDepth);
+std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std::vector<int> &partition, std::vector<Read> &allreads, std::vector<Overlap> &allOverlaps, long int backbone);
 
 
 void output_GAF(
