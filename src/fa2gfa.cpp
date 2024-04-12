@@ -22,7 +22,9 @@ int main(int argc, char *argv[])
             {
                 std::cout << "S\t" << name << "\t" << sequence << "\n";
             }
-            name = line.substr(1);
+
+            //delete the '>' character and the line break
+            name = line.substr(1, line.size() - 2);
             //stop the name at the first space
             size_t pos = name.find(" ");
             if (pos != std::string::npos)
@@ -34,7 +36,8 @@ int main(int argc, char *argv[])
         }
         else
         {
-            sequence += line;
+            //drop the line break
+            sequence += line.substr(0, line.size()-1);
         }
     }
     if (i > 0){
