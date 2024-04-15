@@ -185,10 +185,10 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
         else:
             path_GenomeTailor = "HS_GenomeTailor"
 
-    command = path_to_python + " " + path_cut_gfa + " --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    command = path_to_python + " " + path_cut_gfa + " -h > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     cut_gfa_run = os.system(command)
     if cut_gfa_run != 0:
-        command = "cut_gfa.py --help > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+        command = "cut_gfa.py -h > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
         cut_gfa_run = os.system(command)
         if cut_gfa_run != 0:
             print("ERROR: cut_gfa.py could not run. Problem in the installation.")
