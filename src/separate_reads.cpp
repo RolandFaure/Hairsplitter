@@ -531,21 +531,22 @@ void create_read_graph_low_memory(
     float &errorRate){
 
     //first convert snps to a sparse matrix
-    Eigen::MatrixXi matrix_1(mask.size(), snps.size());
+    Eigen::SparseMatrix<int> matrix_1(mask.size(), snps.size());
     //fill the matrix with -1
-    matrix_1.setConstant(-1);
-    int idx_snp;
+    int idx_snp = 0;
+    std::vector<Eigen::Triplet<int>> tripletList;
     for (Column snp : snps){
         for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
             if (snp.content[r] == snp.ref_base){
-                matrix_1(snp.readIdxs[r], idx_snp) = 0;
+                tripletList.push_back(Eigen::Triplet<int>(snp.readIdxs[r], idx_snp, 1));
             }
             else if (snp.content[r] == snp.second_base){
-                matrix_1(snp.readIdxs[r], idx_snp) = 1;
+                tripletList.push_back(Eigen::Triplet<int>(snp.readIdxs[r], idx_snp, 2));
             }
         }
         idx_snp++;
     }
+    matrix_1.setFromTriplets(tripletList.begin(), tripletList.end());
 
     //go through the reads and to see which are full of -1 and add them to mask
     vector<bool> mask_extend (mask.size(), false);
@@ -553,7 +554,7 @@ void create_read_graph_low_memory(
         if (mask[r]){
             bool all_minus_one = true;
             for (auto s = 0 ; s < snps.size() ; s++){
-                if (matrix_1(r,s) != -1){
+                if (matrix_1.coeff(r,s) != 0){
                     all_minus_one = false;
                     break;
                 }
@@ -578,13 +579,13 @@ void create_read_graph_low_memory(
                     //compute the number of cells where read1 and read2 have 1
                     for (int pos = 0 ; pos < snps.size() ; pos++){
 
-                        if (matrix_1(read1, pos) == 1 && matrix_1(read2, pos) == 1){
+                        if (matrix_1.coeff(read1, pos) == 2 && matrix_1.coeff(read2, pos) == 2){
                             nb_similar+=3;
                         }
-                        else if (matrix_1(read1, pos) == 0 && matrix_1(read2, pos) == 0){
+                        else if (matrix_1.coeff(read1, pos) == 1 && matrix_1.coeff(read2, pos) == 1){
                             nb_similar++;
                         }
-                        else if (matrix_1(read1, pos) != -1 && matrix_1(read2, pos) != -1){
+                        else if (matrix_1.coeff(read1, pos) != 0 && matrix_1.coeff(read2, pos) != 0){
                             nb_different++;
                         }
 
@@ -1346,7 +1347,7 @@ std::vector<int> merge_haplotypes_to_fit_within_limit(
 
 int main(int argc, char *argv[]){
 
-    if (argc < 8){
+    if (argc < 9){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
             cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
             return 0;
@@ -1387,6 +1388,7 @@ int main(int argc, char *argv[]){
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
 
+    cout << "column file parsed" << endl;
     std::unordered_map<string, int> ploidy_of_contigs;
     std::ifstream ploidy_file_stream(ploidy_file);
     if (ploidy_file_stream){
@@ -1448,8 +1450,8 @@ int main(int argc, char *argv[]){
     #pragma omp parallel for
     for (auto n = 0 ; n < snps_in.size() ; n++){
 
-        // if (name_of_contigs[n].substr(7,46) != "edge_897_2274805_5262868_0_2988063_0_2988063@1"){
-        //     cout << "skipping " << name_of_contigs[n].substr(7,42) << endl;
+        // if (name_of_contigs[n].substr(7,10) != "Utg39044@0"){
+        //     cout << "skipping " << name_of_contigs[n].substr(7,10) << endl;
         //     continue;
         // }
 
@@ -1565,6 +1567,7 @@ int main(int argc, char *argv[]){
                 }
                 // cout << "he qd q lll" << endl;
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
+            
 
                 // cout << "ididinnd q" << endl;
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);

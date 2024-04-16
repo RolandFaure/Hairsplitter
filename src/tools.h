@@ -45,6 +45,7 @@ int compute_edit_distance(std::string &cigar, std::string &ref, std::string &rea
 
 void convert_GFA_to_FASTA(std::string &gfa_file, std::string &fasta_file);
 void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file);
+void cut_GFA(const std::string& input_assembly, const std::string& output_assembly, int max_length);
 
 void rename_reads(std::string &fasta_file, std::string &prefix);
 

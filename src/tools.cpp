@@ -20,6 +20,7 @@ using std::ofstream;
 using std::min;
 using std::max;
 using std::pair;
+using std::unordered_map;
 
 //input : a CIGAR
 //output : an alignment string where 1 letter = 1 base. i.e. 5M1D1M -> MMMMMIM
@@ -98,6 +99,60 @@ string reverse_complement(string &seq){
         }
     }
     return res;
+}
+
+void cut_GFA(const std::string& input_assembly, const std::string& output_assembly, int max_length) {
+    std::unordered_map<std::string, int> length_of_contigs;
+    std::vector<std::string> L_lines;
+
+    std::ifstream in(input_assembly);
+    std::ofstream out(output_assembly);
+
+    if (!in || !out) {
+        std::cerr << "Error opening file\n";
+        return;
+    }
+
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line[0] =='S') {
+            std::stringstream ss(line);
+            std::string token;
+            std::vector<std::string> tokens;
+            while (std::getline(ss, token, '\t')) {
+                tokens.push_back(token);
+            }
+            length_of_contigs[tokens[1]] = tokens[2].length();
+            for (int chunk = 0; chunk * max_length < tokens[2].length(); ++chunk) {
+                int end = std::min((chunk + 1) * max_length, (int) tokens[2].length());
+                out << "S\t" << tokens[1] << "@" << chunk << "\t" << tokens[2].substr(chunk * max_length, end - chunk * max_length) << "\t";
+                for (size_t i = 3; i < tokens.size(); ++i) {
+                    out << tokens[i] << "\t";
+                }
+                out << "\n";
+                if (chunk > 0) {
+                    out << "L\t" << tokens[1] << "@" << chunk - 1 << "\t+\t" << tokens[1] << "@" << chunk << "\t+\t0M\n";
+                }
+            }
+        } else if (line[0] == 'L') {
+            L_lines.push_back(line);
+        }
+    }
+
+    for (const auto& line : L_lines) {
+        std::stringstream ss(line);
+        std::string token;
+        std::vector<std::string> tokens;
+        while (std::getline(ss, token, '\t')) {
+            tokens.push_back(token);
+        }
+        int index1 = (length_of_contigs[tokens[1]] - 1) / max_length;
+        int index2 = (length_of_contigs[tokens[3]] - 1) / max_length;
+        out << "L\t" << tokens[1] << "@" << index1 << "\t+\t" << tokens[3] << "@" << index2 << "\t+\t" << tokens[5] << "\n";
+    }
+
+    in.close();
+    out.close();
 }
 
 void print_alignment(std::string &ref, std::string &read, std::string &cigar, int start, int end){

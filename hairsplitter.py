@@ -49,6 +49,7 @@ def parse_args():
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
+    parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
     parser.add_argument("-v", "--version", help="Print version and exit", action="store_true")
@@ -311,6 +312,7 @@ def main():
     rarest_strain_abundance = args.rarest_strain_abundance
     minimap2_params = args.minimap2_params
     haploid_coverage = float(args.haploid_coverage)
+    continue_from_previous_run = args.resume
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
     path_cut_gfa = path_to_python + " " + path_to_src + "cut_gfa.py"
@@ -325,7 +327,7 @@ def main():
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
     # check if output folder exists
-    if os.path.exists(args.output) and not args.force:
+    if os.path.exists(args.output) and not args.force and not args.resume:
         print("ERROR: output folder already exists. Use -F to overwrite.")
         sys.exit(1)
     elif not os.path.exists(args.output) :
@@ -383,17 +385,21 @@ def main():
     #check the read file and unzip it if needed (converting it to fasta if in fastq)
     if readsFile[-3:] == ".gz":
         print("\n===== STAGE 0: Decompressing input reads [", datetime.datetime.now() ,"]\n\n")
-        if readsFile[-6:-3] == ".fa" or readsFile[-9:-3] == ".fasta" :
-            command = "gzip -d " + readsFile + " -c > " + tmp_dir + "/"+ readsFile[:-3]
-            readsFile = tmp_dir + "/" + readsFile[:-3]
-        else :
-            command = "gzip -d " + readsFile + " -c | sed -n '1~4s/^@/>/p;2~4p' > " + tmp_dir + "/reads.fasta"
+        if continue_from_previous_run and os.path.exists(tmp_dir + "/reads.fasta") :
+            print(" - Already decompressed reads file found from previous run")
             readsFile = tmp_dir + "/reads.fasta"
-        print(" Running: " + command)
-        res_gunzip = os.system(command)
-        if res_gunzip != 0:
-            print("ERROR: gzip failed. Was trying to run: " + command)
-            sys.exit(1)
+        else:
+            if readsFile[-6:-3] == ".fa" or readsFile[-9:-3] == ".fasta" :
+                command = "gzip -d " + readsFile + " -c > " + tmp_dir + "/reads.fasta"
+                readsFile = tmp_dir + "/reads.fasta"
+            else :
+                command = "gzip -d " + readsFile + " -c | sed -n '1~4s/^@/>/p;2~4p' > " + tmp_dir + "/reads.fasta"
+                readsFile = tmp_dir + "/reads.fasta"
+            print(" Running: " + command)
+            res_gunzip = os.system(command)
+            if res_gunzip != 0:
+                print("ERROR: gzip failed. Was trying to run: " + command)
+                sys.exit(1)
         
     # run the pipeline
 
@@ -401,12 +407,13 @@ def main():
     if args.assembly[-3:] == "gfa":
         gfaAssembly = args.assembly
     elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa" or args.assembly[-3:]=="fna":
-        gfaAssembly = tmp_dir + "/assembly.gfa"
-        command = path_fa2gfa + " " + args.assembly + " > " + gfaAssembly
-        res_fasta2gfa = os.system(command)
-        if res_fasta2gfa != 0:
-            print("ERROR: Conversion from fasta to gfa failed while running the command:\n" + command)
-            sys.exit(1)
+        if not continue_from_previous_run or not os.path.exists(tmp_dir + "/assembly.gfa") :
+            gfaAssembly = tmp_dir + "/assembly.gfa"
+            command = path_fa2gfa + " " + args.assembly + " > " + gfaAssembly
+            res_fasta2gfa = os.system(command)
+            if res_fasta2gfa != 0:
+                print("ERROR: Conversion from fasta to gfa failed while running the command:\n" + command)
+                sys.exit(1)
     else:
         print("ERROR: Assembly file must be in GFA or FASTA format. File extension not recognized.")
         sys.exit(1)
@@ -421,41 +428,45 @@ def main():
     N50 = 0
     if not skip_minigraph :
 
-        command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
-            + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
-            + " > " + tmp_dir + "/logGenomeTailor.txt"
-        # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
-        #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
-        #     + " --folder " + tmp_dir
-        print(" Running: ", command)
-        #write in the log file where to look in case of error
-        f = open(logFile, "w")
-        f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
-        f.write(command)
-        f.close()
-        res_clean = os.system(command)
-        if res_clean != 0:
-            print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
-            sys.exit(1)
+        if continue_from_previous_run and os.path.exists(new_assembly) :
+            print(" - Already cleaned assembly found from previous run")
+        else:
 
-        print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
+            command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
+                + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
+                + " > " + tmp_dir + "/logGenomeTailor.txt"
+            # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
+            #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
+            #     + " --folder " + tmp_dir
+            print(" Running: ", command)
+            #write in the log file where to look in case of error
+            f = open(logFile, "w")
+            f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
+            f.write(command)
+            f.close()
+            res_clean = os.system(command)
+            if res_clean != 0:
+                print("ERROR: Cleaning the assembly failed. Was trying to run: " + command)
+                sys.exit(1)
 
-        #now check if the improved assembly is not too complicated, else fall back on the original assembly
-        #the metric is : did the N50 fall below 10kb ?
-        f = open(new_assembly, "r")
-        contigs_length = []
-        for line in f :
-            if "S" == line[0] :
-                contigs_length.append(len(line.split("\t")[2]))
-        f.close()
-        contigs_length.sort(reverse=True)
-        cumul = 0
-        total_length = sum(contigs_length)
-        for l in contigs_length :
-            cumul += l
-            if cumul > total_length/2 :
-                N50 = l
-                break
+            print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
+
+            #now check if the improved assembly is not too complicated, else fall back on the original assembly
+            #the metric is : did the N50 fall below 10kb ?
+            f = open(new_assembly, "r")
+            contigs_length = []
+            for line in f :
+                if "S" == line[0] :
+                    contigs_length.append(len(line.split("\t")[2]))
+            f.close()
+            contigs_length.sort(reverse=True)
+            cumul = 0
+            total_length = sum(contigs_length)
+            for l in contigs_length :
+                cumul += l
+                if cumul > total_length/2 :
+                    N50 = l
+                    break
 
     if N50 < 10000 and not skip_minigraph:
         print(" - The improved assembly is too complicated, falling back on the original assembly")
@@ -500,61 +511,67 @@ def main():
         sys.exit(1)
     
     # 2.3 Align the reads on the assembly
-    print(" - Aligning the reads on the assembly")
-    techno_flag = ""
-    technology = args.technology.lower()
-    if technology == "pacbio" or technology == "pb":
-        techno_flag = "-x map-pb"
-    elif technology == "hifi" :
-        techno_flag = "-x map-hifi"
-    else :
-        techno_flag = "-x map-ont"
+    if not continue_from_previous_run or not os.path.exists(reads_on_asm) :
 
-    #run minimap but do not store the sequences, they are still in the file of reads
-    command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt" \
-        + " | awk 'BEGIN{FS=OFS=\"\t\"} {if($1 ~ /^@/) print $0; else {for(i=1; i<=NF; i++) {if(i==10) $i=\"*\";} print $0}}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
-    print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
-    #write in the log file the time at which the alignment starts
-    f = open(logFile, "a")
-    f.write(" - Aligning the reads on the assembly\n")
-    f.close()
-    res_minimap = os.system(command)
-    if res_minimap != 0 :
-        print("ERROR: minimap2 failed. Was trying to run: " + command)
-        print("ERROR: minimap2 could not run properly, check "+tmp_dir+"/logminimap.txt")
-        sys.exit(1)
+        print(" - Aligning the reads on the assembly")
+        techno_flag = ""
+        technology = args.technology.lower()
+        if technology == "pacbio" or technology == "pb":
+            techno_flag = "-x map-pb"
+        elif technology == "hifi" :
+            techno_flag = "-x map-hifi"
+        else :
+            techno_flag = "-x map-ont"
 
-    #write in log file that alignment went smoothly
-    f = open(logFile, "a")
-    f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully\n")
-    f.close()
+        #run minimap but do not store the sequences, they are still in the file of reads
+        command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt" \
+            + " | awk 'BEGIN{FS=OFS=\"\t\"} {if($1 ~ /^@/) print $0; else {for(i=1; i<=NF; i++) {if(i==10) $i=\"*\";} print $0}}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt";
+        print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
+        #write in the log file the time at which the alignment starts
+        f = open(logFile, "a")
+        f.write(" - Aligning the reads on the assembly\n")
+        f.close()
+        res_minimap = os.system(command)
+        if res_minimap != 0 :
+            print("ERROR: minimap2 failed. Was trying to run: " + command)
+            print("ERROR: minimap2 could not run properly, check "+tmp_dir+"/logminimap.txt")
+            sys.exit(1)
+
+        #write in log file that alignment went smoothly
+        f = open(logFile, "a")
+        f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully\n")
+        f.close()
 
     print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
     #write in the log file the time at which the variant calling starts
 
-    error_rate_file = tmp_dir + "/error_rate.txt"
-    flag_debug = "0"
-    if args.debug:
-        flag_debug = "1"
-    command = path_call_variants + " " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
-        + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
-    f = open(logFile, "a")
-    f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
-    f.write(command+"\n")
-    f.close()
-    # print(" - Calling variants with a basic pileup")
-    print(" Running: ", command)
-    res_call_variants = os.system(command)
-    if res_call_variants != 0:
-        print("ERROR: call_variants failed. Was trying to run: " + command)
-        sys.exit(1)
+    if continue_from_previous_run and os.path.exists(tmp_dir + "/variants.col") :
+        print(" - Already called variants found from previous run")
+    else:
 
-    #write in the log file that variant calling went smoothly
-    f = open(logFile, "a")
-    f.write("STAGE 3: Variant calling computed, call_variants exited successfully. Variants are stored in "+tmp_dir+"/variants.vcf and "+tmp_dir+"/variants.col\n")
-    f.close()
+        error_rate_file = tmp_dir + "/error_rate.txt"
+        flag_debug = "0"
+        if args.debug:
+            flag_debug = "1"
+        command = path_call_variants + " " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
+            + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
+        f = open(logFile, "a")
+        f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
+        f.write(command+"\n")
+        f.close()
+        # print(" - Calling variants with a basic pileup")
+        print(" Running: ", command)
+        res_call_variants = os.system(command)
+        if res_call_variants != 0:
+            print("ERROR: call_variants failed. Was trying to run: " + command)
+            sys.exit(1)
+
+        #write in the log file that variant calling went smoothly
+        f = open(logFile, "a")
+        f.write("STAGE 3: Variant calling computed, call_variants exited successfully. Variants are stored in "+tmp_dir+"/variants.vcf and "+tmp_dir+"/variants.col\n")
+        f.close()
 
     #reading the error rate
     error_rate = 0.0
@@ -575,18 +592,19 @@ def main():
 
     #estimate the ploidy of all the contigs if --haploid-coverage is used
     if haploid_coverage > 0 :
-        print(" - Estimating the ploidy of the contigs")
-        command = path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
-        print(" Running: ", command)
-        res_estimate_ploidy = os.system(command)
-        if res_estimate_ploidy != 0:
-            print("ERROR: estimate_ploidy.py failed. Was trying to run: " + command)
-            sys.exit(1)
+        if not continue_from_previous_run or not os.path.exists(tmp_dir + "/ploidy.txt"):
+            print(" - Estimating the ploidy of the contigs")
+            command = path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
+            print(" Running: ", command)
+            res_estimate_ploidy = os.system(command)
+            if res_estimate_ploidy != 0:
+                print("ERROR: estimate_ploidy.py failed. Was trying to run: " + command)
+                sys.exit(1)
 
-        #write in the log file that ploidy estimation went smoothly
-        f = open(logFile, "a")
-        f.write("STAGE 4: Ploidy estimation computed, estimate_ploidy.py exited successfully. Ploidy is stored in "+tmp_dir+"/ploidy.txt")
-        f.close()
+            #write in the log file that ploidy estimation went smoothly
+            f = open(logFile, "a")
+            f.write("STAGE 4: Ploidy estimation computed, estimate_ploidy.py exited successfully. Ploidy is stored in "+tmp_dir+"/ploidy.txt")
+            f.close()
     else:
         #create empty ploidy file
         f = open(tmp_dir + "/ploidy.txt", "w")
@@ -600,17 +618,21 @@ def main():
     f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
     f.close()
-    print(" - Separating reads by haplotype of origin")
-    print(" Running: ", command)
-    res_separate_reads = os.system(command)
-    if res_separate_reads != 0:
-        print("ERROR: separate_reads failed. Was trying to run: " + command)
-        sys.exit(1)
 
-    #write in the log file that read separation went smoothly
-    f = open(logFile, "a")
-    f.write("STAGE 4: Read separation computed, separate_reads exited successfully. Groups of reads are stored in "+tmp_dir+"/reads_haplo.gro. Explanation of the format\
-            can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
+    if continue_from_previous_run and os.path.exists(tmp_dir + "/reads_haplo.gro") :
+        print(" - Already separated reads found from previous run")
+    else:
+        print(" - Separating reads by haplotype of origin")
+        print(" Running: ", command)
+        res_separate_reads = os.system(command)
+        if res_separate_reads != 0:
+            print("ERROR: separate_reads failed. Was trying to run: " + command)
+            sys.exit(1)
+
+        #write in the log file that read separation went smoothly
+        f = open(logFile, "a")
+        f.write("STAGE 4: Read separation computed, separate_reads exited successfully. Groups of reads are stored in "+tmp_dir+"/reads_haplo.gro. Explanation of the format\
+                can be found in the doc/README.md, and a synthetic summary is in hairsplitter_summary.txt")
 
     print("\n===== STAGE 5: Creating all the new contigs   [", datetime.datetime.now() ,"]\n\n This can take time, as we need to polish every new contig using Racon")
     sys.stdout.flush()
@@ -646,10 +668,14 @@ def main():
     f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
     f.close()
-    res_create_new_contigs = os.system(command)
-    if res_create_new_contigs != 0:
-        print("ERROR: create_new_contigs failed. Was trying to run: " + command)
-        sys.exit(1)
+
+    if continue_from_previous_run and os.path.exists(zipped_GFA) :
+        print(" - Already created new contigs found from previous run")
+    else:
+        res_create_new_contigs = os.system(command)
+        if res_create_new_contigs != 0:
+            print("ERROR: create_new_contigs failed. Was trying to run: " + command)
+            sys.exit(1)
 
     #write in the log file that new contigs were created
     f = open(logFile, "a")
@@ -678,10 +704,14 @@ def main():
     f.write(command)
     f.close()
     print( " - Running GraphUnzip with command line:\n     ", command, "\n   The log of GraphUnzip is written on ",tmp_dir+"/logGraphUnzip.txt\n")
-    resultGU = os.system(command)
-    if resultGU != 0 :
-        print( "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in "+tmp_dir+"/logGraphUnzip.txt" )
-        sys.exit(1)
+
+    if continue_from_previous_run and os.path.exists(outfile) :
+        print(" - Already untangled assembly found from previous run")
+    else:
+        resultGU = os.system(command)
+        if resultGU != 0 :
+            print( "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in "+tmp_dir+"/logGraphUnzip.txt" )
+            sys.exit(1)
     
     #write in the log file that untangling went smoothly
     f = open(logFile, "a")
