@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.15"
-__date__ = "2024-04-12"
+__version__ = "1.7.16"
+__date__ = "2024-04-17"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -186,7 +186,7 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
         else:
             path_GenomeTailor = "HS_GenomeTailor"
 
-    command = path_to_python + " " + path_cut_gfa + " -h > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
+    command = path_cut_gfa + " -h > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
     cut_gfa_run = os.system(command)
     if cut_gfa_run != 0:
         command = "cut_gfa.py -h > "+tmp_dir+"/dependancies_log.txt 2> "+tmp_dir+"/dependancies_log.txt"
@@ -389,6 +389,7 @@ def main():
             print(" - Already decompressed reads file found from previous run")
             readsFile = tmp_dir + "/reads.fasta"
         else:
+            continue_from_previous_run = False
             if readsFile[-6:-3] == ".fa" or readsFile[-9:-3] == ".fasta" :
                 command = "gzip -d " + readsFile + " -c > " + tmp_dir + "/reads.fasta"
                 readsFile = tmp_dir + "/reads.fasta"
@@ -431,7 +432,7 @@ def main():
         if continue_from_previous_run and os.path.exists(new_assembly) :
             print(" - Already cleaned assembly found from previous run")
         else:
-
+            continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
                 + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
                 + " > " + tmp_dir + "/logGenomeTailor.txt"
@@ -509,19 +510,20 @@ def main():
     if res_gfa2fasta != 0 :
         print("ERROR: gfa2fa failed UUE. Was trying to run: " + command)
         sys.exit(1)
+
+    techno_flag = ""
+    technology = args.technology.lower()
+    if technology == "pacbio" or technology == "pb":
+        techno_flag = "-x map-pb"
+    elif technology == "hifi" :
+        techno_flag = "-x map-hifi"
+    else :
+        techno_flag = "-x map-ont"
     
     # 2.3 Align the reads on the assembly
     if not continue_from_previous_run or not os.path.exists(reads_on_asm) :
-
+        continue_from_previous_run = False
         print(" - Aligning the reads on the assembly")
-        techno_flag = ""
-        technology = args.technology.lower()
-        if technology == "pacbio" or technology == "pb":
-            techno_flag = "-x map-pb"
-        elif technology == "hifi" :
-            techno_flag = "-x map-hifi"
-        else :
-            techno_flag = "-x map-ont"
 
         #run minimap but do not store the sequences, they are still in the file of reads
         command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt" \
@@ -541,20 +543,22 @@ def main():
         f = open(logFile, "a")
         f.write("\nSTAGE 2: Alignment computed, minimap2 exited successfully\n")
         f.close()
+    else:
+        print(" - Already aligned reads found from previous run")
 
     print("\n===== STAGE 3: Calling variants   [", datetime.datetime.now() ,"]\n")
     sys.stdout.flush()
 
     #write in the log file the time at which the variant calling starts
 
-    if continue_from_previous_run and os.path.exists(tmp_dir + "/variants.col") :
+    error_rate_file = tmp_dir + "/error_rate.txt"
+    flag_debug = "0"
+    if args.debug:
+        flag_debug = "1"
+    if continue_from_previous_run and os.path.exists(tmp_dir + "/variants.col") and os.path.exists(error_rate_file):
         print(" - Already called variants found from previous run")
     else:
-
-        error_rate_file = tmp_dir + "/error_rate.txt"
-        flag_debug = "0"
-        if args.debug:
-            flag_debug = "1"
+        continue_from_previous_run = False
         command = path_call_variants + " " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
             + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
         f = open(logFile, "a")
@@ -593,6 +597,7 @@ def main():
     #estimate the ploidy of all the contigs if --haploid-coverage is used
     if haploid_coverage > 0 :
         if not continue_from_previous_run or not os.path.exists(tmp_dir + "/ploidy.txt"):
+            continue_from_previous_run = False
             print(" - Estimating the ploidy of the contigs")
             command = path_determine_multiplicity + " " + new_assembly + " " + str(haploid_coverage) + " " + tmp_dir + "/ploidy.txt"
             print(" Running: ", command)
@@ -622,6 +627,7 @@ def main():
     if continue_from_previous_run and os.path.exists(tmp_dir + "/reads_haplo.gro") :
         print(" - Already separated reads found from previous run")
     else:
+        continue_from_previous_run = False
         print(" - Separating reads by haplotype of origin")
         print(" Running: ", command)
         res_separate_reads = os.system(command)
@@ -672,6 +678,7 @@ def main():
     if continue_from_previous_run and os.path.exists(zipped_GFA) :
         print(" - Already created new contigs found from previous run")
     else:
+        continue_from_previous_run = False
         res_create_new_contigs = os.system(command)
         if res_create_new_contigs != 0:
             print("ERROR: create_new_contigs failed. Was trying to run: " + command)
@@ -708,6 +715,7 @@ def main():
     if continue_from_previous_run and os.path.exists(outfile) :
         print(" - Already untangled assembly found from previous run")
     else:
+        continue_from_previous_run = False
         resultGU = os.system(command)
         if resultGU != 0 :
             print( "ERROR: GraphUnzip failed. Please check the output of GraphUnzip in "+tmp_dir+"/logGraphUnzip.txt" )
