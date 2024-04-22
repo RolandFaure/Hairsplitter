@@ -30,7 +30,11 @@ int main(int argc, char *argv[])
             if (seq.size() == 0){
                 continue;
             }
-            cout << ">" << name << "\n";
+
+            //the tags are the rest of the line
+            string tags = line.substr(line.find('\t', line.find('\t', 2) + 1) + 1);
+
+            cout << ">" << name << " " << tags << "\n";
             cout << seq << "\n";
         }
     }

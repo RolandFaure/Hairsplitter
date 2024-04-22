@@ -530,62 +530,73 @@ void create_read_graph_low_memory(
     std::vector<std::vector<int>> &neighbor_list_low_memory, //containing the ordered list of neighbors for each read
     float &errorRate){
 
-    //first convert snps to a sparse matrix
-    Eigen::SparseMatrix<int> matrix_1(mask.size(), snps.size());
-    //fill the matrix with -1
+    vector<pair<int,vector<int>>> reads (mask.size(), make_pair(-1,vector<int>(0))); //reads are stored as a starting pos and a vector of 0/1/2
+
     int idx_snp = 0;
-    std::vector<Eigen::Triplet<int>> tripletList;
     for (Column snp : snps){
         for (auto r = 0 ; r < snp.readIdxs.size() ; r++){
+
+            if (reads[snp.readIdxs[r]].first == -1){
+                reads[snp.readIdxs[r]].first = idx_snp;
+            }
+
             if (snp.content[r] == snp.ref_base){
-                tripletList.push_back(Eigen::Triplet<int>(snp.readIdxs[r], idx_snp, 1));
+                reads[snp.readIdxs[r]].second.push_back(1);
             }
             else if (snp.content[r] == snp.second_base){
-                tripletList.push_back(Eigen::Triplet<int>(snp.readIdxs[r], idx_snp, 2));
+                reads[snp.readIdxs[r]].second.push_back(2);
             }
+            else{
+                reads[snp.readIdxs[r]].second.push_back(0);
+            }
+
         }
         idx_snp++;
     }
-    matrix_1.setFromTriplets(tripletList.begin(), tripletList.end());
 
     //go through the reads and to see which are full of -1 and add them to mask
     vector<bool> mask_extend (mask.size(), false);
     for (auto r = 0 ; r < mask.size() ; r++){
         if (mask[r]){
-            bool all_minus_one = true;
-            for (auto s = 0 ; s < snps.size() ; s++){
-                if (matrix_1.coeff(r,s) != 0){
-                    all_minus_one = false;
-                    break;
-                }
-            }
-            if (all_minus_one == false){
+            if (reads[r].first != -1){
                 mask_extend[r] = true;
             }
         }
     }
 
+    std::vector<float> distance_with_other_reads(mask.size(), 0);
+    std::vector<int> similarity_with_other_reads(mask.size(), 0);
+    std::vector<int> difference_with_other_reads(mask.size(), 0); 
     for (int read1=0 ; read1 < mask.size() ; read1++){
+        
+        distance_with_other_reads.assign(mask.size(), 0);
+        similarity_with_other_reads.assign(mask.size(), 0);
+        difference_with_other_reads.assign(mask.size(), 0);
+
         if (mask_extend[read1]){
-            vector<float> distance_with_other_reads (mask.size(), 0);
-            vector<int> similarity_with_other_reads (mask.size(), 0);
-            vector<int> difference_with_other_reads (mask.size(), 0); 
             int max_compat = 5;
             for (int read2 = 0 ; read2 < mask.size() ; read2++){
-                if (mask_extend[read2] && read1 != read2){
+                if (mask_extend[read2] && read1 != read2 ){
                     //compare the sims and diffs between read1 and read2
                     int nb_similar = 0;
                     int nb_different = 0;
                     //compute the number of cells where read1 and read2 have 1
-                    for (int pos = 0 ; pos < snps.size() ; pos++){
+                    int first_common_pos = max(reads[read1].first, reads[read2].first);
+                    int last_common_pos = min(reads[read1].second.size()+reads[read1].first-1, reads[read2].second.size()+reads[read2].first-1);
+                    for (int pos = first_common_pos ; pos <= last_common_pos ; pos++){
 
-                        if (matrix_1.coeff(read1, pos) == 2 && matrix_1.coeff(read2, pos) == 2){
+                        // int val1 = matrix_1.coeff(read1, pos);
+                        // int val2 = matrix_1.coeff(read2, pos);
+
+                        int val1 = reads[read1].second[pos- reads[read1].first];
+                        int val2 = reads[read2].second[pos- reads[read2].first];
+                        if (val1 == 2 && val2 == 2){
                             nb_similar+=3;
                         }
-                        else if (matrix_1.coeff(read1, pos) == 1 && matrix_1.coeff(read2, pos) == 1){
+                        else if (val1 == 1 && val2 == 1){
                             nb_similar++;
                         }
-                        else if (matrix_1.coeff(read1, pos) != 0 && matrix_1.coeff(read2, pos) != 0){
+                        else if (val1 != 0 && val2 != 0){
                             nb_different++;
                         }
 
@@ -601,7 +612,7 @@ void create_read_graph_low_memory(
             }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && similarity_with_other_reads[r] + difference_with_other_reads[r] < max(5.0,0.7*max_compat) ){
+                if (mask[r] && r != read1 && similarity_with_other_reads[r] + difference_with_other_reads[r] < max(5.0,0.7*max_compat) ){ //to exclude reads that do not overlap much
                     distance_with_other_reads[r] = 0;
                 }
             }
@@ -639,10 +650,6 @@ void create_read_graph_low_memory(
                     && (nb_of_neighbors < 5 || neighbor.second == 1 || neighbor.second >= distance_threshold_above_which_two_reads_should_be_linked)
                     && mask[neighbor.first]){
                     nb_of_neighbors++;
-
-                    // if (read1 == 11645 || read1 == 12747 || read1 == 22677){ //11645 is the weird cluster, 12747 the perfect one and  22677 the hub
-                    //     cout << "adding link " << read1 << " " << neighbor.first << " " << neighbor.second << endl;
-                    // }
 
                     neighbor_list_low_memory[read1].push_back(neighbor.first);
                     neighbor_list_low_memory[neighbor.first].push_back(read1);
@@ -1388,7 +1395,6 @@ int main(int argc, char *argv[]){
     vector<vector<pair<int,int>>> readLimits;
     parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
 
-    cout << "column file parsed" << endl;
     std::unordered_map<string, int> ploidy_of_contigs;
     std::ifstream ploidy_file_stream(ploidy_file);
     if (ploidy_file_stream){
@@ -1456,7 +1462,7 @@ int main(int argc, char *argv[]){
         // }
 
         bool low_memory_now = low_memory;
-        if (coverages[n] > 5000){
+        if (coverages[n] > 1000){
             low_memory_now = true;
         }
 
@@ -1531,6 +1537,12 @@ int main(int argc, char *argv[]){
 
             //only consider reads that span the whole length of the window: create a mask
             vector<bool> mask_at_this_position (numberOfReadsHere, false); 
+            if (chunk == 0){ //in the first chunk, do not necessarily start at the first position, but give 20% margin for the reads to start aligning
+                while(suspectPostitionIdx < snps.size()-1 && snps[suspectPostitionIdx].pos < chunk*sizeOfWindow + 0.2*sizeOfWindow && snps[suspectPostitionIdx+1].pos < chunk*sizeOfWindow + 0.4*sizeOfWindow){
+                    suspectPostitionIdx++;
+                }
+            }
+
             for (auto r = 0 ; r < snps[suspectPostitionIdx].readIdxs.size() ; r++){
                 mask_at_this_position[snps[suspectPostitionIdx].readIdxs[r]] = true;
             }
@@ -1541,6 +1553,13 @@ int main(int argc, char *argv[]){
             if (suspectPostitionIdx > 0){
                 suspectPostitionIdx--; //suspectPostitionIdx is now the last position in the window
             }
+
+            if ((chunk+1)*sizeOfWindow + 100 > length_of_contigs[n]){ //if this is the last chunk, do not necessarily end at the last position, but give 20% margin for the reads to stop aligning
+                while(suspectPostitionIdx > 0 && snps[suspectPostitionIdx].pos > upperBound-1 - 0.2*sizeOfWindow && snps[suspectPostitionIdx-1].pos > upperBound-1 - 0.4*sizeOfWindow){
+                    suspectPostitionIdx--;
+                }
+            }
+
             int idxmask = 0;
             for (auto r = 0 ; r < snps[suspectPostitionIdx].readIdxs.size() ; r++){
                 while (idxmask < snps[suspectPostitionIdx].readIdxs[r]){
@@ -1550,6 +1569,14 @@ int main(int argc, char *argv[]){
                 idxmask++;
             }
             suspectPostitionIdx++; //suspectPostitionIdx is now the first position after the window
+
+            //print how many reads are true in the mask:
+            int count = 0;
+            for (auto m : mask_at_this_position){
+                if (m){
+                    count++;
+                }
+            }
 
             vector<vector<int>> neighbor_list_low_memory (numberOfReadsHere, vector<int> (0));
             vector<vector<int>> neighbor_list_low_memory_strengthened (numberOfReadsHere, vector<int> (0));
@@ -1562,11 +1589,12 @@ int main(int argc, char *argv[]){
                 // cout << "adjacency matrix computed " << errorRate << endl;
             }
             else{
+                cout << "creating the neighbor list" << endl;
                 for (auto v : neighbor_list_low_memory){
                     v.reserve(20);
                 }
-                // cout << "he qd q lll" << endl;
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
+
             
 
                 // cout << "ididinnd q" << endl;
@@ -1656,7 +1684,6 @@ int main(int argc, char *argv[]){
             //     idd++;
             // }
             // cout << endl;
-            // exit(0);
 
 
             threadedReads.push_back(make_pair(make_pair(chunk*sizeOfWindow, min(upperBound-1, int(length_of_contigs[n]))), haplotypes));

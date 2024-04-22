@@ -523,12 +523,10 @@ void modify_GFA(
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
 
-                            // if (interval.first.first == 38000 && group.first == 1){
+                            // if (interval.first.first == 0 && group.first == 2){
                             //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
                             //     exit(1);
                             // }
-                            // cout << "oioociicic " << newcontig.size() << endl;
-                            // exit(1);
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
@@ -609,9 +607,7 @@ void modify_GFA(
                             }
                        
                             newcontig = newcontig.substr(posStartOnNewContig, min(posEndOnNewContig-posStartOnNewContig+1, int(newcontig.size())-posStartOnNewContig));
-                            // cout << "kmljlkmjlkjijkl" << endl;
                             edlibFreeAlignResult(result);
-                            // exit(1);
                         }
                     }
                     else {
