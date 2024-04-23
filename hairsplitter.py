@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.17"
-__date__ = "2024-04-17"
+__version__ = "1.7.18"
+__date__ = "2024-04-23"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -28,7 +28,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
-    parser.add_argument("-f", "--fastq", help="Sequencing reads fastq (required)", required=True)
+    parser.add_argument("-f", "--fastq", help="Sequencing reads fastq or fasta (required)", required=True)
     parser.add_argument("-c", "--haploid-coverage", help="Expected haploid coverage. 0 if does not apply [0]", default=0)
     parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
     parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")

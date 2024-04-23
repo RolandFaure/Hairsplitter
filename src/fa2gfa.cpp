@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
             }
 
             //delete the '>' character and the line break
-            name = line.substr(1, line.size() - 2);
+            name = line.substr(1, line.size() - 1);
             //stop the name at the first space
             size_t pos = name.find(" ");
             if (pos != std::string::npos)
