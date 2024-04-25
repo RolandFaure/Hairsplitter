@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 using std::cout;
 using std::string;
@@ -22,17 +23,29 @@ int main(int argc, char *argv[])
         if (line[0] == 'S'){
 
             //the name is the second field
-            string name = line.substr(2, line.find('\t', 2) - 2);
-            name = name.substr(0, name.find(' '));
+            string name, seq, tags;
+            string field;
+            int i = 0;
+            std::istringstream line2(line);
+            while (std::getline(line2, field, '\t')){
+                if (i == 1){
+                    name = field;
+                }
+                if (i == 2){
+                    seq = field;
+                }
+                if (i == 3){
+                    tags = field;
+                }
+                if (i > 3){
+                    tags += "\t" + field;
+                }
+                i++;
+            }
 
-            //the sequence is the third field
-            string seq = line.substr(line.find('\t', 2) + 1, line.find('\t', line.find('\t', 2) + 1) - line.find('\t', 2) - 1);
             if (seq.size() == 0){
                 continue;
             }
-
-            //the tags are the rest of the line
-            string tags = line.substr(line.find('\t', line.find('\t', 2) + 1) + 1);
 
             cout << ">" << name << " " << tags << "\n";
             cout << seq << "\n";

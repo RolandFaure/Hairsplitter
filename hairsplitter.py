@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.18"
-__date__ = "2024-04-23"
+__version__ = "1.7.19"
+__date__ = "2024-04-25"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -36,10 +36,12 @@ def parse_args():
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
+    parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
+    parser.add_argument("--clean", help="Clean the temporary files", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
@@ -49,10 +51,10 @@ def parse_args():
     parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
-    parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
-    parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
     parser.add_argument("-v", "--version", help="Print version and exit", action="store_true")
+    parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
+
 
     return parser.parse_args()
 
@@ -313,6 +315,7 @@ def main():
     minimap2_params = args.minimap2_params
     haploid_coverage = float(args.haploid_coverage)
     continue_from_previous_run = args.resume
+    clean_tmp = args.clean
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
     path_cut_gfa = path_to_python + " " + path_to_src + "cut_gfa.py"
@@ -695,13 +698,10 @@ def main():
 
     simply = ""
     if args.dont_simplify :
-        simply = " --dont_merge -R"
+        simply = " --dont_merge"
 
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
-    meta = " --meta"
-    # if args.multiploid :
-    #     meta = ""
 
     command = path_graphunzip + " unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
           + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
@@ -748,6 +748,13 @@ def main():
     if res_gfa2fasta != 0:
         print("ERROR: gfa2fa failed. Was trying to run: " + command)
         sys.exit(1)
+
+    if clean_tmp :
+        command = "rm -r " + reads_on_asm + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/reads_haplo.gro " + tmp_dir + "/ploidy.txt " + tmp_dir + "/reads.fasta " + tmp_dir + "/reads_on_new_contig.gaf " + tmp_dir + "/reads_on_new_contig.gro " + tmp_dir + "/reads_on_new_contig.sam " + tmp_dir + "/reads_on_new_contig.bam " + tmp_dir + "/reads_on_new_contig.bam.bai " 
+        res_clean = os.system(command)
+        if res_clean != 0:
+            print("ERROR: Could not remove temporary files. Was trying to run: " + command)
+            #sys.exit(1)
 
     print("\n===== HairSplitter finished! =====   [", datetime.datetime.now() ,"]\n")
 
