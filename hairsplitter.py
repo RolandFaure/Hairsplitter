@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.7.19"
+__version__ = "1.8.0"
 __date__ = "2024-04-25"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
-    parser.add_argument("-s", "--dont_simplify", help="Don't rename the contigs and don't merge them", action="store_true")
+    parser.add_argument("-s", "--dont_simplify", help="Don't merge the contig", action="store_true")
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
@@ -703,7 +703,7 @@ def main():
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
 
-    command = path_graphunzip + " unzip -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
+    command = path_graphunzip + " unzip -R -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile \
           + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")

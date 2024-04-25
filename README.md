@@ -15,7 +15,7 @@ Splits contigs into their different haplotypes (or repeats into their different 
 
 # Installation
 
-A conda package is in preparation but is not available yet. For now, it is necessary to download and compile the code.
+You can install HairSplitter through conda `conda install -c bioconda hairsplitter`
 
 ## Dependencies
 

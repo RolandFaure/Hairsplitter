@@ -175,6 +175,37 @@ bool Partition::isInformative(bool lastReadBiased, float meanError){
 
 }
 
+//function to approximately compute binomial coefficient
+double comb_lgamma(double n, double k){
+    return std::exp(std::lgamma(n+1) - std::lgamma(k+1) - std::lgamma(n-k+1));
+}
+
+/**
+ * @brief check if the partition is significant, i.e. if the number of variants is big enough
+ * 
+ * @param total_number_of_columns_in_pileup 
+ * @return true 
+ * @return false 
+ */
+float Partition::isSignificant(int total_number_of_columns_in_pileup){
+    //the p-value is explained in the PCI paper
+    int numberOfMutatedReads = 0;
+    int numberOfReads = 0;
+    for (auto p = 0 ; p < mostFrequentBases.size() ; p++){
+        if (mostFrequentBases[p] == -1 && moreFrequence[p] > 1 && lessFrequence[p] == 0){
+            numberOfMutatedReads++;
+        }
+        if (p != 0 && p!= -2){
+            numberOfReads++;
+        }
+    }
+
+    double p_value = pow(float(numberOfMutatedReads)/numberOfReads, numberOfOccurences*numberOfMutatedReads) * comb_lgamma(numberOfReads, numberOfMutatedReads) * comb_lgamma(total_number_of_columns_in_pileup, numberOfOccurences);
+
+    // cout << "significance of partition with " << numberOfMutatedReads << " mutated reads out of " << numberOfReads << " reads and " << numberOfOccurences << " occurences out of " << total_number_of_columns_in_pileup << " : " << p_value << endl;
+    return p_value;
+}
+
 //input : a new partition to add to the consensus (the partition must be well-phased in 'A' and 'a')
 //output : updated consensus partition
 /**

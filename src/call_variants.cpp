@@ -606,27 +606,6 @@ void keep_only_robust_variants(
             if (dis.n01 < 0.1 * (dis.n00+dis.n01) && dis.n10 < 0.1 * (dis.n11+dis.n10) && comparable >= snp.readIdxs.size()/2){
             
                 found = true;
-                // if (p == 94){
-                //     cout << "quaomugj emja aaa " << position << " " << endl;
-                //     // partitions[p].print();
-                //     // for (auto r : dis.partition_to_augment.content){
-                //     //     cout << r;
-                //     // }
-                //     // cout << endl;
-                //     int idx = 0;
-                //     for (auto r : debug_reads_of_interest){
-                //         while(idx < dis.partition_to_augment.readIdxs.size() && dis.partition_to_augment.readIdxs[idx] < r){
-                //             idx++;
-                //         }
-                //         if (idx < dis.partition_to_augment.readIdxs.size() && dis.partition_to_augment.readIdxs[idx] == r){
-                //             cout << dis.partition_to_augment.content[idx];
-                //         }
-                //         else{
-                //             cout << " ";
-                //         }
-                //     }
-                //     cout << endl;
-                // }
                 partitions[p].augmentPartition(dis.partition_to_augment, position);
 
                 break;
@@ -644,7 +623,7 @@ void keep_only_robust_variants(
         return;
     }
     
-    float threshold = std::min(4, std::max(2, (int) (mean_error*100)));
+    // float threshold = std::min(4, std::max(2, (int) (mean_error*100))); //do not use this arbitrary threshold anymore, use the computation proposed in the paper
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
@@ -653,8 +632,10 @@ void keep_only_robust_variants(
         //     cout << "iqdoudofq non informative partition : "  << p1 << " "<< endl;
         //     partitions[p1].print();
         // }
+
+        double p_value = partitions[p1].isSignificant(snps_in.size());
         
-        if (partitions[p1].number() > threshold && partitions[p1].isInformative(false, mean_error)){
+        if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
 
             bool different = true;
             

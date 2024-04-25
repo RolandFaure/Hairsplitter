@@ -43,7 +43,9 @@ public :
     void mergePartition(Partition &p, short phased); 
     void mergePartition(Partition &p); 
 
-    bool isInformative(bool lastReadBiased, float meanError);
+    bool isInformative(bool lastReadBiased, float meanError); //check if different from "all reads in the same haplotype"
+    float isSignificant(int total_number_of_columns_in_pileup); //check if the partition is significant, i.e. if the number of variants is big enough
+
     int number();
     float numberOf0();
 
