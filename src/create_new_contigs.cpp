@@ -227,7 +227,7 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "edge_1056_0_2341986_0_2341986_0_2341986@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "consensus_barcode05_0_1(145)@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -522,11 +522,6 @@ void modify_GFA(
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
-
-                            // if (interval.first.first == 0 && group.first == 2){
-                            //     cout << "fqljkd uciupiou edge_111@0_38000_1" << endl;
-                            //     exit(1);
-                            // }
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
@@ -716,7 +711,6 @@ void modify_GFA(
             Read r (contig, contig.size());
             r.name = allreads[backbone].name + "_"+ to_string(left)+ "_" + to_string(0);
             r.depth = newdepths[0];
-
             
             #pragma omp critical
             {

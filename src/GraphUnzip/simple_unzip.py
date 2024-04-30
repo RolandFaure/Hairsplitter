@@ -72,26 +72,27 @@ class Path :
         all_coherent_subpaths += [Path(self.__contigs[last_index:c+1], ["<>"[i] for i in self.__orientations[last_index:c+1]], self.__read_name)]
         return all_coherent_subpaths
 
-    #get rid of the ends of the path that are just straight lines
-    def trim(self):
-        trim_beginning = 0
-        contigs = self.__contigs
-        orientations = self.__orientations
-        while trim_beginning < len(contigs)-1 and len(contigs[trim_beginning].links[orientations[trim_beginning]]) == 1 and len(contigs[trim_beginning+1].links[1-orientations[trim_beginning+1]]) == 1 :
-            trim_beginning += 1
+    # #get rid of the ends of the path that are just straight lines
+    # def trim(self):
+    #     trim_beginning = 0
+    #     contigs = self.__contigs
+    #     orientations = self.__orientations
+    #     while trim_beginning < len(contigs)-1 and len(contigs[trim_beginning].links[orientations[trim_beginning]]) == 1 and len(contigs[trim_beginning+1].links[1-orientations[trim_beginning+1]]) == 1 :
+            
+    #         trim_beginning += 1
 
-        trim_end = 0
-        while trim_end < len(contigs)-1-trim_beginning and len(contigs[-1-trim_end].links[1-orientations[-1-trim_end]]) == 1 and len(contigs[-1-trim_end-1].links[orientations[-1-trim_end-1]]) == 1 :
-            trim_end += 1
+    #     trim_end = 0
+    #     while trim_end < len(contigs)-1-trim_beginning and len(contigs[-1-trim_end].links[1-orientations[-1-trim_end]]) == 1 and len(contigs[-1-trim_end-1].links[orientations[-1-trim_end-1]]) == 1 :
+    #         trim_end += 1
 
-        # if trim_beginning > 0 or True :
-        #     print("Now trimming coiJ xco ", self)
+    #     # if trim_beginning > 0 or True :
+    #     #     print("Now trimming coiJ xco ", self)
 
-        self.__contigs = self.__contigs[trim_beginning:len(contigs)-trim_end]
-        self.__orientations = self.__orientations[trim_beginning:len(contigs)-trim_end]
+    #     self.__contigs = self.__contigs[trim_beginning:len(contigs)-trim_end]
+    #     self.__orientations = self.__orientations[trim_beginning:len(contigs)-trim_end]
 
-        # if trim_beginning > 0 :
-        #     print("Now trimming coiJ DS ", self)
+    #     # if trim_beginning > 0 :
+    #     #     print("Now trimming coiJ DS ", self)
 
 #function to unzip the graph without making any assumptions
 #input: the graph and the gaf file
@@ -149,15 +150,15 @@ def simple_unzip(segments, names, gafFile) :
     #make sure all paths are coherent
     new_paths = []
     for p in paths:
-        # if "edge_111@0@0_42000_717" in str(p) :
+        # if "consensus_barcode05_0_2(38)@0_500_0" in str(p) :
         #     print("Here is sd ddisi Path: ", p)
         new_paths += [i for i in p.split_if_invalid()]
 
     paths = new_paths
 
-    #trim all the paths :
-    for p in paths : 
-        p.trim()
+    # #trim all the paths, i.e, shorten them by removing the ends that are just straight lines
+    # for p in paths : 
+    #     p.trim()
 
     # print("All the paths are indexed: hccue")
 
@@ -192,7 +193,7 @@ def simple_unzip(segments, names, gafFile) :
                 pairs = {}
                 pair_to_paths = {}
                 for p in on_which_paths_is_this_contig[segment] :
-                    # if segment.names == ['NC_038882.1_9000_1'] :
+                    # if segment.names == ['consensus_barcode05_0_2(38)@0_500_0'] :
                     #     print("ciciuddou ", paths[p[0]], " ", p[1], " ", len(path)-1)
                     if len(paths[p[0]]) == 0 :
                         continue
@@ -241,7 +242,7 @@ def simple_unzip(segments, names, gafFile) :
                         pairs[pair] += 1
                         pair_to_paths[pair].append(p)
 
-                        # if segment.names == ['edge_897_2274805_5262868_0_2988063_0_2988063@3_0_0'] :
+                        # if segment.names == ['consensus_barcode05_0_2(38)@0_500_0'] :
                         #     print("On contig ", segment.names, ", path ", path.name(), " supports the links towards ", segment.links[1-orientations[p[1]]][index_left].names, \
                         #             " and ", segment.links[orientations[p[1]]][index_right].names)
 
@@ -252,7 +253,7 @@ def simple_unzip(segments, names, gafFile) :
                     #     print("idc : ", paths[i[0]])
 
                 # print(segment.names, " ", pairs)
-                # if segment.names == ['edge_4_5000_1'] or True :
+                # if segment.names == ['consensus_barcode05_0_2(38)@0_500_0'] :
                 #     print("Pairs off ccncnc : ", pairs)
 
                 #test if the pairs are enough to support a duplication
@@ -330,6 +331,7 @@ def simple_unzip(segments, names, gafFile) :
                     on_which_paths_is_this_contig[segment] = []
 
                     go_on = True
+
             
     delIdx = 0
     while delIdx < len(segments) :

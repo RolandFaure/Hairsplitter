@@ -388,7 +388,7 @@ string consensus_reads(
 
         string newbackbone;
         if (good_aln == 1){ //only small indels
-            cout << "small indelsicine" << endl;
+            // cout << "small indelsicine" << endl;
             std::ofstream polishseqs(outFolder+"reads_"+id+".fasta");
             for (int read = 0 ; read < fullReads.size() ; read++){
                 polishseqs << ">read"+std::to_string(read)+"\n" << fullReads[read] << "\n";
@@ -464,9 +464,10 @@ string consensus_reads(
 
     // cout << "minimap2 done in tools , ran command " << commandMap << endl;
 
-    com = " -w 500 -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".sam "+ outFolder +"consensus_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
+    com = " -w " + std::to_string(backbone.size()+100) +  " -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".sam "+ outFolder +"consensus_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
+    // cout << "command to polish: " << commandPolish << endl;
     if (polishres != 0){
         // cout << "WARNING racon failed, while running " << commandPolish << endl;
         return backbone;
