@@ -304,6 +304,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
             bool allgood = true;
             //now go through the fields of the line
             short fieldnumber = 0;
+            int nonmatching = 0;
 
             //print all keys of indices
             // for (auto i : indices){
@@ -362,6 +363,9 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 }
                 else if (fieldnumber == 9){
                     length1 = field.size();
+                }
+                else if (field.substr(0,5) == "NM:i:"){
+                    nonmatching = stoi(field.substr(5, field.size()-5));
                 }
                 //std::cout << "my field is : " << field << std::endl;
                 fieldnumber++;
@@ -474,6 +478,10 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     allgood=false;
                 }
 
+                if (nonmatching > 0.2*length1){
+                    allgood = false;
+                }
+
                 if (allgood){
 
                     //compute the length of the chunk of contig and the chunk of read that is aligned
@@ -503,10 +511,10 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     overlap.strand = positiveStrand;
                     overlap.CIGAR = cigar;
 
-                    // if (allreads[sequence1].name.substr(0,19) == ">SRR14289618.827569"){
+                    // if (allreads[sequence1].name.substr(0,8) == "82f53bd1"){
                     //     cout << "heereei is the overlap from " << allreads[overlap.sequence1].name << " on " << allreads[overlap.sequence2].name
                     //         << " " << overlap.position_1_1 << " " << overlap.position_1_2 << " " << overlap.position_2_1 << " " << overlap.position_2_2 << " " << overlap.strand << endl;
-                    //     cout << cigar.substr(0,30) << endl;
+                    //     cout << line << endl;
                     // }
 
                     // cout << "The overlap I'm adding looks like this: " << overlap.sequence1 << " " << overlap.sequence2 << " " << overlap.strand << endl;

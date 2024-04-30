@@ -227,7 +227,7 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "consensus_barcode05_0_1(145)@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "consensus_barcode17_0_1(398)@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -453,10 +453,12 @@ void modify_GFA(
 
                         // string clippedRead; //the read we're aligning with good orientation and only the part we're interested in
                         
-                        // cout << "cliipplling read: " << allreads[idxRead].name << " " << posOnReadStart << " " << posOnReadEnd << " " << 
+                        // if (allreads[idxRead].name.substr(0,8) == "82f53bd1"){
+                        //     cout << "cliipplling read: " << allreads[idxRead].name << " " << posOnReadStart << " " << posOnReadEnd << " " << 
                         //     allOverlaps[allreads[backbone].neighbors_[r]].position_1_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_1_2 << " " <<
                         //     allOverlaps[allreads[backbone].neighbors_[r]].position_2_1 << " " << allOverlaps[allreads[backbone].neighbors_[r]].position_2_2 << " " <<
                         //     clippedRead.substr(0,30) << endl;
+                        // }
 
 
                         if (readsPerPart.find(clust) == readsPerPart.end()){
@@ -522,6 +524,10 @@ void modify_GFA(
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+                            // if (group.first == 0){
+                            //     cout <<" fsqdkljjkdq " << endl;
+                            //     exit(1);
+                            // }
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 

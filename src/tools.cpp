@@ -1149,6 +1149,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     }
     string paf_file = tmp_folder + "all_vs_all_"+id+".paf";
 
+
     //then let's do a basic assembly
     //go trhough the paf file
     ifstream in(paf_file);
@@ -1260,6 +1261,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         current_read = new_current_read;
         new_current_read = ""; //means it could not extend
         //look for next read
+
         for (Overlap_minimap overlap : reads[current_read]){
             //now see if this extends left
             if (current_strand){
