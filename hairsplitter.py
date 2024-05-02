@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.8.2"
+__version__ = "1.8.3"
 __date__ = "2024-04-30"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -438,7 +438,7 @@ def main():
             continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
                 + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
-                + " > " + tmp_dir + "/logGenomeTailor.txt"
+                + " > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
             # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
             #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
             #     + " --folder " + tmp_dir
