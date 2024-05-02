@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.8.12)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-project(GenomeTailor)
+project(HS_GenomeTailor)
 
 # Local header files here ONLY
 set(TARGET_H
@@ -20,7 +20,7 @@ set(TARGET_SRC
     )
 
 file(GLOB SOURCE "scaffold.cpp" "align.cpp")
-add_executable(GenomeTailor ${SOURCE})
+add_executable(HS_GenomeTailor ${SOURCE})
 target_compile_options (GenomeTailor PRIVATE -g)
 target_compile_options (GenomeTailor PRIVATE -lm)
 target_compile_options (GenomeTailor PRIVATE -std=c++17)
