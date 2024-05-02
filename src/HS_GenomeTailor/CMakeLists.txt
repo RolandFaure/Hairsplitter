@@ -21,8 +21,8 @@ set(TARGET_SRC
 
 file(GLOB SOURCE "scaffold.cpp" "align.cpp")
 add_executable(HS_GenomeTailor ${SOURCE})
-target_compile_options (GenomeTailor PRIVATE -g)
-target_compile_options (GenomeTailor PRIVATE -lm)
-target_compile_options (GenomeTailor PRIVATE -std=c++17)
-target_compile_options (GenomeTailor PRIVATE -O3)
-target_compile_options (GenomeTailor PRIVATE -march=x86-64)
+target_compile_options (HS_GenomeTailor PRIVATE -g)
+target_compile_options (HS_GenomeTailor PRIVATE -lm)
+target_compile_options (HS_GenomeTailor PRIVATE -std=c++17)
+target_compile_options (HS_GenomeTailor PRIVATE -O3)
+target_compile_options (HS_GenomeTailor PRIVATE -march=x86-64)
