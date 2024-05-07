@@ -60,6 +60,7 @@ std::string consensus_reads(
     std::string &id,
     std::string &outFolder,
     std::string &techno,
+    int racon_window_size, //if -1, then window of the size of the backbone
     std::string &MINIMAP, 
     std::string &RACON,
     std::string &path_to_python,

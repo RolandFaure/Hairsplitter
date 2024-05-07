@@ -519,7 +519,7 @@ vector<Column> call_variants(
             snps[position].second_base = content_sorted[1].first;
             snps[position].pos = position;
         }
-        // if (position == 654 ){//&& allreads[contig].name == "edge_2"){
+        // if (position == 85640 ){//&& allreads[contig].name == "edge_2"){
         //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
         //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
         //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
@@ -533,6 +533,8 @@ vector<Column> call_variants(
             
             posoflastsnp = position;
             suspectPositions.push_back(position);
+
+            // cout << "selecting at pos " << position << endl;
 
             char ref_base = content_sorted[0].first;
             char second_frequent_base = content_sorted[1].first;
@@ -623,18 +625,22 @@ void keep_only_robust_variants(
         return;
     }
     
-    // float threshold = std::min(4, std::max(2, (int) (mean_error*100))); //do not use this arbitrary threshold anymore, use the computation proposed in the paper
+    float threshold = std::min(4, std::max(2, (int) (mean_error*100))); //do not use this arbitrary threshold anymore, use the computation proposed in the paper
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
 
-        // if (partitions[p1].number() > 0){
-        //     cout << "iqdoudofq non informative partition : "  << p1 << " "<< endl;
+        double p_value = partitions[p1].isSignificant(snps_in.size());
+
+        // if (p_value > 0.001 && partitions[p1].number() > threshold){
+        //     cout << "here is a non informative partitions ?? : " << p_value << endl;
+        //     partitions[p1].print();
+        // }
+        // if (p_value < 0.001 && partitions[p1].number() < threshold){
+        //     cout << "here is quite a sensible partitions : " << p_value << endl;
         //     partitions[p1].print();
         // }
 
-        double p_value = partitions[p1].isSignificant(snps_in.size());
-        
         if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
 
             bool different = true;
@@ -701,7 +707,6 @@ void keep_only_robust_variants(
             float chisqu = computeChiSquare(dis);
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
                 && chisqu > 15){
-
                 snps_out.push_back(snp);
                 chisquare_sum += chisqu;
                 number_of_interesting_positions += 1;
@@ -726,12 +731,7 @@ void keep_only_robust_variants(
             {
                 for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
                     distancePartition dis = distance(listOfFinalPartitions[p], msa[position], msa[position].ref_base);
-                    // if (position == 502) {
-                    //     cout << "dfjlkiox " << dis.n10 << " " << dis.n00 << " " << dis.n01 << " " << dis.n11 << " " << computeChiSquare(dis) << " " << mean_chisquare << endl;
-                    //     // print_snp(msa[position]);
-                    //     exit(1);
-                    // }
-                    if (computeChiSquare(dis) > std::min(mean_chisquare, 20.0)){
+                    if (computeChiSquare(dis) > std::min(mean_chisquare, 20.0) && dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4){ //the dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4 is to avoid calling false positives because if e.g. you have dis.n01==0 and dis.n00==1 this may look good but actually no 
                         snps_out.push_back(msa[position]);
                         // cout << "fkldjsqdsmlj new sus pos : " << position << " " << computeChiSquare(dis) << endl;
                         break;
@@ -1168,6 +1168,9 @@ void output_files(std::unordered_map<int, std::vector<Column>> &variants, std::v
         int numberOfReads = allreads[contig].neighbors_.size();
         //output the list of reads
         for (auto c : suspiciousColumns){
+            if (c.pos == 4053){
+                cout << "here is a suspicious position : " << c.pos << " " << c.ref_base << " " << c.second_base << " " << c.readIdxs.size() << endl;
+            }
             out << "SNPS\t" << c.pos << "\t" << (int) c.ref_base << "\t" << (int) c.second_base << "\t";
             string idxs;
             string bases;
@@ -1194,8 +1197,8 @@ int main(int argc, char *argv[])
     std::vector <Overlap> allOverlaps;
     vector <Link> allLinks;
 
-    if (argc < 10){
-        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <DEBUG> <file_out> <vcfFile>\n";
+    if (argc < 11){
+        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <amplicon> <DEBUG> <file_out> <vcfFile>\n";
         return 0;
     }
     std::string gfafile = argv[1];
@@ -1204,9 +1207,10 @@ int main(int argc, char *argv[])
     int num_threads = std::stoi(argv[4]);
     std::string tmpFolder = argv[5];
     std::string error_rate_out = argv[6];
-    bool DEBUG = bool(std::stoi(argv[7]));
-    std::string file_out = argv[8];
-    std::string vcfFile = argv[9];
+    bool amplicon = bool(std::stoi(argv[7]));
+    bool DEBUG = bool(std::stoi(argv[8]));
+    std::string file_out = argv[9];
+    std::string vcfFile = argv[10];
     //erase the output files
     std::ofstream out(file_out);
     out.close();
@@ -1231,7 +1235,7 @@ int main(int argc, char *argv[])
         // parse_PAF(alnOnRefFile, allOverlaps, allreads, indices, backbone_reads, false);
     }
     else if (samFile.substr(samFile.size()-4,4) == ".sam"){
-        parse_SAM(samFile, allOverlaps, allreads, indices);
+        parse_SAM(samFile, allOverlaps, allreads, indices, amplicon);
     }
     else{
         cout << "ERROR: the file containing the alignments on the assembly should be .sam" << endl;
@@ -1252,8 +1256,10 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name != "edge_522@00"){ //for debugging purposes
+            if (allreads[contig].name != "edge_8_470611_855802_0_385191@00"){ //for debugging purposes
 
+                // cout << "Looking at contig number " << index << " out of " << backbone_reads.size() << " (" << allreads[contig].name << ")" << ". By thread " 
+                //     << omp_get_thread_num() << ", " << allreads[contig].neighbors_.size() << " reads align here.\n";
                 // if (DEBUG){
                 //     #pragma omp critical
                 //     {

@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.8.3"
-__date__ = "2024-04-30"
+__version__ = "1.8.4"
+__date__ = "2024-05-07"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq or fasta (required)", required=True)
     parser.add_argument("-c", "--haploid-coverage", help="Expected haploid coverage. 0 if does not apply [0]", default=0)
-    parser.add_argument("-x", "--technology", help="{ont, pacbio, hifi} [ont]", default="ont")
+    parser.add_argument("-x", "--use-case", help="{ont, pacbio, hifi,amplicon} [ont]", default="ont")
     parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
@@ -316,6 +316,7 @@ def main():
     haploid_coverage = float(args.haploid_coverage)
     continue_from_previous_run = args.resume
     clean_tmp = args.clean
+    technology = args.use_case
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
     path_cut_gfa = path_to_python + " " + path_to_src + "cut_gfa.py"
@@ -352,7 +353,7 @@ def main():
     polisher = args.polisher.lower()
     if polisher != "racon" and polisher != "medaka":
         print("ERROR: polisher must be either racon or medaka")
-        f = open(logFile, "w")
+        f = open(logFile, "a")
         f.write("ERROR: polisher must be either racon or medaka\n")
         f.close()
         sys.exit(1)
@@ -444,7 +445,7 @@ def main():
             #     + " --folder " + tmp_dir
             print(" Running: ", command)
             #write in the log file where to look in case of error
-            f = open(logFile, "w")
+            f = open(logFile, "a")
             f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
             f.write(command)
             f.close()
@@ -476,7 +477,7 @@ def main():
         print(" - The improved assembly is too complicated, falling back on the original assembly")
         new_assembly = gfaAssembly
     elif skip_minigraph :
-        f = open(logFile, "w")
+        f = open(logFile, "a")
         f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
         f.write(" - Skipping the assembly correction step because --correct-assembly was not used")
         f.close()
@@ -515,11 +516,14 @@ def main():
         sys.exit(1)
 
     techno_flag = ""
-    technology = args.technology.lower()
+    amplicon = "0"
     if technology == "pacbio" or technology == "pb":
         techno_flag = "-x map-pb"
     elif technology == "hifi" :
         techno_flag = "-x map-hifi"
+    elif technology == "amplicon" :
+        amplicon = "1"
+        techno_flag = "-x map-ont"
     else :
         techno_flag = "-x map-ont"
     
@@ -562,7 +566,7 @@ def main():
         print(" - Already called variants found from previous run")
     else:
         continue_from_previous_run = False
-        command = path_call_variants + " " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " \
+        command = path_call_variants + " " + new_assembly + " " + readsFile + " " + reads_on_asm + " " + str(nb_threads) + " " + tmp_dir + " " + error_rate_file + " " + amplicon + " "  \
             + flag_debug + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf"
         f = open(logFile, "a")
         f.write("\n==== STAGE 3: Calling variants   ["+str(datetime.datetime.now())+"]\n")
@@ -665,6 +669,7 @@ def main():
         + gaffile +  " " \
         + polisher + " " \
         + polish_everything + " " \
+        + amplicon + " " \
         + path_to_minimap2 + " " \
         + args.path_to_racon + " " \
         + args.path_to_medaka + " " \

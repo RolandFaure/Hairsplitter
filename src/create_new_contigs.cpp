@@ -204,6 +204,7 @@ void modify_GFA(
     std::string &polisher,
     bool polish,
     string &techno,
+    bool amplicon,
     string &MINIMAP, 
     string &RACON,
     string &MEDAKA,
@@ -227,12 +228,20 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "consensus_barcode17_0_1(398)@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "consensus_barcode02_0_0(206)@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
 
         if (partitions.find((backbones_reads[b])) == partitions.end()){
+            //just make sure it has a depth, and if not, recomputes it
+            if (allreads[backbones_reads[b]].depth == -1){
+                double total_depth = 0;
+                for (auto n : allreads[backbones_reads[b]].neighbors_){
+                    total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
+                }
+                allreads[backbones_reads[b]].depth = total_depth / allreads[backbones_reads[b]].sequence_.size();
+            }
             continue;
         }
 
@@ -276,7 +285,6 @@ void modify_GFA(
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
-            int stricthsizedebug = stitches.size();
 
             for (int n = 0 ; n < partitions.at(backbone).size() ; n++){
                 //for each interval, go through the different parts and see with what part before and after they fit best
@@ -346,7 +354,7 @@ void modify_GFA(
                 
 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 218000){
+                // if (interval.first.first != 56000){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -521,9 +529,13 @@ void modify_GFA(
                         }
                         else{
                             // newcontig = toPolish; //DEBUG
+                            int window_size = 0;
+                            if (amplicon){
+                                window_size = -1;
+                            }
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
-                                    thread_id, outFolder, techno, MINIMAP, RACON, path_to_python, path_src);
+                                    thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
                             // if (group.first == 0){
                             //     cout <<" fsqdkljjkdq " << endl;
                             //     exit(1);
@@ -1351,18 +1363,18 @@ void merge_intervals(std::unordered_map<unsigned long int ,std::vector< std::pai
 int main(int argc, char *argv[])
 {
     //parse the command line arguments
-    if (argc != 19){
+    if (argc != 20){
 
         if (argc == 2 && (string(argv[1]) == "-h" || string(argv[1]) == "--help")){
             std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
-                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <amplicon> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
                 << "<path-to-python> <debug>" << std::endl;
             cout << argc << endl;
             return 0;
         }
 
         std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
-                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
+                <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <amplicon> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
                 << "<path-to-python> <debug>" << std::endl;
         cout << argc << endl;
         return 1;
@@ -1379,12 +1391,13 @@ int main(int argc, char *argv[])
     string outputGAF = argv[10];
     string polisher = argv[11];
     bool polish = stoi(argv[12]);
-    string MINIMAP = argv[13];
-    string RACON = argv[14];
-    string MEDAKA = argv[15];
-    string SAMTOOLS = argv[16];
-    string path_to_python = argv[17];
-    bool DEBUG = stoi(argv[18]);
+    bool amplicon = stoi(argv[13]);
+    string MINIMAP = argv[14];
+    string RACON = argv[15];
+    string MEDAKA = argv[16];
+    string SAMTOOLS = argv[17];
+    string path_to_python = argv[18];
+    bool DEBUG = stoi(argv[19]);
 
 
     string argv0 = argv[0];
@@ -1399,7 +1412,7 @@ int main(int argc, char *argv[])
 
     parse_reads(reads_file, allreads, indices);
     parse_assembly(original_assembly, allreads, indices, backbone_reads, allLinks);
-    parse_SAM(sam_file, allOverlaps, allreads, indices);
+    parse_SAM(sam_file, allOverlaps, allreads, indices, amplicon);
 
     //now parse the split file
     std::unordered_map<unsigned long int ,std::vector< std::pair<std::pair<int,int>, std::vector<int> > > > partitions;
@@ -1414,7 +1427,7 @@ int main(int argc, char *argv[])
 
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
-        tmpFolder, error_rate, polisher, polish, technology, MINIMAP, RACON, MEDAKA, SAMTOOLS, path_to_python, path_to_src, DEBUG);
+        tmpFolder, error_rate, polisher, polish, technology, amplicon, MINIMAP, RACON, MEDAKA, SAMTOOLS, path_to_python, path_to_src, DEBUG);
 
     output_GFA(allreads, backbone_reads, output_graph, allLinks);
 

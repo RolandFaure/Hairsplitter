@@ -269,10 +269,9 @@ void parse_assembly(std::string fileAssembly, std::vector <Read> &allreads, robi
  * @param fileSAM Name of SAM file
  * @param allOverlaps vector containing all the overlaps
  * @param allreads vector containing all the reads as well as the contigs
- * @param indices maps the name of the reads to their index in allreads (comes from parse_reads)
- * @param backbonesReads indicates which of the reads are actually contigs in allreads
+ * @param amplicon boolean indicating whether the reads are from an amplicon, in which case discard the reads with big indels
  */
-void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices){
+void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vector <Read> &allreads, robin_hood::unordered_map<std::string, unsigned long int> &indices, bool amplicon){
 
     ifstream in(fileSAM);
     if (!in){
@@ -478,7 +477,7 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                     allgood=false;
                 }
 
-                if (nonmatching > 0.2*length1){
+                if (amplicon && nonmatching > 0.2*length1){
                     allgood = false;
                 }
 

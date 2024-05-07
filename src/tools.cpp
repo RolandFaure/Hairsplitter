@@ -309,6 +309,7 @@ void convert_FASTA_to_GFA(std::string &fasta_file, std::string &gfa_file){
  * @param overhang length of the unpolished ends to be used
  * @param id an id (typically a thread id) to be sure intermediate files do not get mixed up with other threads 
  * @param techno the sequencing technology used to generate the reads (ont, pacbio, hifi)
+ * @param racon_window_size the size of the window to be used in racon, if -1, then the size of the backbone, if 0 then defaults back to 500
  * @param MINIMAP path to the minimap2 executable
  * @param RACON path to the racon executable
  * @return polished sequence 
@@ -324,6 +325,7 @@ string consensus_reads(
     string &id, 
     string &outFolder, 
     string& techno, 
+    int racon_window_size,
     string &MINIMAP, 
     string &RACON,
     string &path_to_python,
@@ -331,6 +333,14 @@ string consensus_reads(
     
     if (polishingReads.size() == 0){
         return backbone;
+    }
+
+    int window_size = racon_window_size;
+    if (window_size == -1){
+        window_size = backbone.size();
+    }
+    else if (window_size == 0){
+        window_size = 500;
     }
 
     //check if the last character of outFolder is a /
@@ -464,7 +474,7 @@ string consensus_reads(
 
     // cout << "minimap2 done in tools , ran command " << commandMap << endl;
 
-    com = " -w " + std::to_string(backbone.size()+100) +  " -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".sam "+ outFolder +"consensus_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
+    com = " -w " + std::to_string(window_size) + " -e 1 -t 1 "+ outFolder +"reads_"+id+".fasta "+ outFolder +"mapped_"+id+".sam "+ outFolder +"consensus_"+id+".fasta > "+ outFolder +"polished_"+id+".fasta 2>"+ outFolder +"trash.txt";
     string commandPolish = RACON + com;
     auto polishres = system(commandPolish.c_str());
     // cout << "command to polish: " << commandPolish << endl;

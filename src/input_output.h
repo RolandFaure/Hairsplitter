@@ -24,7 +24,8 @@ void parse_SAM(
     std::string fileSAM, 
     std::vector <Overlap>& allOverlaps, 
     std::vector <Read> &allreads, 
-    robin_hood::unordered_map<std::string, unsigned long int> &indices);
+    robin_hood::unordered_map<std::string, unsigned long int> &indices,
+    bool amplicon);
 
 
 void parse_reads_on_contig(

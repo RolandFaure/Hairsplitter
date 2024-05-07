@@ -29,6 +29,7 @@ void modify_GFA(
     std::string &polisher,
     bool polish,
     std::string &techno,
+    bool amplicon,
     std::string &MINIMAP, 
     std::string &RACON,
     std::string &MEDAKA,

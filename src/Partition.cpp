@@ -191,19 +191,30 @@ float Partition::isSignificant(int total_number_of_columns_in_pileup){
     //the p-value is explained in the PCI paper
     int numberOfMutatedReads = 0;
     int numberOfReads = 0;
+    int number_of_columns = 0;
     for (auto p = 0 ; p < mostFrequentBases.size() ; p++){
         if (mostFrequentBases[p] == -1 && moreFrequence[p] > 1 && lessFrequence[p] == 0){
             numberOfMutatedReads++;
+            if (moreFrequence[p] > number_of_columns){
+                number_of_columns = moreFrequence[p];
+            }
         }
-        if (p != 0 && p!= -2){
+        if (p != 0 && p!= -2 && moreFrequence[p] > 1 && lessFrequence[p] == 0){
             numberOfReads++;
         }
     }
 
-    double p_value = pow(float(numberOfMutatedReads)/numberOfReads, numberOfOccurences*numberOfMutatedReads) * comb_lgamma(numberOfReads, numberOfMutatedReads) * comb_lgamma(total_number_of_columns_in_pileup, numberOfOccurences);
+    double p_value = pow(float(numberOfMutatedReads)/numberOfReads, number_of_columns*numberOfMutatedReads) * comb_lgamma(numberOfReads, numberOfMutatedReads) * comb_lgamma(total_number_of_columns_in_pileup, number_of_columns);
 
-    // cout << "significance of partition with " << numberOfMutatedReads << " mutated reads out of " << numberOfReads << " reads and " << numberOfOccurences << " occurences out of " << total_number_of_columns_in_pileup << " : " << p_value << endl;
-    return p_value;
+    // if (numberOfMutatedReads == 10){
+    
+    //     for (auto i = 0 ; i < moreFrequence.size() ; i++){
+    //         cout << moreFrequence[i] << " " << lessFrequence[i] << " " << mostFrequentBases[i] << endl;
+    //     }
+    //     cout << "significance of partition with " << numberOfMutatedReads << " mutated reads out of " << numberOfReads << " reads and " << number_of_columns << " occurences out of " << total_number_of_columns_in_pileup << " : " << p_value << endl;
+    //     exit(0);
+    // }
+    return max(0.0,p_value); //p_value should never be negative, but it can sometimes underflow to -nan
 }
 
 //input : a new partition to add to the consensus (the partition must be well-phased in 'A' and 'a')

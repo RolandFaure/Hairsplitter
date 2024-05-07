@@ -1589,7 +1589,7 @@ int main(int argc, char *argv[]){
                 // cout << "adjacency matrix computed " << errorRate << endl;
             }
             else{
-                cout << "creating the neighbor list" << endl;
+                // cout << "creating the neighbor list" << endl;
                 for (auto v : neighbor_list_low_memory){
                     v.reserve(20);
                 }
