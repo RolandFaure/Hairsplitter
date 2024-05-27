@@ -6,37 +6,36 @@ Created on Fri Oct  8 13:02:36 2021
 @author: rfaure
 """
 
-import argparse
-import input_output as io
+from input_output import read_GAF
+import re
+import sys
 
 #main function of the file : tries to estimate how many copies of each contig is actually present in the actual assembly, based on the topology of the graph and the coverage
 #input : a gfa (as a list of segments), with mandatory coverage information ; names (to know at what index to put each contig)
 #output : computed_multiplicity, which is a list containing the theoretical multiplicity of contig 'a' at position names[a], as well as updated supported_links, telling which links actually exist
-def determine_multiplicity(segments, names, reliable_coverage=True, haploid_coverage=0) :
+def determine_multiplicity(segments, names, supported_links, reliable_coverage=True) :
 
     computed_multiplicity = [0 for i in range(len(segments))]
     
     #first compute the 'reference haploid coverage', the average coverage for all reads with exactly one neighbors at each end
-    refCoverage = haploid_coverage
-    if refCoverage == 0 :
-        refCoverages = 0
-        weightedNumberOfRefContigs = 1 #1 and not 0 to be sure not to divide by 0
-        for s in segments :
-            
-            links = s.get_links()
-            if len(links[0]) <= 1 and len(links[1]) <= 1 : #if the contig has less than 1 neighbor at each end we can suppose it is haploid
-            
-                weightedNumberOfRefContigs += s.length
-                refCoverages += s.length * s.depths[0]
-
-        #print(len(segments), refCoverages, weightedNumberOfRefContigs)
-        refCoverage = refCoverages / weightedNumberOfRefContigs
+    refCoverages = 0
+    weightedNumberOfRefContigs = 1 #1 and not 0 to be sure not to divide by 0
+    for s in segments :
         
-        if (refCoverage == 1 or refCoverage == 0) and reliable_coverage :
-            reliable_coverage = False
-            
-        if not reliable_coverage :
-            refCoverage = 1
+        links = s.get_links()
+        if len(links[0]) <= 1 and len(links[1]) <= 1 : #if the contig has less than 1 neighbor at each end we can suppose it is haploid
+        
+            weightedNumberOfRefContigs += s.length
+            refCoverages += s.length * s.depths[0]
+
+    #print(len(segments), refCoverages, weightedNumberOfRefContigs)
+    refCoverage = refCoverages / weightedNumberOfRefContigs
+    
+    if (refCoverage == 1 or refCoverage == 0) and reliable_coverage :
+        reliable_coverage = False
+        
+    if not reliable_coverage :
+        refCoverage = 1
         
     #then inventoriate all haploid contigs
     for s in segments :
@@ -77,6 +76,16 @@ def determine_multiplicity(segments, names, reliable_coverage=True, haploid_cove
                     #print("coucou, ", segments[s].names, " ", new_multiplicity)
                     unchanged = -1
             
+            #also take care of the supported_links
+            if new_multiplicity1 == new_multiplicity and new_multiplicity > 0:
+                for n, neighbor in enumerate(segments[s].links[0]) :
+                    supported_links[2*names[segments[s].names[0]], 2*names[neighbor.names[0]]+segments[s].otherEndOfLinks[0][n]] = computed_multiplicity[names[neighbor.names[0]]]
+                    supported_links[2*names[neighbor.names[0]]+segments[s].otherEndOfLinks[0][n], 2*names[segments[s].names[0]]] = computed_multiplicity[names[neighbor.names[0]]]
+            if new_multiplicity2 == new_multiplicity and new_multiplicity > 0:
+                for n, neighbor in enumerate(segments[s].links[1]) :
+                    supported_links[2*names[segments[s].names[0]]+1, 2*names[neighbor.names[0]]+segments[s].otherEndOfLinks[1][n]] = computed_multiplicity[names[neighbor.names[0]]]
+                    supported_links[2*names[neighbor.names[0]]+segments[s].otherEndOfLinks[1][n], 2*names[segments[s].names[0]]+1] = computed_multiplicity[names[neighbor.names[0]]]
+            
         else :
             #check if we can infer the multiplicity of a neighborign contig (possible if there is strictly 1 that is unknown)
             for end in range(2) :
@@ -95,7 +104,11 @@ def determine_multiplicity(segments, names, reliable_coverage=True, haploid_cove
                             computed_multiplicity[names[segments[s].links[end][index0].names[0]]] = new_multiplicity
                             #print("salut, ", s+1, " ", names[segments[s].links[end][index0].names[0]]+1, " ", new_multiplicity)
                             unchanged = -1
-
+                            
+                            supported_links[2*names[segments[s].names[0]]+end, 2*names[segments[s].links[end][index0].names[0]]+segments[s].otherEndOfLinks[end][index0]] = new_multiplicity
+                            supported_links[2*names[segments[s].links[end][index0].names[0]]+segments[s].otherEndOfLinks[end][index0], 2*names[segments[s].names[0]]+end] = new_multiplicity
+                
+        
         s = (s+1)%len(segments)
         unchanged += 1
             
@@ -119,7 +132,10 @@ def determine_multiplicity(segments, names, reliable_coverage=True, haploid_cove
                                     computed_multiplicity[names[neighbor.names[0]]] = round(computed_multiplicity[s] * neighbor.depths[0]/covTot)
                                     if round(computed_multiplicity[s] * neighbor.depths[0]/covTot) > 0:
                                         found = True
-                                    propagate_multiplicity(computed_multiplicity, segments, names, names[neighbor.names[0]], refCoverage)
+                                        supported_links[2*names[seg.names[0]]+end, 2*names[neighbor.names[0]]+seg.otherEndOfLinks[end][n]] = round(computed_multiplicity[s] * neighbor.depths[0]/covTot)
+                                        supported_links[2*names[neighbor.names[0]]+seg.otherEndOfLinks[end][n], 2*names[seg.names[0]]+end] = round(computed_multiplicity[s] * neighbor.depths[0]/covTot)
+                                        #print("Inferring multiplicity of ", neighbor.names, " at ", round(computed_multiplicity[s] * neighbor.depths[0]/covTot) , ", from contig ", seg.names)
+                                    propagate_multiplicity(computed_multiplicity, segments, names, names[neighbor.names[0]], supported_links, refCoverage)
         
     #if nothing else worked, start the propagation again by giving a multiplicity to the largest contig without multiplicity yet
     sortedContigs = [names[i.names[0]] for i in sorted(segments, key=lambda x:x.length, reverse=True)]
@@ -139,7 +155,7 @@ def determine_multiplicity(segments, names, reliable_coverage=True, haploid_cove
                     minRight += computed_multiplicity[names[neighbor.names[0]]]
                 
             computed_multiplicity[sortedContigidx] = max(1, minLeft, minRight) #choosing 1 there means that computed_multiplicity is a minimum multiplicity
-            propagate_multiplicity(computed_multiplicity, segments, names, sortedContigidx, refCoverage)
+            propagate_multiplicity(computed_multiplicity, segments, names, sortedContigidx, supported_links, refCoverage)
             
             #print("Finding new multiplicities, ", computed_multiplicity.count(0), " multiplicities left to infer")
             
@@ -151,7 +167,7 @@ def determine_multiplicity(segments, names, reliable_coverage=True, haploid_cove
 #recursive function to propagate multiplicity :
 # input : a contig with a fresh multiplicity
 # output : list of multiplicities updated with every multiplicity that could be deduced from this
-def propagate_multiplicity(multiplicities, segments, names, contigIdx, refCoverage) :
+def propagate_multiplicity(multiplicities, segments, names, contigIdx, supported_links, refCoverage) :
     
     #print("called on ", segments[contigIdx].names[0], " ", multiplicities[contigIdx])
     
@@ -164,8 +180,12 @@ def propagate_multiplicity(multiplicities, segments, names, contigIdx, refCovera
                 if all([multiplicities[names[i.names[0]]] > 0 for i in neighbor.links[neighborEnd]]) and all([len(neighbor.links[neighborEnd][i].links[neighbor.otherEndOfLinks[neighborEnd][i]]) == 1 for i in range(len(neighbor.links[neighborEnd]))]) :
                     
                     multiplicities[names[neighbor.names[0]]] = sum([multiplicities[names[i.names[0]]] for i in neighbor.links[neighborEnd]])
-      
-                    propagate_multiplicity(multiplicities, segments, names, names[neighbor.names[0]], refCoverage) #recursive call : found a multiplicity, move on
+                    
+                    for n2, neighbor2 in enumerate(neighbor.links[neighborEnd]) :
+                        supported_links[2*names[neighbor.names[0]]+neighborEnd, 2*names[neighbor2.names[0]]+neighbor.otherEndOfLinks[neighborEnd][n2]] = multiplicities[names[neighbor2.names[0]]]
+                        supported_links[2*names[neighbor2.names[0]]+neighbor.otherEndOfLinks[neighborEnd][n2], 2*names[neighbor.names[0]]+neighborEnd] = multiplicities[names[neighbor2.names[0]]]
+                      
+                    propagate_multiplicity(multiplicities, segments, names, names[neighbor.names[0]], supported_links, refCoverage) #recursive call : found a multiplicity, move on
                     
             elif multiplicities[names[neighbor.names[0]]] > 0 :
                 
@@ -184,8 +204,11 @@ def propagate_multiplicity(multiplicities, segments, names, contigIdx, refCovera
                             multiplicities[names[neighbor.links[neighborEnd][index0].names[0]]] = new_multiplicity
                             # if '75' in neighbor.links[neighborEnd][index0].names :
                             #     print("propagated multiplicity2: found the multiplicity of contig ", neighbor.links[neighborEnd][index0].names[0], " : ", multiplicities[names[neighbor.links[neighborEnd][index0].names[0]]], ", from multiplicity of ", neighbor.names)
-
-                            propagate_multiplicity(multiplicities, segments, names, names[neighbor.links[neighborEnd][index0].names[0]], refCoverage)
+                            
+                            supported_links[2*names[neighbor.names[0]]+neighborEnd, 2*names[neighbor.links[neighborEnd][index0].names[0]]+neighbor.otherEndOfLinks[neighborEnd][index0]] = new_multiplicity
+                            supported_links[2*names[neighbor.links[neighborEnd][index0].names[0]]+neighbor.otherEndOfLinks[neighborEnd][index0], 2*names[neighbor.names[0]]+neighborEnd] = new_multiplicity
+                            
+                            propagate_multiplicity(multiplicities, segments, names, names[neighbor.links[neighborEnd][index0].names[0]], supported_links, refCoverage)
 
                 
             else : #that's if multiplicity <0, weird
@@ -209,27 +232,90 @@ def propagate_multiplicity(multiplicities, segments, names, contigIdx, refCovera
                         #     print("Inferffing the multiplicity of contig ", neighbor.names, " from " , seg.names, " of multiplicity ", multiplicities[contigIdx], " the depth being ", neighbor.depths[0], " and covTot ",  covTot)
                         if round(multiplicities[contigIdx] * neighbor.depths[0]/covTot) > 0:
                             found = True
+                            supported_links[2*names[seg.names[0]]+end, 2*names[neighbor.names[0]]+seg.otherEndOfLinks[end][n]] = new_multiplicity
+                            supported_links[2*names[neighbor.names[0]]+seg.otherEndOfLinks[end][n], 2*names[seg.names[0]]+end] = new_multiplicity
                             #print("Inferring multiplicity of ", neighbor.names, " at ", round(computed_multiplicity[s] * neighbor.depths[0]/covTot) , ", from contig ", seg.names)
-                        propagate_multiplicity(multiplicities, segments, names, names[neighbor.names[0]], refCoverage)
-        
-if __name__ == "__main__" :
+                        propagate_multiplicity(multiplicities, segments, names, names[neighbor.names[0]], supported_links, refCoverage)
+
+
+
+class Path :
+
+    #contigs are names
+    def __init__(self, contigs, orientations, read_name) :
+        if len(contigs) != len(orientations) :
+            raise ValueError("ERROR in simple_unzip.py: iiox")
+        self.__contigs = contigs
+        self.__orientations = []
+        self.__read_name = read_name
+        for i in orientations :
+            if i == ">":
+                self.__orientations.append(1)
+            else :
+                self.__orientations.append(0)
+
+    def __len__(self):
+        return len(self.__contigs)
     
-    parser = argparse.ArgumentParser(description='Determine the multiplicity of each contig in the assembly')
-    parser.add_argument('gfa', type=str, help='The gfa file to process')
-    parser.add_argument('haploid_coverage', type=float, help='The coverage file to process')
-    parser.add_argument('output', type=str, help='The file to write the output to')
-    args = parser.parse_args()
+    def __str__(self):
+        string = ""
+        for c in range(len(self.__contigs)) :
+            string += "<>"[self.__orientations[c]] + str(self.__contigs[c].names)+ ", "
+        return string
+
+    def name(self):
+        return self.__read_name
     
-    segments, names = io.load_gfa(args.gfa)
-
-    haploid_coverage = args.haploid_coverage
-    refCoverage, computed_multiplicity = determine_multiplicity(segments, names, haploid_coverage=haploid_coverage)
-
-    with open(args.output, 'w') as f:
-        for i in names.keys():
-            f.write(i + "\t" + str(computed_multiplicity[names[i]]) + "\n")
-
-
+    def get_contigs(self):
+        return self.__contigs
+    
+    def get_orientations(self):
+        return self.__orientations
         
+def determine_multiplicity_based_on_gaf(gafFile) :
+    
+    lines = []
+    print("Reading the gaf file...")
+    read_GAF(gafFile, 0, 0, lines)
+    print("Finished going through the gaf file.")
+
+    on_which_paths_is_contig = {} #associates to each contig the paths it is in in the form of (path, position in path, orientation on path)
+
+    # translate the paths in the GAF as paths in the graph
+    paths = []
+    for line in lines :
+        # if line[0] != "SRR13128013.131014 131014 length=8539" :
+        #     continue
+        #split the line on '>' and '<' to get the path
+        cont = re.split('[><]' , line[1].rstrip())
+        orientations = "".join(re.findall("[<>]", line[1]))
+        del cont[0] #because the first element is always ''
+
+        paths.append(Path(cont, orientations, line[0]))
+
+        for c in range(len(cont)) :
+            if cont[c] not in on_which_paths_is_contig :
+                on_which_paths_is_contig[cont[c]] = []
+            on_which_paths_is_contig[cont[c]].append((len(paths)-1, c, orientations[c]))
+
+    #now determine the multiplicity of each contig by consensusing the paths left and right of it
+    multiplicity = [0 for i in range(len(paths))]
+
+    for c in on_which_paths_is_contig :
+
+        list_of_paths_right = []
+        for path in on_which_paths_is_contig[c] :
+            if path[2] == ">" :
+                list_of_paths_right.append((paths[path[0]].get_contigs()[path[1]+1:], paths[path[0]].get_orientations()[path[1]+1:]))
+            else :
+                list_of_paths_right.append((paths[path[0]].get_contigs()[path[1]-1::-1], [1-i for i in paths[path[0]].get_orientations()[path[1]-1::-1]]))
+                    
+
+        if c == "2242268" :
+            print("List of paths for ", c, " : ", list_of_paths_right)
+            sys.exit()
+
+    print("ciao")
+    sys.exit()
         
         

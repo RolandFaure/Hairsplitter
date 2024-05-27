@@ -943,6 +943,125 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
 }
 
 /**
+ * @brief finds if there is a path between two contigs, returning the number of paths shorter than max_length
+ * 
+ * @param allreads 
+ * @param allLinks 
+ * @param contig1 
+ * @param orientation1 
+ * @param contig2 
+ * @param orientation2 
+ * @param max_length 
+ * @param path list of paths going from contig1 to contig2
+ * @return int 
+ */
+vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads, 
+    std::vector<Link> &allLinks,
+    size_t contig1,
+    int end_of_contig1,
+    size_t contig2,
+    int end_of_contig2,
+    int max_length,
+    vector<pair<string, bool>> path,
+    set<string> visited_before
+    )
+{
+    auto path_incoming_debug = path;
+    vector<vector<pair<string,bool>>> all_paths;
+    if (end_of_contig1 == 1){
+
+        for (auto li : allreads[contig1].get_links_right()){
+            if (allLinks[li].neighbor1 == contig1 && allLinks[li].end1 == end_of_contig1){
+                if (allLinks[li].neighbor2 == contig2 && allLinks[li].end2 == end_of_contig2){
+                    all_paths.push_back({path});
+                }
+                else if (visited_before.find(allreads[allLinks[li].neighbor2].name) != visited_before.end()){
+                    return {path,path}; //don't return all the paths, just two of them to know there was an ambiguity
+                }
+                else{
+                    auto length_of_neighbor = allreads[allLinks[li].neighbor2].size(); //so that we are not stuck in a loop of length 0
+                    visited_before.emplace(allreads[allLinks[li].neighbor2].name);
+                    if (max_length > 0 && length_of_neighbor < max_length){
+                        path.push_back(make_pair(allreads[allLinks[li].neighbor2].name, 1-allLinks[li].end2));
+                        auto new_paths = find_paths(allreads, allLinks, allLinks[li].neighbor2, 1-allLinks[li].end2, contig2, end_of_contig2, max_length-length_of_neighbor, path, visited_before);
+                        for (auto p : new_paths){
+                            all_paths.push_back(p);
+                        }
+                        path.pop_back();
+                    }
+                }
+            }
+            else if (allLinks[li].neighbor2 == contig1 && allLinks[li].end2 == end_of_contig1){
+                if (allLinks[li].neighbor1 == contig2 && allLinks[li].end1 == end_of_contig2){
+                    all_paths.push_back({path});
+                }
+                else if (visited_before.find(allreads[allLinks[li].neighbor1].name) != visited_before.end()){
+                    return {path,path}; //don't return all the paths, just two of them to know there was an ambiguity
+                }
+                else{
+                    auto length_of_neighbor = allreads[allLinks[li].neighbor1].size();
+                    if (max_length > 0 && length_of_neighbor < max_length){
+                        path.push_back(make_pair(allreads[allLinks[li].neighbor1].name, 1-allLinks[li].end1));
+                        visited_before.emplace(allreads[allLinks[li].neighbor1].name);
+                        auto new_paths = find_paths(allreads, allLinks, allLinks[li].neighbor1, 1-allLinks[li].end1, contig2, end_of_contig2, max_length-length_of_neighbor, path, visited_before);
+                        for (auto p : new_paths){
+                            all_paths.push_back(p);
+                        }
+                        path.pop_back();
+                    }
+                }
+            }
+        }
+    }
+    else{
+        for (auto li : allreads[contig1].get_links_left()){
+            if (allLinks[li].neighbor1 == contig1 && allLinks[li].end1 == end_of_contig1){
+                if (allLinks[li].neighbor2 == contig2 && allLinks[li].end2 == end_of_contig2){
+                    all_paths.push_back({path});
+                }
+                else if (visited_before.find(allreads[allLinks[li].neighbor2].name) != visited_before.end()){
+                    return {path,path}; //don't return all the paths, just two of them to know there was an ambiguity
+                }
+                else{
+                    auto length_of_neighbor = allreads[allLinks[li].neighbor2].size();
+                    if (max_length > 0 && length_of_neighbor < max_length){
+                        path.push_back(make_pair(allreads[allLinks[li].neighbor2].name, 1-allLinks[li].end2));
+                        visited_before.emplace(allreads[allLinks[li].neighbor2].name);
+                        auto new_paths = find_paths(allreads, allLinks, allLinks[li].neighbor2, 1-allLinks[li].end2, contig2, end_of_contig2, max_length-length_of_neighbor, path, visited_before);
+                        for (auto p : new_paths){
+                            all_paths.push_back(p);
+                        }
+                        path.pop_back();
+                    }
+                }
+            }
+            else if (allLinks[li].neighbor2 == contig1 && allLinks[li].end2 == end_of_contig1){
+                if (allLinks[li].neighbor1 == contig2 && allLinks[li].end1 == end_of_contig2){
+                    all_paths.push_back({path});
+                }
+                else if (visited_before.find(allreads[allLinks[li].neighbor1].name) != visited_before.end()){
+                    return {path,path}; //don't return all the paths, just two of them to know there was an ambiguity
+                }
+                else{
+                    auto length_of_neighbor = allreads[allLinks[li].neighbor1].size();
+                    if (max_length > 0 && length_of_neighbor < max_length){
+                        path.push_back(make_pair(allreads[allLinks[li].neighbor1].name, 1-allLinks[li].end1));
+                        visited_before.emplace(allreads[allLinks[li].neighbor1].name);
+                        auto new_paths = find_paths(allreads, allLinks, allLinks[li].neighbor1, 1-allLinks[li].end1, contig2, end_of_contig2, max_length-length_of_neighbor, path, visited_before);
+                        for (auto p : new_paths){
+                            all_paths.push_back(p);
+                        }
+                        path.pop_back();
+                    }
+                }
+            }
+        }
+    }
+
+    return all_paths;
+}
+
+/**
  * @brief Creates the GAF corresponding to the mapping of the reads on the new GFA
  * 
  * @param allreads vector of all reads (including backbone reads which can be contigs)
@@ -952,7 +1071,7 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
  * @param partitions contains all the conclusions of the separate_reads algorithm
  * @param outputGAF name of the output file
  */
-typedef std::tuple<int, vector<pair<string, bool>>, long int> Path; //a path is a starting position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
+typedef std::tuple<pair<int,int>, vector<pair<string, bool>>, long int> Path; //a path is a <starting,end> position on a read, a list of contigs and their orientation relative to the read, and the index of the contig on which it aligns
 void output_GAF(
     std::vector <Read> &allreads, 
     std::vector<unsigned long int> &backbone_reads, 
@@ -1054,7 +1173,7 @@ void output_GAF(
                 }
                 
                 if (sequence_of_traversed_contigs.size()>0){ //this should almost always be true, but it's still safer to test
-                    Path path = make_tuple(start,sequence_of_traversed_contigs, backbone);
+                    Path path = make_tuple(make_pair(start,end),sequence_of_traversed_contigs, backbone);
                     // if (allreads[read].name.substr(0,6) == "@d5282"){
                     //     cout << "d5282 is a readdd, path :: "<< endl;
                     //     for (auto p : get<1>(path)){
@@ -1106,7 +1225,7 @@ void output_GAF(
                 else if ((ov.strand && !firsthere) || (!ov.strand && !lasthere)){ //mark if the read does not extend to the beginning
                     v.push_back(make_pair("-", ov.strand));
                 }
-                Path contigpath = make_tuple(start,v, backbone);
+                Path contigpath = make_tuple(make_pair(start,end),v, backbone);
                 readPaths[read].push_back(contigpath);
 
                 // cout << "bbb ds " << allreads[backbone_reads[b]].name << endl;
@@ -1123,7 +1242,7 @@ void output_GAF(
 
         if (readPaths[r].size() > 0){
 
-            std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x) < get<0>(y); }); //gets the list sorted on first element of pair, i.e. position of contig on read
+            std::sort(readPaths[r].begin(), readPaths[r].end(),[] (const auto &x, const auto &y) { return get<0>(x).first < get<0>(y).first; }); //gets the list sorted on first element of pair, i.e. position of contig on read
             
             // if (readPaths[r].size() > 1){
 
@@ -1160,25 +1279,37 @@ void output_GAF(
                     }
 
 
-                    bool merge = false;
-                    for (auto li : links){
-                        Link l = allLinks[li];
-                        if (l.neighbor1 == nextContig || l.neighbor2 == nextContig){ //then merge
-                            if ((l.end1==l.end2 && get<1>(readPaths[r][p+1])[0].second != orientation) 
-                                || (l.end1!=l.end2 && get<1>(readPaths[r][p+1])[0].second == orientation)){
-                                merge = true;
-                            }
-                        }
-                    }
+                    bool merge = true;
+                    //check that there is an unambiguous and coherent way to go from one contig to the other
+                    int max_length_of_link = get<0> (readPaths[r][p+1]).first - get<0> (currentPath).second + 1000;
+                    vector<vector<pair<string,bool>>> paths_link = find_paths(allreads, allLinks, contig, orientation, nextContig, 1-get<1>(readPaths[r][p+1])[0].second, max_length_of_link, {}, set<string>());
+
+
+                    // for (auto li : links){
+                    //     Link l = allLinks[li];
+                    //     if (l.neighbor1 == nextContig || l.neighbor2 == nextContig){ //then merge
+                    //         if ((l.end1==l.end2 && get<1>(readPaths[r][p+1])[0].second != orientation) 
+                    //             || (l.end1!=l.end2 && get<1>(readPaths[r][p+1])[0].second == orientation)){
+                    //             merge = true;
+                    //         }
+                    //     }
+                    // }
 
                     //if & in name, there is a cut there
                     char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
                     char firstnextchar = get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first[get<1>(readPaths[r][p+1])[get<1>(readPaths[r][p+1]).size()-1].first.size()-1];
-                    if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
-                        merge = false;
-                    }
+                    // if (lastchar == '&' || lastchar == '+' || firstnextchar == '-'){
+                    //     merge = false;
+                    // }
                     if (lastchar == '&' || lastchar == '+' || lastchar == '-'){
                         get<1>(currentPath).erase(get<1>(currentPath).end()-1);
+                    }
+
+                    if (paths_link.size() != 1){
+                        merge = false;
+                    }
+                    else if (merge){
+                        get<1>(currentPath).insert(get<1>(currentPath).end(), paths_link[0].begin(), paths_link[0].end());
                     }
 
                     if (merge){
@@ -1229,7 +1360,7 @@ void output_GAF(
         for (Path path : readPaths[p]){
             if (get<1>(path).size() > 0){
                 //output the path
-                out << allreads[p].name << "\t-1\t"<< get<0>(path) <<"\t-1\t+\t";
+                out << allreads[p].name << "\t-1\t" << get<0>(path).first <<"\t-1\t+\t";
                 for (auto contig : get<1>(path)){
                     if (contig.second){
                         out << ">";

@@ -5,6 +5,8 @@ Created on Wed May  6 07:42:14 2020
 
 """
 
+version = 2.0
+
 import input_output as io
 
 # import analyse_HiC
@@ -12,15 +14,18 @@ from transform_gfa import gfa_to_fasta
 from finish_untangling import merge_adjacent_contigs
 from finish_untangling import duplicate_contigs
 from finish_untangling import trim_overlaps
-from finish_untangling import remove_contigs_of_length_0
-#from solve_with_long_reads import bridge_with_long_reads
+from finish_untangling import merge_adjacent_contigs_GFA
+from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
-#from solve_with_HiC import solve_with_HiC
-#from determine_multiplicity import determine_multiplicity
-#from contig_DBG import DBG_long_reads
-#import contig_DBG
-#from contig_DBG import DBG_long_reads
+from solve_with_HiC import solve_with_HiC
+from determine_multiplicity import determine_multiplicity
+from determine_multiplicity import determine_multiplicity_based_on_gaf
+from contig_DBG import DBG_long_reads
+import contig_DBG
+from contig_DBG import DBG_long_reads
 from simple_unzip import simple_unzip
+from simple_unzip import simple_unzip2
+
 from repolish import repolish_contigs
 import segment as sg
 #from segment import check_if_all_links_are_sorted
@@ -89,6 +94,14 @@ def parse_args_unzip() :
         required=False,
         default="None",
         help="""Optional fasta output [default: None]""",
+    )
+
+    groupOther.add_argument(
+        "-t",
+        "--num_threads",
+        required=False,
+        default=1,
+        help= "Number of threads to use"
     )
     
     groupOther.add_argument(
@@ -207,6 +220,9 @@ def main():
     args_command = parse_args_command()
     command = args_command.command
 
+    #print the whole command line
+    print(" ".join(sys.argv))
+
     # if len(sys.argv) < 1 :
     #     sys.exit()
     
@@ -298,15 +314,19 @@ def main():
         reliableCoverage = not args.conservative
         exhaustive = args.exhaustive
 
+        num_threads= int(args.num_threads)
+
         # multiploid = args.meta
         
         #clean = args.clean
         
         # Loading the data
         print("Loading the GFA file")
-        segments, names = io.load_gfa(
-            gfaFile
-        )  # outputs the list of segments as well as names, which is a dict linking the names of the contigs to their index in interactionMatrix, listOfContigs...
+        segments, names = io.load_GFA_parallel(gfaFile, num_threads)
+        
+        # segments, names = io.load_gfa(
+        #     gfaFile
+        # )  # outputs the list of segments as well as names, which is a dict linking the names of the contigs to their index in interactionMatrix, listOfContigs...
         if len(segments) == 0 :
             print("ERROR: could not read the GFA")
             sys.exit()
@@ -315,8 +335,8 @@ def main():
         someLength0 = 0
         for s in segments :
             if s.depth == 0:
-                if reliableCoverage :
-                    print("WARNING: contig ", s.names, " has no readable coverage information or coverage=0. If this is a widespread issue, please use --conservative mode")
+                # if reliableCoverage :
+                #     print("WARNING: contig ", s.names, " has no readable coverage information or coverage=0. If this is a widespread issue, please use --conservative mode")
                 someDepth0 += 1
             if s.length == 0 :
                 s.length1()
@@ -377,7 +397,7 @@ def main():
         
         ##Moving to the actual unzipping of the graph
         
-        supported_links2 = sparse.lil_matrix((len(names)*2, len(names)*2)) #supported links considering the topography of the graph
+        # supported_links2 = sparse.lil_matrix((len(names)*2, len(names)*2)) #supported links considering the topography of the graph
         # if multiploid :
         #     refHaploidy, multiplicities = determine_multiplicity(segments, names, supported_links2, reliableCoverage) #multiplicities can be seen as a mininimum multiplicity of each contig regarding the topology of the graph
 
@@ -389,15 +409,19 @@ def main():
             #     # segments = contig_DBG.DBG_long_reads(segments, names, cn, lrFile)
             #     segments = bridge_with_long_reads(segments, names, cn, lrFile, supported_links2, multiplicities, exhaustive)
             # else :
-            segments = simple_unzip(segments, names, lrFile)
 
-            if merge or True:
-                print("Merging contigs that can be merged...")
-                merge_adjacent_contigs(segments)
+            # multiplicities = determine_multiplicity_based_on_gaf(lrFile)
+
+            segments = simple_unzip2(segments, names, lrFile, num_threads, exhaustive)
+            segments = duplicate_contigs(segments)
+
+            # if merge :
+            #     print("Merging contigs that can be merged...")
+            #     merge_adjacent_contigs(segments)
 
             sg.delete_links_present_twice(segments)
             
-            segments = trim_overlaps(segments)
+            # segments = trim_overlaps(segments)
             print("\n*Done untangling the graph using long reads*\n")
         
         #As a second step, use Hi-C and/or linked reads 
@@ -411,8 +435,8 @@ def main():
         
         elif tagInteractionMatrix.count_nonzero() > 0 :
             segments = solve_with_HiC(segments, tagInteractionMatrix, names, confidentCoverage=reliableCoverage, verbose = verbose)
-            print("Merging contigs that can be merged...")
-            merge_adjacent_contigs(segments)
+            # print("Merging contigs that can be merged...")
+            # merge_adjacent_contigs(segments)
 
         elif not uselr :
             print("WARNING: all interaction matrices are empty, GraphUnzip does not do anything")
@@ -426,15 +450,18 @@ def main():
         print(" Repolishing the contigs we can repolish")
         copies = sg.compute_copiesNumber(segments)
         if fastqFile != "" : 
-            os.system("mkdir graphunzip_tmp")
-            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, "graphunzip_tmp", threads=1)
-            os.system("rm -rf graphunzip_tmp")
-
-        segments = remove_contigs_of_length_0(segments)
+            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
 
         # now exporting the output  
         print("Now exporting the result")
-        io.export_to_GFA(segments, copies, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=rename)
+        if merge:
+            print("Merging contigs that can be merged...")
+            tmp_non_merged_gfa_file = outFile + ".tmp"
+            io.export_to_GFA(segments, copies, gfaFile, exportFile=tmp_non_merged_gfa_file, merge_adjacent_contigs=False, rename_contigs=rename)
+            merge_adjacent_contigs_GFA(tmp_non_merged_gfa_file, outFile)
+            # os.remove(tmp_non_merged_gfa_file)
+        else:
+            io.export_to_GFA(segments, copies, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=rename)
     
         if fastaFile != "None":
             io.export_to_fasta(segments, gfaFile, fastaFile, rename_contigs=rename)

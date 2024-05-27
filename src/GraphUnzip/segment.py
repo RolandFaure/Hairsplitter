@@ -498,27 +498,6 @@ class Segment:
         self._otherEndOfLinks = [[],[]]
         self._CIGARs = [[],[]]
         
-    #a function that goes through the subcontigs of a segment and removes those of length 0
-    def delete_subcontigs_of_length_0(self) :
-        #check that at least one subcontig has a length > 0
-        all_0 = True
-        for l in self._lengths :
-            if l > 1 :
-                all_0 = False
-                break
-        if all_0 :
-            return
-
-        for s in range(len(self._lengths)-1, -1, -1) :
-            if self._lengths[s] <= 1 :
-                del self._lengths[s]
-                del self._namesOfContigs[s]
-                del self._orientationOfContigs[s]
-                if s > 0 :
-                    del self._insideCIGARs[s-1]
-                del self._depths[s]
-                del self._copiesOfContigs[s]
-
 #This function is OUTSIDE the class. It takes two segments and the end of the first segment which is linked to the second. It appends a merged contig to the listOfSegments, without modifying the two inputed segments
 def merge_two_segments(segment1, endOfSegment1, segment2, listOfSegments):
     

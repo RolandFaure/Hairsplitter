@@ -39,6 +39,8 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
                 
                 start_contig = 0
                 for start_contig in range(len(contigs)) :
+                    if contigs[start_contig] not in subcontig_to_segments:
+                        continue
 
                     for candidate_segments in subcontig_to_segments[contigs[start_contig]] :
                         
@@ -93,7 +95,7 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
 
 #input: the graph (as the list of segments), the alignment of the reads (gaf_file), and the number of copies of each contig in the final assembly and the fasta/q file and the gfa file
 #output: repolished sequences stored in the subcontigs
-def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folder, threads=1):
+def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1):
 
     #first assign all the reads to the subcontigs
     assign_reads_to_contigs(segments, gaf_file, copies)
@@ -117,7 +119,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                 last_record = line_number
                 line_number += 3
             elif line[0] == '>' and fasta:
-                read = line[1:].strip().split()[0]
+                read = line[1:].strip()
                 reads_position[read] = fastq.tell()
                 line = fastq.readline()
                 line_number += 1
@@ -160,7 +162,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
 
                 #now repolish
                 #begin by extracting the reads from the fastq file and write them to a temporary file
-                f = open(tmp_folder + "/tmp_reads.fa", 'w')
+                f = open("tmp_reads.fa", 'w')
                 with open(fastq_file, 'r') as fastq :
                     for read in reads[s] :
                         fastq.seek(reads_position[read])
@@ -179,7 +181,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                     if orientations[s-1] == 0 :
                         left = reverse_complement(left)
                 #write down left in a temporary file
-                f = open(tmp_folder+"/tmp_left.fa", 'w')
+                f = open("tmp_left.fa", 'w')
                 f.write(">" + name_of_contig_left + "\n" + left + "\n")
                 f.close()
 
@@ -194,7 +196,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                         right = reverse_complement(right)
 
                 #write down right in a temporary file
-                f = open(tmp_folder+"/tmp_right.fa", 'w')
+                f = open("tmp_right.fa", 'w')
                 f.write(">" + name_of_contig_right + "\n" + right + "\n")
                 f.close()
 
@@ -224,12 +226,12 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                         if orientations[s+1] == 0 : #if reverse complement
                             neigh_seq = reverse_complement(neigh_seq)
                         contig_extended = contig_extended + neigh_seq[:1000]
-                f = open(tmp_folder+"/tmp_complete_contig.fa", 'w')
+                f = open("tmp_complete_contig.fa", 'w')
                 f.write(">" + subcontig + "_and_left_and_right" + "\n" + contig_extended + "\n")
                 f.close()
 
                 # align reads on the contig using minimap2
-                command = "minimap2 -x map-pb -t " + str(threads) + " " + tmp_folder+"/tmp_complete_contig.fa "+tmp_folder+"/tmp_reads.fa > "+tmp_folder+"/tmp_complete.paf 2> "+tmp_folder+"/trash.txt"
+                command = "minimap2 -x map-pb -t " + str(threads) + " tmp_complete_contig.fa tmp_reads.fa > tmp_complete.paf 2> trash.txt"
                 minimap = os.system(command)
                 if minimap != 0 :
                     print("Error while running minimap2: " + command + "\n")
@@ -238,7 +240,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                 #check if the alignments (or at least one) are good
                 no_struct_variants = False
                 orientations_of_reads = {}
-                with open(tmp_folder+"/tmp_complete.paf", 'r') as paf :
+                with open("tmp_complete.paf", 'r') as paf :
                     for line in paf :
                         ls = line.strip().split('\t')
                         orientations_of_reads[ls[0]] = ls[4]
@@ -253,26 +255,25 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                 if no_struct_variants or s == 0 or s == len(names)-1 :
 
                     #output the contig to a temporary file
-                    f = open(tmp_folder+"/tmp_contig.fa", 'w')
+                    f = open("tmp_contig.fa", 'w')
                     f.write(">" + subcontig + "\n" + contig_seq + "\n")
                     f.close()
 
                     #now polish the contig with the reads using racon
-                    command = "minimap2 -x map-pb -t " + str(threads) + " "+tmp_folder+"/tmp_contig.fa "+tmp_folder+"/tmp_reads.fa > "+tmp_folder+"/tmp.paf 2> "+tmp_folder+"/trash.txt"
+                    command = "minimap2 -x map-pb -t " + str(threads) + " tmp_contig.fa tmp_reads.fa > tmp.paf 2> trash.txt"
                     minimap = os.system(command)
                     if minimap != 0 :
                         print("Error while running minimap2: " + command + "\n")
                         sys.exit(1)
 
-                    command = "racon -t " + str(threads) + " "+tmp_folder+"/tmp_reads.fa "+tmp_folder+"/tmp.paf "+tmp_folder+"/tmp_contig.fa > "+tmp_folder+"/tmp_repolished.fa 2> "+tmp_folder+"/trash.txt"
+                    command = "racon -t " + str(threads) + " tmp_reads.fa tmp.paf tmp_contig.fa > tmp_repolished.fa 2>trash.txt"
                     racon = os.system(command)
                     if racon != 0 :
-                        # print("Error while running racon: " + command + "\n")
-                        os.system("cp "+tmp_folder+"/tmp_contig.fa "+tmp_folder+"/tmp_repolished.fa")
-                        # sys.exit(1)
+                        print("Error while running racon: " + command + "\n")
+                        sys.exit(1)
 
                     #now retrieve the repolished sequence
-                    with open(tmp_folder+"/tmp_repolished.fa", 'r') as repolished :
+                    with open("tmp_repolished.fa", 'r') as repolished :
                         repolished.readline()
                         seq = repolished.readline().strip()
 
@@ -280,13 +281,13 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                 elif not no_struct_variants : #let's try to reassemble the reads using neighboring contigs to anchor them
                     
                     #now align the reads on the left and right chunks and take the portion of the reads between the two chunks
-                    command = "minimap2 -cx map-pb --secondary=no "+tmp_folder+"/tmp_left.fa "+tmp_folder+"/tmp_reads.fa > "+tmp_folder+"/tmp_left.paf 2> "+tmp_folder+"/trash.txt"
+                    command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_reads.fa > tmp_left.paf 2> trash.txt"
                     minimap = os.system(command)
                     if minimap != 0 :
                         print("Error while running minimap2: " + command + "\n")
                         sys.exit(1)
                     
-                    command = "minimap2 -cx map-pb --secondary=no "+tmp_folder+"/tmp_right.fa "+tmp_folder+"/tmp_reads.fa > "+tmp_folder+"/tmp_right.paf 2> "+tmp_folder+"/trash.txt"
+                    command = "minimap2 -cx map-pb --secondary=no tmp_right.fa tmp_reads.fa > tmp_right.paf 2> trash.txt"
                     minimap = os.system(command)
                     if minimap != 0 :
                         print("Error while running minimap2: " + command + "\n")
@@ -294,7 +295,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
 
                     #retrieve the coordinates of the reads mapping on the left chunk
                     left_coordinates = {}
-                    with open(tmp_folder+"/tmp_left.paf", 'r') as paf :
+                    with open("tmp_left.paf", 'r') as paf :
                         for line in paf :
                             ls = line.strip().split('\t')
                             if int(ls[11]) == 60 and int(ls[8]) >= int(ls[6])-10: #ls[6] == ls[8] means the read maps to the very end of the contig
@@ -302,7 +303,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
 
                     #retrieve the coordinates of the reads mapping on the right chunk
                     right_coordinates = {}
-                    with open(tmp_folder+"/tmp_right.paf", 'r') as paf :
+                    with open("tmp_right.paf", 'r') as paf :
                         for line in paf :
                             ls = line.strip().split('\t')
                             #if quality of the mapping is good
@@ -332,9 +333,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                     # print("read between: ", [i[1]-i[0] for i in reads_between.values()])
 
                     #create the list of reads to use for polishing by extracting the reads from the fastq file, cutting them using reads_between and write them to a temporary file
-                    f = open(tmp_folder+"/tmp_reads_cut.fa", 'w')
+                    f = open("tmp_reads_cut.fa", 'w')
                     
-                    f_toPolish = open(tmp_folder+"/tmp_toPolish.fa", 'w')
+                    f_toPolish = open("tmp_toPolish.fa", 'w')
                     with open(fastq_file, 'r') as fastq :
                         for read in reads_between :
                             fastq.seek(reads_position[read])
@@ -354,7 +355,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                     f_toPolish.close()
                         
                     #now polish f_toPolish with tmp_reads_cut.fa using racon
-                    command = "minimap2 -x map-pb -t " + str(threads) + " "+tmp_folder+"/tmp_toPolish.fa "+tmp_folder+"/tmp_reads_cut.fa > "+tmp_folder+"/tmp_toPolish.paf 2> "+tmp_folder+"/trash.txt"
+                    command = "minimap2 -x map-pb -t " + str(threads) + " tmp_toPolish.fa tmp_reads_cut.fa > tmp_toPolish.paf 2> trash.txt"
                     minimap = os.system(command)
                     if minimap != 0 :
                         print("Error while running minimap2: " + command + "\n")
@@ -362,7 +363,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                     
                     #check if the alignment is empty
                     empty = True
-                    with open(tmp_folder+"/tmp_toPolish.paf", 'r') as paf :
+                    with open("tmp_toPolish.paf", 'r') as paf :
                         for line in paf :
                             ls = line.strip().split('\t')
                             #check if it aligns on more or less the whole read
@@ -372,20 +373,19 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                 
 
                     if not empty :
-                        command = "racon -w 50 -t " + str(threads) + " "+tmp_folder+"/tmp_reads_cut.fa "+tmp_folder+"/tmp_toPolish.paf "+tmp_folder+"/tmp_toPolish.fa > "+tmp_folder+"/tmp_repolished.fa 2> "+tmp_folder+"/trash.txt"
+                        command = "racon -w 50 -t " + str(threads) + " tmp_reads_cut.fa tmp_toPolish.paf tmp_toPolish.fa > tmp_repolished.fa 2>trash.txt"
                         racon = os.system(command)
                         if racon != 0 :
-                            print("Error while running racon y: " + command + "\n")
-                            os.system("cp "+tmp_folder+"/tmp_toPolish.fa "+tmp_folder+"/tmp_repolished.fa")
-                            # sys.exit(1)
+                            print("Error while running racon: " + command + "\n")
+                            sys.exit(1)
 
                         #now retrieve the repolished sequence, realign it one last time against left and right and store it in the segment
-                        command = "minimap2 -cx map-pb --secondary=no "+tmp_folder+"/tmp_left.fa "+tmp_folder+"/tmp_repolished.fa > "+tmp_folder+"/tmp_left.paf 2> "+tmp_folder+"/trash.txt"
+                        command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_repolished.fa > tmp_left.paf 2> trash.txt"
                         minimap = os.system(command)
                         if minimap != 0 :
                             print("Error while running minimap2: " + command + "\n")
                             sys.exit(1)
-                        command = "minimap2 -cx map-pb --secondary=no "+tmp_folder+"/tmp_right.fa "+tmp_folder+"/tmp_repolished.fa > "+tmp_folder+"/tmp_right.paf 2> "+tmp_folder+"/trash.txt"
+                        command = "minimap2 -cx map-pb --secondary=no tmp_right.fa tmp_repolished.fa > tmp_right.paf 2> trash.txt"
                         minimap = os.system(command)
                         if minimap != 0 :
                             print("Error while running minimap2: " + command + "\n")
@@ -394,13 +394,13 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
                         #retrieve the coordinates of the reads mapping on the left chunk
                         reversed_seq = False
                         left_coordinates = (0,0)
-                        with open(tmp_folder+"/tmp_left.paf", 'r') as paf :
+                        with open("tmp_left.paf", 'r') as paf :
                             for line in paf :
                                 line = line.strip().split('\t')
                                 left_coordinates = (int(line[2]), int(line[3]))
                                 break
                         right_coordinates = (0,0)
-                        with open(tmp_folder+"/tmp_right.paf", 'r') as paf :
+                        with open("tmp_right.paf", 'r') as paf :
                             for line in paf :
                                 line = line.strip().split('\t')
                                 right_coordinates = (int(line[2]), int(line[3]))
@@ -412,7 +412,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
 
                         
                         #now retrieve the repolished sequence between left_coordinates and right_coordinates
-                        with open(tmp_folder+"/tmp_repolished.fa", 'r') as repolished :
+                        with open("tmp_repolished.fa", 'r') as repolished :
                             repolished.readline()
                             seq = repolished.readline().strip()
                             if left_coordinates == (0,0):
@@ -438,7 +438,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, tmp_folde
         segment.set_sequences(seqs)
 
     #remove temporary files
-    # os.system("rm "+tmp_folder+"/tmp*")
+    # os.system("rm tmp*")
 
 
 
