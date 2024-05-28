@@ -520,9 +520,6 @@ def create_paths_parallel(paths, lines, line_begin, line_end, segments, names, l
         cont = re.split('[><]' , line[1].rstrip())
         orientations = "".join(re.findall("[<>]", line[1]))
         del cont[0] #because the first element is always ''
-        print("Creating path ", line)
-        print(cont)
-        print([names[i] for i in cont])
         contigs = [segments[names[i]] for i in cont] 
 
         p = Path(contigs, orientations, line[0])

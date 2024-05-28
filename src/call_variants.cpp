@@ -1168,9 +1168,9 @@ void output_files(std::unordered_map<int, std::vector<Column>> &variants, std::v
         int numberOfReads = allreads[contig].neighbors_.size();
         //output the list of reads
         for (auto c : suspiciousColumns){
-            if (c.pos == 4053){
-                cout << "here is a suspicious position : " << c.pos << " " << c.ref_base << " " << c.second_base << " " << c.readIdxs.size() << endl;
-            }
+            // if (c.pos == 4053){
+            //     cout << "here is a suspicious position : " << c.pos << " " << c.ref_base << " " << c.second_base << " " << c.readIdxs.size() << endl;
+            // }
             out << "SNPS\t" << c.pos << "\t" << (int) c.ref_base << "\t" << (int) c.second_base << "\t";
             string idxs;
             string bases;

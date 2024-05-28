@@ -955,7 +955,8 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
  * @param path list of paths going from contig1 to contig2
  * @return int 
  */
-vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads, 
+vector<vector<pair<string,bool>>> find_paths(
+    std::vector <Read> &allreads, 
     std::vector<Link> &allLinks,
     size_t contig1,
     int end_of_contig1,
@@ -985,11 +986,11 @@ vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads,
                     if (max_length > 0 && length_of_neighbor < max_length){
                         string new_name = allreads[allLinks[li].neighbor2].name;
                         int duplicated_contig = 1;
-                        if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() == 1){
+                        if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() == 1 && partitions[allLinks[li].neighbor2][0].second.size() == 1){
                             new_name = allreads[allLinks[li].neighbor2].name +"_"+ to_string(partitions[allLinks[li].neighbor2][0].first.first)+ "_" + to_string(partitions[allLinks[li].neighbor2][0].second[0]);
                         }
-                        else if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() > 1){
-                            duplicated_contig = partitions[allLinks[li].neighbor2].size();
+                        else if (partitions.find(allLinks[li].neighbor2) != partitions.end()){
+                            duplicated_contig = 2;
                         }
                         path.push_back(make_pair(new_name, 1-allLinks[li].end2));
                         auto new_paths = find_paths(allreads, allLinks, allLinks[li].neighbor2, 1-allLinks[li].end2, contig2, end_of_contig2, partitions, max_length-length_of_neighbor, path, visited_before);
@@ -1014,11 +1015,11 @@ vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads,
                     if (max_length > 0 && length_of_neighbor < max_length){
                         string new_name = allreads[allLinks[li].neighbor1].name;
                         int duplicated_contig = 1;
-                        if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() == 1){
+                        if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() == 1 && partitions[allLinks[li].neighbor1][0].second.size() == 1){
                             new_name = allreads[allLinks[li].neighbor1].name +"_"+ to_string(partitions[allLinks[li].neighbor1][0].first.first)+ "_" + to_string(partitions[allLinks[li].neighbor1][0].second[0]);
                         }
-                        else if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() > 1){
-                            duplicated_contig = partitions[allLinks[li].neighbor1].size();
+                        else if (partitions.find(allLinks[li].neighbor1) != partitions.end()){
+                            duplicated_contig = 2;
                         }
                         path.push_back(make_pair(new_name, 1-allLinks[li].end1));
                         visited_before.emplace(allreads[allLinks[li].neighbor1].name);
@@ -1048,11 +1049,11 @@ vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads,
                     if (max_length > 0 && length_of_neighbor < max_length){
                         string new_name = allreads[allLinks[li].neighbor2].name;
                         int duplicated_contig = 1;
-                        if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() == 1){
+                        if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() == 1 && partitions[allLinks[li].neighbor2][0].second.size() == 1){
                             new_name = allreads[allLinks[li].neighbor2].name +"_"+ to_string(partitions[allLinks[li].neighbor2][0].first.first)+ "_" + to_string(partitions[allLinks[li].neighbor2][0].second[0]);
                         }
-                        else if (partitions.find(allLinks[li].neighbor2) != partitions.end() && partitions[allLinks[li].neighbor2].size() > 1){
-                            duplicated_contig = partitions[allLinks[li].neighbor2].size();
+                        else if (partitions.find(allLinks[li].neighbor2) != partitions.end()){
+                            duplicated_contig = 2;
                         }
                         path.push_back(make_pair(new_name, 1-allLinks[li].end2));
                         visited_before.emplace(allreads[allLinks[li].neighbor2].name);
@@ -1078,11 +1079,11 @@ vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads,
                     if (max_length > 0 && length_of_neighbor < max_length){
                         string new_name = allreads[allLinks[li].neighbor1].name;
                         int duplicated_contig = 1;
-                        if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() == 1){
+                        if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() == 1 && partitions[allLinks[li].neighbor1][0].second.size() == 1){
                             new_name = allreads[allLinks[li].neighbor1].name +"_"+ to_string(partitions[allLinks[li].neighbor1][0].first.first)+ "_" + to_string(partitions[allLinks[li].neighbor1][0].second[0]);
                         }
-                        else if (partitions.find(allLinks[li].neighbor1) != partitions.end() && partitions[allLinks[li].neighbor1].size() > 1){
-                            duplicated_contig = partitions[allLinks[li].neighbor1].size();
+                        else if (partitions.find(allLinks[li].neighbor1) != partitions.end()){
+                            duplicated_contig = 2;
                         }
                         path.push_back(make_pair(new_name, 1-allLinks[li].end1));
                         visited_before.emplace(allreads[allLinks[li].neighbor1].name);
@@ -1098,6 +1099,16 @@ vector<vector<pair<string,bool>>> find_paths(std::vector <Read> &allreads,
             }
         }
     }
+
+    // if (allreads[contig1].name == "edge_248_402_1156_0_754_0_754_0_754@0"){
+    //     cout << "all paths to go from " << allreads[contig1].name << " to " << allreads[contig2].name << " are " << endl;
+    //     for (auto p : all_paths){
+    //         for (auto i : p){
+    //             cout << i.first << " ";
+    //         }
+    //         cout << endl;
+    //     }
+    // }
 
     return all_paths;
 }
@@ -1324,8 +1335,6 @@ void output_GAF(
                     //check that there is an unambiguous and coherent way to go from one contig to the other
                     int max_length_of_link = get<0> (readPaths[r][p+1]).first - get<0> (currentPath).second + 1000;
                     vector<vector<pair<string,bool>>> paths_link = find_paths(allreads, allLinks, contig, orientation, nextContig, 1-get<1>(readPaths[r][p+1])[0].second, partitions, max_length_of_link, {}, set<string>());
-
-
 
                     //if & in name, there is a cut there
                     char lastchar = get<1>(currentPath)[get<1>(currentPath).size()-1].first[get<1>(currentPath)[get<1>(currentPath).size()-1].first.size()-1];
@@ -1587,7 +1596,9 @@ int main(int argc, char *argv[])
     cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
     // cout << "SKIPPING GAF OUTPUT" << endl;
-    
+    cout << "GAF OUTPUTTED" << endl;
+    exit(1);
+
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
         tmpFolder, error_rate, polisher, polish, technology, amplicon, MINIMAP, RACON, MEDAKA, SAMTOOLS, path_to_python, path_to_src, DEBUG);
