@@ -444,7 +444,7 @@ def remove_unsupported_links(segments, names, lines, careful=False):
             for n, neighbor in enumerate(segment.links[end]) :
                 if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
                     if not careful or (len(segment.links[end])> 1 and len(neighbor.links[segment.otherEndOfLinks[end][n]]) > 1) :
-                        # print("Removing link ", segment.names, " ", neighbor.names, " ", end, " ", segment.otherEndOfLinks[end][n])
+                        print("Removing link ", segment.names, " ", neighbor.names, " ", end, " ", segment.otherEndOfLinks[end][n])
                         toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
 
     for segment, end, neighbor, otherEnd in toRemove :
@@ -554,63 +554,65 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
             locked_nodes = set()
             already_locked = False
 
-            if segment.locked == False:
-                locked_nodes.add(segment)
-            else:
-                already_locked = True
+            with lock:
 
-            if len(segment.links[0]) == 1:
-                neighbor_contig = segment.links[0][0]
-                neighbor_end = 1-segment.otherEndOfLinks[0][0]
-                if neighbor_contig.locked == False :
-                    locked_nodes.add(neighbor_contig)
-                else :
+                if segment.locked == False:
+                    locked_nodes.add(segment)
+                else:
                     already_locked = True
-                while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
-                    neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
+
+                if len(segment.links[0]) == 1:
+                    neighbor_contig = segment.links[0][0]
+                    neighbor_end = 1-segment.otherEndOfLinks[0][0]
+                    if neighbor_contig.locked == False :
+                        locked_nodes.add(neighbor_contig)
+                    else :
+                        already_locked = True
+                    while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
+                        neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
+                        if neighbor_contig.locked == False :
+                            locked_nodes.add(neighbor_contig)
+                        else :
+                            already_locked = True
+
+                    left_dilemma = (neighbor_contig, neighbor_end)
+                    for neighbor in neighbor_contig.links[neighbor_end]:
+                        if neighbor.locked == False :
+                            locked_nodes.add(neighbor)
+                        else :
+                            already_locked = True
+
+                if len(segment.links[1]) == 1:
+                    neighbor_contig = segment.links[1][0]
+                    neighbor_end = 1-segment.otherEndOfLinks[1][0]
                     if neighbor_contig.locked == False :
                         locked_nodes.add(neighbor_contig)
                     else :
                         already_locked = True
 
-                left_dilemma = (neighbor_contig, neighbor_end)
-                for neighbor in neighbor_contig.links[neighbor_end]:
-                    if neighbor.locked == False :
-                        locked_nodes.add(neighbor)
-                    else :
-                        already_locked = True
+                    while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
+                        neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
+                        if neighbor_contig.locked == False :
+                            locked_nodes.add(neighbor_contig)
+                        else :
+                            already_locked = True
+                    right_dilemma = (neighbor_contig, neighbor_end)
+                    for neighbor in neighbor_contig.links[neighbor_end]:
+                        if neighbor.locked == False :
+                            locked_nodes.add(neighbor)
+                        else :
+                            already_locked = True
 
-            if len(segment.links[1]) == 1:
-                neighbor_contig = segment.links[1][0]
-                neighbor_end = 1-segment.otherEndOfLinks[1][0]
-                if neighbor_contig.locked == False :
-                    locked_nodes.add(neighbor_contig)
-                else :
-                    already_locked = True
+                #if already_locked, ignore this segment this time and move on to the next one
+                if already_locked:                
+                    with lock :
+                        unexplored_segments.add(segment) #unexplored segments will be processed at the end of the loop in a non-parallelized part
+                    go_on = True
+                    continue
 
-                while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
-                    neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
-                    if neighbor_contig.locked == False :
-                        locked_nodes.add(neighbor_contig)
-                    else :
-                        already_locked = True
-                right_dilemma = (neighbor_contig, neighbor_end)
-                for neighbor in neighbor_contig.links[neighbor_end]:
-                    if neighbor.locked == False :
-                        locked_nodes.add(neighbor)
-                    else :
-                        already_locked = True
-
-            #if already_locked, ignore this segment this time and move on to the next one
-            if already_locked:                
-                with lock :
-                    unexplored_segments.add(segment) #unexplored segments will be processed at the end of the loop in a non-parallelized part
-                go_on = True
-                continue
-
-            else:
-                for s in locked_nodes :
-                    s.locked = True
+                else:
+                    for s in locked_nodes :
+                        s.locked = True
             
         
             #list the paths going through the contigs

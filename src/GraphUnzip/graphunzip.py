@@ -5,7 +5,7 @@ Created on Wed May  6 07:42:14 2020
 
 """
 
-version = 2.0
+version = 2.1
 
 import input_output as io
 
@@ -413,7 +413,6 @@ def main():
             # multiplicities = determine_multiplicity_based_on_gaf(lrFile)
 
             segments = simple_unzip2(segments, names, lrFile, num_threads, exhaustive)
-            segments = duplicate_contigs(segments)
 
             # if merge :
             #     print("Merging contigs that can be merged...")
@@ -431,29 +430,34 @@ def main():
             print("Merging contigs that can be merged...")
             segments = merge_adjacent_contigs(segments)
             
-            print("\n*Done untangling the graph using Hi-C*\n")
-        
+            print("\n*Done untangling the graph using Hi-C*\n")  
         elif tagInteractionMatrix.count_nonzero() > 0 :
             segments = solve_with_HiC(segments, tagInteractionMatrix, names, confidentCoverage=reliableCoverage, verbose = verbose)
             # print("Merging contigs that can be merged...")
             # merge_adjacent_contigs(segments)
-
         elif not uselr :
             print("WARNING: all interaction matrices are empty, GraphUnzip does not do anything")
-        
-        if args.duplicate :
-            print("Duplicating reads that can be duplicated...")
-            segments = duplicate_contigs(segments)
 
         # repolish the contigs with long reads
         #compute the copiesnumber
         print(" Repolishing the contigs we can repolish")
         copies = sg.compute_copiesNumber(segments)
         if fastqFile != "" : 
-            repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
+            merge_adjacent_contigs(segments)
+            segments = repolish_contigs(segments, gfaFile, lrFile, fastqFile, copies, threads=1)
+            # print("OUTPUTTING WILDLY")
+            # copies = sg.compute_copiesNumber(segments)
+            # io.export_to_GFA(segments, copies, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=False)
+            # sys.exit()
+
+        if args.duplicate :
+            print("Duplicating reads that can be duplicated...")
+            segments = duplicate_contigs(segments)
+
 
         # now exporting the output  
         print("Now exporting the result")
+        copies = sg.compute_copiesNumber(segments)
         if merge:
             print("Merging contigs that can be merged...")
             tmp_non_merged_gfa_file = outFile + ".tmp"

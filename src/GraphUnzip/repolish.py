@@ -154,11 +154,14 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
             #     print("continuuedj ")
             #     continue
 
+            if segment.get_lengths()[s] < 100 :
+                continue
+
             # print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
             if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
 
                 seq = None
-                # print("Repolishing ", subcontig, " with ", reads[s], " reads\n")
+                print("Repolishing ", subcontig, " with ", len(reads[s]), " reads")
 
                 #now repolish
                 #begin by extracting the reads from the fastq file and write them to a temporary file
@@ -269,8 +272,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     command = "racon -t " + str(threads) + " tmp_reads.fa tmp.paf tmp_contig.fa > tmp_repolished.fa 2>trash.txt"
                     racon = os.system(command)
                     if racon != 0 :
-                        print("Error while running racon: " + command + "\n")
-                        sys.exit(1)
+                        # print("Error while running racon: " + command + "\n")
+                        # sys.exit(1)
+                        no_struct_variants = False #we did not manage to polish the contig, let's try to reassemble it
 
                     #now retrieve the repolished sequence
                     with open("tmp_repolished.fa", 'r') as repolished :
@@ -278,7 +282,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                         seq = repolished.readline().strip()
 
 
-                elif not no_struct_variants : #let's try to reassemble the reads using neighboring contigs to anchor them
+                if not no_struct_variants and s!= 0 and s!= len(names)-1: #let's try to reassemble the reads using neighboring contigs to anchor them
                     
                     #now align the reads on the left and right chunks and take the portion of the reads between the two chunks
                     command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_reads.fa > tmp_left.paf 2> trash.txt"
@@ -429,16 +433,15 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             # print("repolished sequence: ", seq)
                     #because we made sure the orientation was positive when choosing left and right
                     segment.set_orientation(s, 1)
-
-                else :
-                    seq = None #haven't managed to repolish the contig :'(
                 
-                seqs[s] = seq
+                if seq is not None :
+                    seqs[s] = seq
         
         segment.set_sequences(seqs)
 
     #remove temporary files
     # os.system("rm tmp*")
+    return segments
 
 
 

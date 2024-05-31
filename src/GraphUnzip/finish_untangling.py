@@ -199,7 +199,6 @@ def merge_simply_all_contigs_on_one_side_of_this_one(segment, endOfSegment, list
 # a loop to merge all adjacent contigs
 def merge_adjacent_contigs(listOfSegments):
 
-    print("merge_adjacent_contigs")
     goOn = True
     while goOn:
         goOn = False

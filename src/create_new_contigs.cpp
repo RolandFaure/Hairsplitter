@@ -1596,8 +1596,8 @@ int main(int argc, char *argv[])
     cout << " - Creating the .gaf file describing how the reads align on the new contigs" << endl;
     output_GAF(allreads, backbone_reads, allLinks, allOverlaps, partitions, outputGAF);
     // cout << "SKIPPING GAF OUTPUT" << endl;
-    cout << "GAF OUTPUTTED" << endl;
-    exit(1);
+    // cout << "GAF OUTPUTTED" << endl;
+    // exit(1);
 
     cout << " - Creating the new contigs" << endl;
     modify_GFA(reads_file, allreads, backbone_reads, allOverlaps, partitions, allLinks, num_threads, 
