@@ -152,12 +152,12 @@ std::string convert_CIGAR(std::string &cigar){
  * @param reads 
  * @return std::string 
  */
-std::string polish(std::string &toPolish, std::vector<std::string> &reads, std::string& path_minimap2, std::string& path_racon){
+std::string polish(std::string &toPolish, std::vector<std::string> &reads, std::string& path_minimap2, std::string& path_racon, std::string tmp_folder){
 
     //start by running minimap2 by aligning the reads to the sequence
 
     //create a temporary file to store the reads
-    string readsFile = "reads.tmp_polish.fa";
+    string readsFile = tmp_folder +"reads.tmp_polish.fa";
     ofstream readsStream(readsFile);
     for (int i = 0; i < reads.size(); i++){
         readsStream << ">read" << i << endl;
@@ -166,22 +166,22 @@ std::string polish(std::string &toPolish, std::vector<std::string> &reads, std::
     readsStream.close();
 
     //create a temporary file to store the seq to polish
-    string seqFile = "seq.tmp_polish.fa";
+    string seqFile = tmp_folder +"seq.tmp_polish.fa";
     ofstream seqStream(seqFile);
     seqStream << ">seq" << endl;
     seqStream << toPolish << endl;
     seqStream.close();
 
     //create a temporary file to store the alignment
-    string alignmentFile = "alignment.tmp_polish.paf";
+    string alignmentFile = tmp_folder +"alignment.tmp_polish.paf";
 
     //run minimap2
-    string command = path_minimap2 + " -x map-ont -t 1 " + seqFile + " " + readsFile + " > " + alignmentFile + " 2> logminimap.tmp.txt";
+    string command = path_minimap2 + " -x map-ont -t 1 " + seqFile + " " + readsFile + " > " + alignmentFile + " 2> "+ tmp_folder +"logminimap.tmp.txt";
     system(command.c_str());
 
     //run racon
-    string polished = "polished.tmp_polish.fa";
-    string command2 = path_racon + " " + readsFile + " " + alignmentFile + " " + seqFile + " > " + polished + " 2> logracon.tmp.txt";
+    string polished = tmp_folder +"polished.tmp_polish.fa";
+    string command2 = path_racon + " " + readsFile + " " + alignmentFile + " " + seqFile + " > " + polished + " 2> "+ tmp_folder +"logracon.tmp.txt";
     int racon_success = system(command2.c_str());
 
     string polishedSeq = toPolish;
@@ -195,7 +195,7 @@ std::string polish(std::string &toPolish, std::vector<std::string> &reads, std::
     }
 
     //delete the temporary files
-    system("rm *.tmp_polish.*");
+    system(("rm "+ tmp_folder +"*.tmp_polish.*").c_str());
 
     return polishedSeq;
 }

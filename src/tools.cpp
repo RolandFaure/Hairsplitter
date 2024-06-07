@@ -424,7 +424,8 @@ string consensus_reads(
                 return backbone;
             }
         }
-        // string newbackbone = polishingReads[0];
+
+        // cout << "length of new backbone: " << newbackbone.size() << endl;
 
         std::ofstream outseq(outFolder+"unpolished_"+id+".fasta");
         outseq << ">seq\n" << newbackbone << endl;
@@ -536,7 +537,7 @@ string consensus_reads(
 
     }
     else{ // in the case we had to reassemble, it is more tricky to find the limits of the seq, so it makes no sense to align the borders
-        cout << "THE alignfdj does not check out qkljdmdjfs" << endl;
+        cout << "THE alignfdj does not check out DEBUG code 1033" << endl;
         new_seq = consensus;
     }
     
@@ -960,8 +961,12 @@ int check_alignment(std::string &paf_file){
             string cigar;
             bool big_indel = false;
             int startPos;
+            string name_of_read;
             while (getline(line2, field, '\t'))
             {
+                if (fieldnumber == 0){
+                    name_of_read = field;
+                }
                 if (fieldnumber == 5){
                     cigar = convert_cigar(field);
                 }
@@ -974,29 +979,13 @@ int check_alignment(std::string &paf_file){
             int M = 0;
             int cigar_size = 0;
             int size_of_indel = 0;
+            int pos_of_last_breakpoint = -1;
             for (auto c : cigar){
                 if (c == 'M'){
                     M += 1;
                     cigar_size += 1;
                     size_of_indel = 0;
                     pos_on_ref += 1;
-                }
-                else if (c == 'I' || c == 'D'){
-                    cigar_size += 1;
-                    size_of_indel += 1;
-                    if (size_of_indel >= 15){
-                        big_indel = true;
-                        if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
-                            putative_breakpoints[pos_on_ref] = 0;
-                        }
-                        putative_breakpoints[pos_on_ref] += 1;
-                        if (putative_breakpoints[pos_on_ref] > 2){
-                            result_code = 2;
-                        }
-                    }
-                    if (c == 'I'){
-                        pos_on_ref += 1;
-                    }
                 }
                 else if (c == 'S' || c == 'H'){ //there are supposed to be no clips, as the reads were already tailored to the backbone
                     size_of_indel += 1;
@@ -1005,7 +994,10 @@ int check_alignment(std::string &paf_file){
                         if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
                             putative_breakpoints[pos_on_ref] = 0;
                         }
-                        putative_breakpoints[pos_on_ref] += 1;
+                        if (pos_on_ref > pos_of_last_breakpoint){
+                            putative_breakpoints[pos_on_ref] += 1;
+                            pos_of_last_breakpoint = pos_on_ref +1;
+                        }
                         if (putative_breakpoints[pos_on_ref] > 2){
                             return 2;
                         }
@@ -1157,6 +1149,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         // exit(1);
         return ""; //this may be a timeout (can happen on centromeric/telomeric regions)
     }
+    // cout << "DEBUDJD TOOLS " << endl;
     string paf_file = tmp_folder + "all_vs_all_"+id+".paf";
 
 
@@ -1175,7 +1168,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         int end2;
         bool strand;
     };
-    std::unordered_map<string, vector<Overlap_minimap>> reads;
+    std::unordered_map<string, pair<vector<Overlap_minimap>, vector<Overlap_minimap>>> reads; //associates a read to its neighbor left and right
 
     while (getline(in, line)){
 
@@ -1220,13 +1213,24 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         overlap1.end2 = std::atoi(field.c_str());
         
         if (reads.find(overlap1.name1) == reads.end()){
-            reads[overlap1.name1] = vector<Overlap_minimap>();
+            reads[overlap1.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
         }
-        reads[overlap1.name1].push_back(overlap1);
+        if (overlap1.start1 <= 10){
+            reads[overlap1.name1].first.push_back(overlap1);
+        }
+        if (overlap1.end1 >= overlap1.length1-10){
+            reads[overlap1.name1].second.push_back(overlap1);
+        }
+
         if (reads.find(overlap2.name1) == reads.end()){
-            reads[overlap2.name1] = vector<Overlap_minimap>();
+            reads[overlap2.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
         }
-        reads[overlap2.name1].push_back(overlap2);
+        if (overlap2.start1 <= 10){
+            reads[overlap2.name1].first.push_back(overlap2);
+        }
+        if (overlap2.end1 >= overlap2.length1-10){
+            reads[overlap2.name1].second.push_back(overlap2);
+        }
     }
     in.close();
 
@@ -1240,10 +1244,11 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         bool strand;
     };
     vector <contig_parts> new_contig;
+
     //start with read 1 and extend it right as far as possible
     string current_read;
     for (auto r : reads){
-        if (r.second.size() > 0){
+        if (r.second.first.size() > 0 && r.second.second.size() > 0){ //take a contig that has neighbors left and right
             current_read = r.first;
             break;
         }
@@ -1256,7 +1261,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     contig_parts first_read;
     first_read.read = current_read;
     first_read.start = 0;
-    first_read.end = reads[current_read][0].length1;
+    first_read.end = reads[current_read].first[0].length1;
     first_read.strand = true;
 
     new_contig.push_back(first_read);
@@ -1267,70 +1272,87 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     // cout << "starting with read " << current_read << endl;
 
     string new_current_read = current_read;
+    //first extend to the right
     while (new_current_read != ""){
         current_read = new_current_read;
         new_current_read = ""; //means it could not extend
         //look for next read
 
-        for (Overlap_minimap overlap : reads[current_read]){
-            //now see if this extends left
-            if (current_strand){
-                if (overlap.end1 == overlap.length1 && already_used_contigs.find(overlap.name2) == already_used_contigs.end() ){ //then let's extend with the next read
-                    contig_parts next_read;
-                    next_read.read = overlap.name2;
-                    
-                    if (overlap.strand){
-                        next_read.start = overlap.end2;
-                        next_read.end = overlap.length2;
-                        next_read.strand = true;
-                    }
-                    else{
-                        next_read.start = 0;
-                        next_read.end = overlap.start2;
-                        next_read.strand = false;
-                    }
+        
+        if (current_strand){
 
-                    if (next_read.end - next_read.start > 0){
-                        new_contig.push_back(next_read);
-                        new_current_read = overlap.name2;
-                        current_strand = next_read.strand;
-                        already_used_contigs.emplace(current_read);
+            for (int desperation_level = 0 ; desperation_level < 2 ; desperation_level++){ //first try to take only neighbors that are connected at the other end, else fall back to any neighbor
 
-                    
-                        // cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
-                        // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
-                        // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+                for (Overlap_minimap overlap : reads[current_read].second){
+                    if (already_used_contigs.find(overlap.name2) == already_used_contigs.end() &&
+                        (desperation_level == 1 || reads[overlap.name2].first.size()>0 && reads[overlap.name2].second.size()>0 )){ //then let's extend with the next read
+                        contig_parts next_read;
+                        next_read.read = overlap.name2;
+                        
+                        if (overlap.strand){
+                            next_read.start = overlap.end2;
+                            next_read.end = overlap.length2;
+                            next_read.strand = true;
+                        }
+                        else{
+                            next_read.start = 0;
+                            next_read.end = overlap.start2;
+                            next_read.strand = false;
+                        }
 
-                        break;
+                        if (next_read.end - next_read.start > 0){
+                            new_contig.push_back(next_read);
+                            new_current_read = overlap.name2;
+                            current_strand = next_read.strand;
+                            already_used_contigs.emplace(current_read);
+
+                        
+                            // cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
+                            // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
+                            // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+
+                            break;
+                        }
                     }
                 }
+                if (new_current_read != ""){
+                    break;
+                }
             }
-            else{
+        }
+        else{
+            for (int desperation_level = 0 ; desperation_level < 2 ; desperation_level++){
 
-                if (overlap.start1 == 0 && already_used_contigs.find(overlap.name2) == already_used_contigs.end() ){ //let's extend
-                    contig_parts next_read;
-                    next_read.read = overlap.name2;
-                    
-                    if (overlap.strand){
-                        next_read.start = 0;
-                        next_read.end = overlap.start2;
-                        next_read.strand = false;
-                    }
-                    else{
-                        next_read.start = overlap.end2;
-                        next_read.end = overlap.length2;
-                        next_read.strand = true;
-                    }
+                for (Overlap_minimap overlap : reads[current_read].first){
+                    if (already_used_contigs.find(overlap.name2) == already_used_contigs.end() &&
+                        (desperation_level == 1 || reads[overlap.name2].first.size()>0 && reads[overlap.name2].second.size()>0 )){ //let's extend
+                        contig_parts next_read;
+                        next_read.read = overlap.name2;
+                        
+                        if (overlap.strand){
+                            next_read.start = 0;
+                            next_read.end = overlap.start2;
+                            next_read.strand = false;
+                        }
+                        else{
+                            next_read.start = overlap.end2;
+                            next_read.end = overlap.length2;
+                            next_read.strand = true;
+                        }
 
-                    if (next_read.end - next_read.start > 0){
-                        new_contig.push_back(next_read);
-                        new_current_read = overlap.name2;
-                        current_strand = next_read.strand;
-                        already_used_contigs.emplace(current_read);
-                        // cout << "movingd on ztho " << new_current_read << endl;
+                        if (next_read.end - next_read.start > 0){
+                            new_contig.push_back(next_read);
+                            new_current_read = overlap.name2;
+                            current_strand = next_read.strand;
+                            already_used_contigs.emplace(current_read);
+                            // cout << "movingd on ztho " << new_current_read << endl;
 
-                        break;
+                            break;
+                        }
                     }
+                }
+                if (new_current_read != ""){
+                    break;
                 }
             }
         }
@@ -1343,66 +1365,85 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     current_strand = new_contig[0].strand;
     vector<contig_parts> new_contig_left_reversed;
     new_current_read = current_read;
+    already_used_contigs.clear();
     while (new_current_read != ""){
         current_read = new_current_read;
         new_current_read = ""; //means it could not extend
         //look for next read
-        for (Overlap_minimap overlap : reads[current_read]){
-            //now see if this extends left
-            if (current_strand){
-                if (overlap.start1 == 0 && already_used_contigs.find(overlap.name2) == already_used_contigs.end()){ //then let's extend with the next read
-                    contig_parts next_read;
-                    next_read.read = overlap.name2;
-                    
-                    if (overlap.strand){
-                        next_read.start = 0;
-                        next_read.end = overlap.start2;
-                        next_read.strand = true;
-                    }
-                    else{
-                        next_read.start = overlap.end2;
-                        next_read.end = overlap.length2;
-                        next_read.strand = false;
-                    }
+        
+        if (current_strand){
 
-                    if (next_read.end - next_read.start > 0){
-                        new_contig_left_reversed.push_back(next_read);
-                        new_current_read = overlap.name2;
-                        current_strand = next_read.strand;
-                        already_used_contigs.emplace(current_read);
-                        // cout << "movingd on Atho " << new_current_read << endl;
-                        // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
-                        // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+            for (int desperation_level=0 ; desperation_level < 2 ; desperation_level++){
 
-                        break;
+                for (Overlap_minimap overlap : reads[current_read].first){
+                    if (already_used_contigs.find(overlap.name2) == already_used_contigs.end()&&
+                        (desperation_level == 1 || reads[overlap.name2].first.size()>0 && reads[overlap.name2].second.size()>0 )){ //then let's extend with the next read
+                        contig_parts next_read;
+                        next_read.read = overlap.name2;
+                        
+                        if (overlap.strand){
+                            next_read.start = 0;
+                            next_read.end = overlap.start2;
+                            next_read.strand = true;
+                        }
+                        else{
+                            next_read.start = overlap.end2;
+                            next_read.end = overlap.length2;
+                            next_read.strand = false;
+                        }
+
+                        if (next_read.end - next_read.start > 0){
+                            new_contig_left_reversed.push_back(next_read);
+                            new_current_read = overlap.name2;
+                            current_strand = next_read.strand;
+                            already_used_contigs.emplace(current_read);
+                            // cout << "movingd on Atho " << new_current_read << endl;
+                            // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
+                            // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
+
+                            break;
+                        }
                     }
                 }
+                if (new_current_read != ""){
+                    break;
+                }
             }
-            else{
-                if (overlap.start1 == overlap.length1 && already_used_contigs.find(overlap.name2) == already_used_contigs.end()){ //let's extend
-                    contig_parts next_read;
-                    next_read.read = overlap.name2;
-                    
-                    if (!overlap.strand){
-                        next_read.start = 0;
-                        next_read.end = overlap.start2;
-                        next_read.strand = false;
-                    }
-                    else{
-                        next_read.start = overlap.end2;
-                        next_read.end = overlap.length2;
-                        next_read.strand = true;
-                    }
+        }
+        else{
 
-                    if (next_read.end - next_read.start > 0){
-                        new_contig_left_reversed.push_back(next_read);
-                        new_current_read = overlap.name2;
-                        current_strand = next_read.strand;
-                        already_used_contigs.emplace(current_read);
-                        // cout << "movingd on ptho " << new_current_read << endl;
+            for (int desperation_level=0 ; desperation_level < 2 ; desperation_level++){
 
-                        break;
+                for (Overlap_minimap overlap : reads[current_read].second){
+                    if (already_used_contigs.find(overlap.name2) == already_used_contigs.end()&&
+                        (desperation_level == 1 || reads[overlap.name2].first.size()>0 && reads[overlap.name2].second.size()>0 )){ //let's extend
+                        contig_parts next_read;
+                        next_read.read = overlap.name2;
+                        
+                        if (!overlap.strand){
+                            next_read.start = 0;
+                            next_read.end = overlap.start2;
+                            next_read.strand = false;
+                        }
+                        else{
+                            next_read.start = overlap.end2;
+                            next_read.end = overlap.length2;
+                            next_read.strand = true;
+                        }
+
+                        if (next_read.end - next_read.start > 0){
+                            new_contig_left_reversed.push_back(next_read);
+                            new_current_read = overlap.name2;
+                            current_strand = next_read.strand;
+                            already_used_contigs.emplace(current_read);
+                            // cout << "movingd on ptho " << new_current_read << endl;
+
+                            break;
+                        }
                     }
+                }
+                if (new_current_read != ""){
+                    break;
                 }
             }
         }
@@ -1461,3 +1502,4 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     return new_contig_string;
 }
+

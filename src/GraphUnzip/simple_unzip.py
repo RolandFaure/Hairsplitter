@@ -618,26 +618,27 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
             #list the paths going through the contigs
             reads_through_left = {}
             pair_to_paths = {}
+            index_of_the_segment_on_the_paths = {}
             for p in on_which_paths_is_this_contig[left_dilemma[0]] :
                 path_contigs = paths[p[0]].get_contigs()
                 path_orientations = paths[p[0]].get_orientations()
                 
                 if (path_orientations[p[1]] == 1 and left_dilemma[1] == 0) or (path_orientations[p[1]] == 0 and left_dilemma[1] == 1) : 
-                    if p[1] == 0 or path_contigs[p[1]-1].full_name() == "dummy" :
-                        for s in locked_nodes:
-                            s.locked = False
-                        continue
-                    neighbor = path_contigs[p[1]-1]
-                    neighbor_orientation = path_orientations[p[1]-1]
-                    reads_through_left[p] = (neighbor, neighbor_orientation)
+                    if p[1] != 0 and path_contigs[p[1]-1].full_name() != "dummy" :
+                        neighbor = path_contigs[p[1]-1]
+                        neighbor_orientation = path_orientations[p[1]-1]
+                        reads_through_left[p[0]] = (neighbor, neighbor_orientation)
                 else :
-                    if p[1] == len(path_contigs)-1 or path_contigs[p[1]+1].full_name() == "dummy" :
-                        for s in locked_nodes:
-                            s.locked = False
-                        continue
-                    neighbor = path_contigs[p[1]+1]
-                    neighbor_orientation = path_orientations[p[1]+1]
-                    reads_through_left[p] = (neighbor, 1-neighbor_orientation)
+                    if p[1] != len(path_contigs)-1 and path_contigs[p[1]+1].full_name() != "dummy" :
+                        neighbor = path_contigs[p[1]+1]
+                        neighbor_orientation = path_orientations[p[1]+1]
+                        reads_through_left[p[0]] = (neighbor, 1-neighbor_orientation)
+
+                if left_dilemma[0] == segment :
+                    index_of_the_segment_on_the_paths[p[0]] = p[1]
+
+            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+                print("here are all the reads going through ", [i for i in reads_through_left.keys()])
 
             reads_through_right = {}
             for p in on_which_paths_is_this_contig[right_dilemma[0]] :
@@ -651,7 +652,7 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         continue
                     neighbor = path_contigs[p[1]-1]
                     neighbor_orientation = path_orientations[p[1]-1]
-                    reads_through_right[p] = (neighbor, neighbor_orientation)
+                    reads_through_right[p[0]] = (neighbor, neighbor_orientation)
 
                 else :
                     if p[1] == len(path_contigs)-1 or path_contigs[p[1]+1].full_name() == "dummy":
@@ -660,7 +661,13 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         continue
                     neighbor = path_contigs[p[1]+1]
                     neighbor_orientation = path_orientations[p[1]+1]
-                    reads_through_right[p] = (neighbor, 1-neighbor_orientation)
+                    reads_through_right[p[0]] = (neighbor, 1-neighbor_orientation)
+
+                if right_dilemma[0] == segment :
+                    index_of_the_segment_on_the_paths[p[0]] = p[1]
+
+            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+                print("here are all the reads going right ", [i for i in reads_through_right.keys()])
 
             #now see the reads in common in the two dict and and count all the different combinations of segment
             pairs = {}
@@ -671,7 +678,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         pairs[pair] = 0
                         pair_to_paths[pair] = []
                     pairs[pair] += 1
-                    pair_to_paths[pair].append(path_here)
+                    pair_to_paths[pair].append((path_here, index_of_the_segment_on_the_paths[path_here]))
+
+            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+                print("here are all the pairs qs ", pairs)
 
             #now mark as duplicable only if a) all the links are supported by the reads and b) on one side at least this does not involve duplicating a neighbor
             links_to_confirm_left = [False for i in range(len(left_dilemma[0].links[left_dilemma[1]]))]
@@ -679,6 +689,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
             pairs_final = {}
             pair_to_pair_indices = {}
             pairs_keys_sorted = sorted(pairs.keys(), key = lambda x : pairs[x], reverse = True)
+            #compute the smallest pair, to then judge if a pair is strong enough to confirm a link
+            smallest_pair = 0
+            if len(pairs) == len(links_to_confirm_left)*len(links_to_confirm_right) and len(pairs) > 0 :
+                smallest_pair = min(pairs.values())
             for pair in pairs_keys_sorted :
                 # if "edge_65_0_148158_0_148158@0_148000_0" in segment.names :
                 #     print("pair ", pair, " ", pairs[pair])
@@ -696,16 +710,18 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         # sys.exit()
 
                     #confirm the link if it confirms something yet unseen or if it is a strong link
-                    if not links_to_confirm_left[index_left] or not links_to_confirm_right[index_right] or pairs[pair] > max(5, segment.depth/10) :
+                    # if "edge_17_59599_162874_0_103275_0_103275@0_76000_0" in segment.names :
+                    #     print("thinking about confirming ", pair, " ", pairs[pair], " ", smallest_pair*3 + 5)
+                    if not links_to_confirm_left[index_left] or not links_to_confirm_right[index_right] or pairs[pair] >= smallest_pair*3 + 5 :
 
                         links_to_confirm_left[index_left] = True
                         links_to_confirm_right[index_right] = True
 
                         pairs_final[pair] = pairs[pair]
                         if left_dilemma[0] != segment:
-                            pair_to_pair_indices[(0, index_right)] = pairs[pair]
+                            pair_to_pair_indices[pair] = (0, index_right)
                         elif right_dilemma[0] != segment:
-                            pair_to_pair_indices[(index_left, 0)] = pairs[pair]
+                            pair_to_pair_indices[pair] = (index_left, 0)
                         else :
                             pair_to_pair_indices[pair] = (index_left, index_right)
 
@@ -713,10 +729,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
             if all([i for i in links_to_confirm_left]) and all([i for i in links_to_confirm_right]) and (len(pairs_final) <= len(left_dilemma[0].links[left_dilemma[1]]) and left_dilemma[0]==segment or  len(pairs_final) <= len(right_dilemma[0].links[right_dilemma[1]]) and right_dilemma[0]==segment) :
                 segment_to_duplicate = True
 
-            # if "edge_43_52657_320004_0_267347@0_267348_0" in segment.names :
-            #     print(links_to_confirm_left, " ", links_to_confirm_right, " ", pairs, " ", pairs_final)
-            #     print("dilemmas: ", left_dilemma[0].names, " ", left_dilemma[1], " ", right_dilemma[0].names, " ", right_dilemma[1])
-            #     print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [i[0][0].full_name()+" "+i[1][0].full_name() for i in pairs.keys()], " ", segment_to_duplicate, " ; ", pair_to_pair_indices)
+            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+                print(links_to_confirm_left, " ", links_to_confirm_right, " ", pairs_final)
+                print("dilemmas: ", left_dilemma[0].names, " ", left_dilemma[1], " ", right_dilemma[0].names, " ", right_dilemma[1])
+                print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [i[0][0].full_name()+" "+i[1][0].full_name() for i in pairs.keys()], " ", segment_to_duplicate, " ; ", pair_to_pair_indices)
 
             time_after_pairs = timer()
 

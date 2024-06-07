@@ -604,8 +604,17 @@ void keep_only_robust_variants(
             distancePartition dis = distance(partitions[p], snp, snp.ref_base);
             auto comparable = dis.n00 + dis.n11 + + dis.n01 + dis.n10;
 
+            // if (partitions[p].get_left() == 2744 && snp.pos == 2852){
+            //     cout << "comparitng " << endl;
+            //     partitions[p].print();
+            //     cout << "with " << snp.pos << endl;
+            //     print_snp(snp);
+            //     cout << "distance : " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << " " << snp.readIdxs.size() << endl;
+            // }
+
             //if ((float(dis.n01+dis.n10)/(min(dis.n00,dis.n11)+dis.n01+dis.n10) <= meanDistance*2 || dis.n01+dis.n10 <= 2)  && dis.augmented && comparable > min(10.0, 0.3*numberOfReads)){
-            if (dis.n01 < 0.1 * (dis.n00+dis.n01) && dis.n10 < 0.1 * (dis.n11+dis.n10) && comparable >= snp.readIdxs.size()/2){
+            if ((dis.n01 <= std::max(0.1*(dis.n00+dis.n01), 1.0) && dis.n10 < std::max(0.1 * (dis.n11+dis.n10), 1.0) && comparable >= snp.readIdxs.size()/2)
+            || (dis.n00 <= std::max(0.1*(dis.n00+dis.n01), 1.0) && dis.n11 < std::max(0.1 * (dis.n11+dis.n10), 1.0) && comparable >= snp.readIdxs.size()/2)){
             
                 found = true;
                 partitions[p].augmentPartition(dis.partition_to_augment, position);
@@ -636,8 +645,12 @@ void keep_only_robust_variants(
         //     cout << "here is a non informative partitions ?? : " << p_value << endl;
         //     partitions[p1].print();
         // }
-        // if (p_value < 0.001 && partitions[p1].number() < threshold){
+        // else if (p_value < 0.001 && partitions[p1].number() < threshold){
         //     cout << "here is quite a sensible partitions : " << p_value << endl;
+        //     partitions[p1].print();
+        // }
+        // else if (partitions[p1].number() > 1){
+        //     cout << "here is a parition " << p_value << endl;
         //     partitions[p1].print();
         // }
 
@@ -1256,7 +1269,7 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name != "edge_8_470611_855802_0_385191@00"){ //for debugging purposes
+            if (allreads[contig].name != "edge_79_0_3198_0_3198_0_3198@00"){ //for debugging purposes
 
                 // cout << "Looking at contig number " << index << " out of " << backbone_reads.size() << " (" << allreads[contig].name << ")" << ". By thread " 
                 //     << omp_get_thread_num() << ", " << allreads[contig].neighbors_.size() << " reads align here.\n";

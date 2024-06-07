@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.2"
-__date__ = "2024-05-28"
+__version__ = "1.9.3"
+__date__ = "2024-06-07"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -475,6 +475,10 @@ def main():
 
     if N50 < 10000 and not skip_minigraph:
         print(" - The improved assembly is too complicated, falling back on the original assembly")
+        f = open(logFile, "a")
+        f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
+        f.write(" - The corrected assembly was too complicated, falling back on the original assembly\n")
+        f.close()
         new_assembly = gfaAssembly
     elif skip_minigraph :
         f = open(logFile, "a")
@@ -656,6 +660,7 @@ def main():
     polish_everything = "0"
     if args.polish_everything:
         polish_everything = "1"
+
     command = path_create_new_contigs + " " \
         + new_assembly + " " \
         + readsFile + " " \

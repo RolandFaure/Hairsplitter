@@ -228,7 +228,7 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "consensus_barcode02_0_0(206)@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_20_40410_66445_0_26035_0_26035@0"){ //DEBUG
         //     cout << "continuuinng" << endl;
         //     continue;
         // }
@@ -354,7 +354,7 @@ void modify_GFA(
                 
 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 56000){
+                // if (interval.first.first != 0){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -449,7 +449,8 @@ void modify_GFA(
                         if (!allOverlaps[allreads[backbone].neighbors_[r]].strand){
                             seq = allreads[idxRead].sequence_.reverse_complement().str();
                         }
-
+                        
+                        // cout << "clippiing read: " << leftToPolish << " " << rightToPolish << " " << allreads[idxRead].name << " " << posOnReadStart << " " << posOnReadEnd << " " << endl;
                         string clippedRead = seq.substr(posOnReadStart, posOnReadEnd-posOnReadStart);
                         string clippedCIGAR = converted_cigar.substr(posOnCIGARStart, posOnCIGAREnd-posOnCIGARStart);
 
@@ -533,13 +534,12 @@ void modify_GFA(
                             if (amplicon){
                                 window_size = -1;
                             }
+
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
-                            // if (group.first == 0){
-                            //     cout <<" fsqdkljjkdq " << endl;
-                            //     exit(1);
-                            // }
+
+                            // cout << "newcontig size " << newcontig.size() << endl;
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
@@ -811,7 +811,7 @@ void modify_GFA(
         #pragma omp critical
         {
             computed_length += allreads[backbones_reads[b]].size();
-            cout << "Progress: " << int(100*computed_length/total_length) << "%\n";
+            cout << "Progress: " << int(100*computed_length/total_length) << "%" << endl;
         }
 
     }
