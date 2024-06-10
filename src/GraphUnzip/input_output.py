@@ -153,7 +153,7 @@ def read_GAF_parallel(gafFile, similarity_threshold, whole_mapping_threshold, li
 
     file_size = os.path.getsize(gafFile)
     # Split the file into chunks
-    chunk_size = file_size // n_threads
+    chunk_size = max(file_size // n_threads, 1)
     chunks = [i for i in range(0, file_size, chunk_size)]
     chunks_end = [i+chunk_size for i in range(0, file_size, chunk_size)]
 

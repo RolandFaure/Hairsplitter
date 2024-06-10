@@ -355,7 +355,7 @@ void reassemble_unaligned_reads(std::string gaf_file, std::string read_file, std
  * @param bridges 
  */
 void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& bridges, std::vector<Pier>& piers, std::string& assembly_file, 
-    int &number_of_well_aligned_reads, int& number_of_partially_aligned_reads, int& number_of_jumping_reads, int &number_of_undetected_duplex_reads){
+    int &number_of_well_aligned_reads, int& number_of_partially_aligned_reads, int& number_of_jumping_reads, int &number_of_undetected_duplex_reads, std::set <string>& list_of_duplex_reads){
     
     number_of_well_aligned_reads = 0;
     number_of_partially_aligned_reads = 0;
@@ -569,6 +569,7 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                         bridge_or_not = true;
                     }
                     else{
+                        list_of_duplex_reads.emplace(mapping.first);
                         duplex = true;
                     }
 
@@ -1919,6 +1920,7 @@ int main(int argc, char *argv[])
     string path_racon = "racon";
     string path_to_raven = "raven";
     string path_tmp_folder = "./";
+    string path_new_reads = "";
 
     auto cli = clipp::group(
         clipp::required("-i", "--input_assembly").doc("input assembly in gfa format") & clipp::value("input_assembly", input_assembly),
@@ -1926,6 +1928,7 @@ int main(int argc, char *argv[])
         clipp::required("-m", "--mode").doc("mode: correct or detect") & clipp::value("mode", correct_string),
         clipp::required("-e", "--output_errors").doc("output file describing the errors found in the assembly") & clipp::value("output_errors", error_file),
         clipp::option("-o", "--output_assembly").doc("output assembly in gfa format (required if correct mode)") & clipp::value("output_assembly", output_scaffold),
+        clipp::option("-d", "--output_non_duplexed_reads").doc("file to output a file of non-duplexed reads") & clipp::value("output_non_duplexed_reads", output_scaffold),
         clipp::option("-p", "--path-to-tmp-folder").doc("path to a temporary folder where the intermediate files will be stored [./]") & clipp::value("path-to-tmp-folder", path_tmp_folder),
         clipp::option("-b", "--minimum-number-of-reads").doc("minimum number of reads to support a breakpoint [5]") & clipp::value("minimum-number-of-reads", min_num_reads_for_link),
         clipp::option("-t", "--threads").doc("number of threads to use for minigraph [1]") & clipp::value("threads", num_threads),
@@ -2123,13 +2126,38 @@ int main(int argc, char *argv[])
             cout << "  - Going through the gaf file and listing the reads that do not align end-to-end on the assembly graph..." << endl;
             std::vector<Bridge> bridges;
             std::vector<Pier> piers;
+            std::set<string> list_of_duplex_reads;
             if (iteration == 0){
-                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start);
+                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start, list_of_duplex_reads);
+                //discard all the duplex reads both in a new rreads file if given as input
+                if (path_new_reads != ""){
+                    cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total" << list_of_duplex_reads.size() << " reads" << endl;
+                    std::ofstream new_reads_file(path_new_reads);
+                    std::ifstream read_stream(input_reads);
+                    string line;
+                    while (std::getline(read_stream, line)){
+                        if (line[0] == '>' || line[0] == '@'){
+                            std::istringstream iss(line);
+                            std::string token;
+                            iss >> token;
+                            if (list_of_duplex_reads.find(token.substr(1)) == list_of_duplex_reads.end()){
+                                new_reads_file << ">"<< line.substr(1) << std::endl;
+                                std::getline(read_stream, line);
+                                new_reads_file << line << std::endl;
+                            }
+                        }
+                    }
+                    new_reads_file.close();
+                    read_stream.close();
+                }
             }
             else{
                 int nothing;
-                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end);
+                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads);
             }
+
+            
+
             
             // cout << "Found " << bridges.size() << " bridges and " << piers.size() << " piers." << endl;
 
@@ -2142,24 +2170,6 @@ int main(int argc, char *argv[])
                 output_errors(error_file, solid_bridges, solid_piers);
             }
 
-            // cout << "found " << solid_bridges.size() << " solid bridges and " << solid_piers.size() << " solid piers." << endl;
-            // cout << "here they are, sorted by alphabetical number of the first contig " << endl;
-            // std::sort(solid_bridges.begin(), solid_bridges.end(), [](SolidBridge a, SolidBridge b) {return (a.contig1 < b.contig1 || (a.contig1==b.contig1 && a.position1 < b.position1));});
-            // for (auto i : solid_bridges){
-            //     cout << i.contig1 << " " << i.position1 << " " << i.contig2 << " " << i.position2 << " " << std::set<string>(i.read_names.begin(), i.read_names.end()).size() << " " << i.read_names[0] << endl;
-            // }
-            // for (auto i : solid_piers){
-            //     cout << "ghght: " << i.contig << " " << i.position << " " << i.strand << " " << i.read_names.size() << endl;
-            //     if (abs(i.position - 1387768) < 100){
-            //         cout << "qio*******************" << endl;
-            //         cout << i.contig << " " << i.position << " " << i.strand << " " << i.read_names.size() << endl;
-            //         for (auto j = 0 ; j < i.read_names.size() ; j++){
-            //             cout << i.read_names[j] << " " << i.pos_read_on_contig[j] << " " << i.strands_read[j] << endl;
-            //         }
-            //         cout << "qio*******************" << endl;
-            //     }
-            // }
-            // exit(1);
 
             if ((/*solid_piers.size() == 0 &&*/ solid_bridges.size() == 0)){
                 some_reads_still_unaligned = false;
@@ -2283,7 +2293,31 @@ int main(int argc, char *argv[])
         int num_unaligned_reads = 0;
         int num_jumpings_reads = 0;
         int num_undetected_duplex_reads = 0;
-        inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads, num_partially_aligned_reads, num_jumpings_reads, num_undetected_duplex_reads);
+        std::set<string> list_of_duplex_reads;
+        inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads, num_partially_aligned_reads, num_jumpings_reads, num_undetected_duplex_reads, list_of_duplex_reads);
+        
+        //discard all the duplex reads both in a new rreads file if given as input
+        if (path_new_reads != ""){
+            cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total" << list_of_duplex_reads.size() << " reads" << endl;
+            std::ofstream new_reads_file(path_new_reads);
+            std::ifstream read_stream(input_reads);
+            string line;
+            while (std::getline(read_stream, line)){
+                if (line[0] == '>' || line[0] == '@'){
+                    std::istringstream iss(line);
+                    std::string token;
+                    iss >> token;
+                    if (list_of_duplex_reads.find(token.substr(1)) == list_of_duplex_reads.end()){
+                        new_reads_file << ">"<< line.substr(1) << std::endl;
+                        std::getline(read_stream, line);
+                        new_reads_file << line << std::endl;
+                    }
+                }
+            }
+            new_reads_file.close();
+            read_stream.close();
+        }
+        
         count_unaligned_reads(gaf_completed, input_reads, num_unaligned_reads);
         cout << "Found " << bridges.size() << " bridges and " << piers.size() << " piers." << endl;
 

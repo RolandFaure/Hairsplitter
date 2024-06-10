@@ -441,6 +441,9 @@ string consensus_reads(
         }
         outseq.close();
 
+        cout << "exijdqm " << endl;
+        exit(1);
+
     }
 
     //sort and index mapped_id.sam
@@ -980,12 +983,33 @@ int check_alignment(std::string &paf_file){
             int cigar_size = 0;
             int size_of_indel = 0;
             int pos_of_last_breakpoint = -1;
+            bool new_indel = true;
             for (auto c : cigar){
                 if (c == 'M'){
                     M += 1;
                     cigar_size += 1;
                     size_of_indel = 0;
                     pos_on_ref += 1;
+                    new_indel = true;
+                }
+                else if (c == 'I' || c == 'D'){ //there are supposed to be no clips, as the reads were already tailored to the backbone
+                    cigar_size += 1;
+                    size_of_indel += 1;
+                    if (size_of_indel >= 30 && new_indel){
+                        new_indel = false;
+                        big_indel = true;
+                        if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
+                            putative_breakpoints[pos_on_ref] = 0;
+                        }
+                        putative_breakpoints[pos_on_ref] += 1;
+                        if (putative_breakpoints[pos_on_ref] > 2){
+                            return 2;
+                        }
+                    }
+                    if (c == 'I'){
+                        pos_on_ref += 1;
+                    }
+
                 }
                 else if (c == 'S' || c == 'H'){ //there are supposed to be no clips, as the reads were already tailored to the backbone
                     size_of_indel += 1;
@@ -1155,8 +1179,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     //then let's do a basic assembly
     //go trhough the paf file
-    ifstream in(paf_file);
-    string line;
+    ifstream in3(paf_file);
     struct Overlap_minimap{
         string name1;
         int length1;
@@ -1170,69 +1193,119 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     };
     std::unordered_map<string, pair<vector<Overlap_minimap>, vector<Overlap_minimap>>> reads; //associates a read to its neighbor left and right
 
-    while (getline(in, line)){
+    string line;
+    while (getline(in3, line)){
 
         std::istringstream iss(line);
         string field;
         short fieldnumber = 0;
         Overlap_minimap overlap1;
-        Overlap_minimap overlap2;
 
         iss >> field;
         overlap1.name1 = field;
-        overlap2.name2 = field;
         iss >> field;
         overlap1.length1 = std::atoi(field.c_str());
-        overlap2.length2 = std::atoi(field.c_str());
         iss >> field;
         overlap1.start1 = std::atoi(field.c_str());
-        overlap2.start2 = std::atoi(field.c_str());
         iss >> field;
         overlap1.end1 = std::atoi(field.c_str());
-        overlap2.end2 = std::atoi(field.c_str());
         iss >> field;
         if (field == "+"){
             overlap1.strand = true;
-            overlap2.strand = true;
         }
         else{
             overlap1.strand = false;
-            overlap2.strand = false;
         }
         iss >> field;
-        overlap2.name1 = field;
         overlap1.name2 = field;
         iss >> field;
-        overlap2.length1 = std::atoi(field.c_str());
         overlap1.length2 = std::atoi(field.c_str());
         iss >> field;
-        overlap2.start1 = std::atoi(field.c_str());
         overlap1.start2 = std::atoi(field.c_str());
         iss >> field;
-        overlap2.end1 = std::atoi(field.c_str());
         overlap1.end2 = std::atoi(field.c_str());
         
         if (reads.find(overlap1.name1) == reads.end()){
             reads[overlap1.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
         }
+        //adjust the overlap if it is just a few bases off the end of the read left
         if (overlap1.start1 <= 10){
+            if (overlap1.strand == true && overlap1.start1 < overlap1.start2){
+                overlap1.start2 -= overlap1.start1;
+                overlap1.start1 = 0;
+            }
+            else if (overlap1.strand == false && overlap1.start1 < overlap1.length2-overlap1.end2){
+                overlap1.end2 += overlap1.start1;
+                overlap1.start1 = 0;
+            }
+        }
+
+        //adjust the overlap if it is just a few bases off the end of the read right
+        if (overlap1.end1 >= overlap1.length1-10){
+            if (overlap1.strand == true && overlap1.length1 - overlap1.end1 < overlap1.length2-overlap1.end2){
+                overlap1.end2 += overlap1.length1 - overlap1.end1;
+                overlap1.end1 = overlap1.length1;
+            }
+            else if (overlap1.strand == false && overlap1.length1 - overlap1.end1 > overlap1.start2){
+                overlap1.start2 -= overlap1.length1 - overlap1.end1;
+                overlap1.end1 = overlap1.length1;
+            }
+        }
+
+        //adjust the overlap if it is just a few bases off the end of the read left
+        if (overlap1.start2 <= 10){
+            if (overlap1.strand == true && overlap1.start2 < overlap1.start1){
+                overlap1.start1 -= overlap1.start2;
+                overlap1.start2 = 0;
+            }
+            else if (overlap1.strand == false && overlap1.start2 < overlap1.length1-overlap1.end1){
+                overlap1.end1 += overlap1.start2;
+                overlap1.start2 = 0;
+            }
+        }
+
+        //adjust the overlap if it is just a few bases off the end of the read right
+        if (overlap1.end2 >= overlap1.length2-10){
+            if (overlap1.strand == true && overlap1.length2 - overlap1.end2 < overlap1.length1-overlap1.end1){
+                overlap1.end1 += overlap1.length2 - overlap1.end2;
+                overlap1.end2 = overlap1.length2;
+            }
+            else if (overlap1.strand == false && overlap1.length2 - overlap1.end2 < overlap1.start1){
+                overlap1.start1 -= overlap1.length2 - overlap1.end2;
+                overlap1.end2 = overlap1.length2;
+            }
+        }
+
+        //now create overlap2
+        Overlap_minimap overlap2;
+        overlap2.start1 = overlap1.start2;
+        overlap2.end1 = overlap1.end2;
+        overlap2.start2 = overlap1.start1;
+        overlap2.end2 = overlap1.end1;
+        overlap2.strand = overlap1.strand;
+        overlap2.length1 = overlap1.length2;
+        overlap2.length2 = overlap1.length1;
+        overlap2.name1 = overlap1.name2;
+        overlap2.name2 = overlap1.name1;
+
+        if (overlap1.start1 == 0){
             reads[overlap1.name1].first.push_back(overlap1);
         }
-        if (overlap1.end1 >= overlap1.length1-10){
+        if (overlap1.end1 == overlap1.length1){
             reads[overlap1.name1].second.push_back(overlap1);
         }
 
         if (reads.find(overlap2.name1) == reads.end()){
             reads[overlap2.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
         }
-        if (overlap2.start1 <= 10){
+        if (overlap2.start1 == 0){
             reads[overlap2.name1].first.push_back(overlap2);
         }
-        if (overlap2.end1 >= overlap2.length1-10){
+        if (overlap2.end1 == overlap2.length1){
             reads[overlap2.name1].second.push_back(overlap2);
         }
     }
-    in.close();
+    in3.close();
 
     // cout << "ioufpoisdu parsed the paf file " << endl;
 
@@ -1490,7 +1563,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     //now convert the contig parts into a string
     string new_contig_string = "";
     for (auto c : new_contig_full){
-        // cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
+        cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
         if (c.strand){
             new_contig_string += reads_sequences[c.read].substr(c.start, c.end-c.start);
         }

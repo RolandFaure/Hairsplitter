@@ -201,7 +201,7 @@ def simple_unzip(segments, names, gafFile) :
 
             if segment not in potentially_interesting_segments :
                 continue
-            print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", round, " ", len(potentially_interesting_segments))
+            # print("Looking icizzcce at segment : ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", round, " ", len(potentially_interesting_segments))
             segment_to_duplicate = False
             #see if it should be duplicated
             #measure the time now
@@ -637,9 +637,6 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                 if left_dilemma[0] == segment :
                     index_of_the_segment_on_the_paths[p[0]] = p[1]
 
-            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
-                print("here are all the reads going through ", [i for i in reads_through_left.keys()])
-
             reads_through_right = {}
             for p in on_which_paths_is_this_contig[right_dilemma[0]] :
                 path_contigs = paths[p[0]].get_contigs()
@@ -666,8 +663,8 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                 if right_dilemma[0] == segment :
                     index_of_the_segment_on_the_paths[p[0]] = p[1]
 
-            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
-                print("here are all the reads going right ", [i for i in reads_through_right.keys()])
+            # if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+            #     print("here are all the reads going right ", [i for i in reads_through_right.keys()])
 
             #now see the reads in common in the two dict and and count all the different combinations of segment
             pairs = {}
@@ -680,8 +677,8 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                     pairs[pair] += 1
                     pair_to_paths[pair].append((path_here, index_of_the_segment_on_the_paths[path_here]))
 
-            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
-                print("here are all the pairs qs ", pairs)
+            # if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+            #     print("here are all the pairs qs ", pairs)
 
             #now mark as duplicable only if a) all the links are supported by the reads and b) on one side at least this does not involve duplicating a neighbor
             links_to_confirm_left = [False for i in range(len(left_dilemma[0].links[left_dilemma[1]]))]
@@ -729,10 +726,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
             if all([i for i in links_to_confirm_left]) and all([i for i in links_to_confirm_right]) and (len(pairs_final) <= len(left_dilemma[0].links[left_dilemma[1]]) and left_dilemma[0]==segment or  len(pairs_final) <= len(right_dilemma[0].links[right_dilemma[1]]) and right_dilemma[0]==segment) :
                 segment_to_duplicate = True
 
-            if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
-                print(links_to_confirm_left, " ", links_to_confirm_right, " ", pairs_final)
-                print("dilemmas: ", left_dilemma[0].names, " ", left_dilemma[1], " ", right_dilemma[0].names, " ", right_dilemma[1])
-                print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [i[0][0].full_name()+" "+i[1][0].full_name() for i in pairs.keys()], " ", segment_to_duplicate, " ; ", pair_to_pair_indices)
+            # if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+            #     print(links_to_confirm_left, " ", links_to_confirm_right, " ", pairs_final)
+            #     print("dilemmas: ", left_dilemma[0].names, " ", left_dilemma[1], " ", right_dilemma[0].names, " ", right_dilemma[1])
+            #     print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [i[0][0].full_name()+" "+i[1][0].full_name() for i in pairs.keys()], " ", segment_to_duplicate, " ; ", pair_to_pair_indices)
 
             time_after_pairs = timer()
 

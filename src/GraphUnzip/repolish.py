@@ -150,9 +150,10 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
         for s, subcontig in enumerate(names) :
 
-            # if subcontig != "edge_8@0_0_0":
-            #     print("continuuedj ")
-            #     continue
+            # if subcontig != "edge_21_149088_182933_0_33845_0_33845@0_10000_0":
+            if "edge_18" not in subcontig:
+                print("continuuedj ", subcontig)
+                continue
 
             if segment.get_lengths()[s] < 100 :
                 continue
@@ -402,6 +403,8 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             for line in paf :
                                 line = line.strip().split('\t')
                                 left_coordinates = (int(line[2]), int(line[3]))
+                                if line[5] == "-":
+                                    reversed_seq = True
                                 break
                         right_coordinates = (0,0)
                         with open("tmp_right.paf", 'r') as paf :
@@ -410,25 +413,28 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                                 right_coordinates = (int(line[2]), int(line[3]))
                                 break
 
-                        if left_coordinates[0] >= right_coordinates[1]:
-                            reversed_seq = True
+                        if reversed_seq :
                             left_coordinates, right_coordinates = right_coordinates, left_coordinates
 
-                        
-                        #now retrieve the repolished sequence between left_coordinates and right_coordinates
-                        with open("tmp_repolished.fa", 'r') as repolished :
-                            repolished.readline()
-                            seq = repolished.readline().strip()
-                            if left_coordinates == (0,0):
-                                left_coordinates = (0, min(500, len(seq)))
-                            if right_coordinates == (0,0): #should not happen, but could if bad polishing
-                                right_coordinates=(max(min(500, len(seq)), len(seq)-500), len(seq))
+                        if right_coordinates == (0,0) or left_coordinates == (0,0) :
+                            #problem in the polishing
+                            print("DEBUG code 3309")
+                            seq = None
+                        else:
+                            #now retrieve the repolished sequence between left_coordinates and right_coordinates
+                            with open("tmp_repolished.fa", 'r') as repolished :
+                                repolished.readline()
+                                seq = repolished.readline().strip()
+                                # if left_coordinates == (0,0):
+                                #     left_coordinates = (0, min(500, len(seq)))
+                                # if right_coordinates == (0,0): #should not happen, but could if bad polishing
+                                #     right_coordinates=(max(min(500, len(seq)), len(seq)-500), len(seq))
 
-                            seq = seq[max(left_coordinates[0], left_coordinates[1])-1:min(right_coordinates[0], right_coordinates[1])+1]
-                            if reversed_seq :
-                                # print("REVERSIIIIIING !", orientations[s])
-                                seq = reverse_complement(seq)
-                                # sys.exit(1)
+                                seq = seq[max(left_coordinates[0], left_coordinates[1])-1:min(right_coordinates[0], right_coordinates[1])+1]
+                                if reversed_seq :
+                                    # print("REVERSIIIIIING !", orientations[s])
+                                    seq = reverse_complement(seq)
+                                    # sys.exit(1)
                             
                             # print("repolished sequence: ", seq)
                     #because we made sure the orientation was positive when choosing left and right

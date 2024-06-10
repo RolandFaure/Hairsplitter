@@ -439,7 +439,8 @@ def main():
             continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
                 + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
-                + " > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
+                + " -d " + tmp_dir + "/reads.fa > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
+            readsFile = tmp_dir + "/reads.fa"
             # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
             #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
             #     + " --folder " + tmp_dir
