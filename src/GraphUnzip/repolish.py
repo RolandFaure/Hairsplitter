@@ -35,6 +35,9 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
 
             # print("Looking at path: ", path)
 
+            # if read != "25B2_SRR19419643.41073":
+            #     continue
+
             if len(contigs) > 0 :
                 
                 start_contig = 0
@@ -42,7 +45,7 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
                     if contigs[start_contig] not in subcontig_to_segments:
                         continue
 
-                    for candidate_segments in subcontig_to_segments[contigs[start_contig]] :
+                    for c, candidate_segments in enumerate(subcontig_to_segments[contigs[start_contig]]) :
                         
                         unique_segment = [] #list of the subcontigs that are between two unique subcontigs (copies=1)
                         last_unique = -1
@@ -73,7 +76,6 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
                                 if inverse == -1 :
                                     expected_orientation_in_seg = 1 - expected_orientation_in_seg
 
-                                # print("checking ", contigs[index_in_contigs], " ", names_seg[index_in_names], " ", orientations_seg[index_in_names], " ",  expected_orientation_in_seg )
                                 if contigs[index_in_contigs] != names_seg[index_in_names] or orientations_seg[index_in_names] !=  expected_orientation_in_seg :
                                     good_path = False
                                     break
@@ -88,9 +90,11 @@ def assign_reads_to_contigs(segments, gaf_file, copies):
                                     index_in_contigs += 1
                                     index_in_names += inverse
                             
+                            # print("was it a good path? ", good_path, " ", unique_segment)
                             if good_path :
                                 # print("In segment: ", segments[candidate_segments[0]].get_namesOfContigs(), "\npath", path, "\nstarring ", unique_segment, "\nread ", read)
                                 for contig in unique_segment :
+                                    # print("adding read ", (contig, read), " to ", seg.names)
                                     seg.add_read(contig, read)
 
 #input: the graph (as the list of segments), the alignment of the reads (gaf_file), and the number of copies of each contig in the final assembly and the fasta/q file and the gfa file
@@ -151,18 +155,21 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
         for s, subcontig in enumerate(names) :
 
             # if subcontig != "edge_21_149088_182933_0_33845_0_33845@0_10000_0":
-            if "edge_18" not in subcontig:
-                print("continuuedj ", subcontig)
-                continue
+            # if "edge_18_310438_361584_0_51146_0_51146@0_10000_1" not in subcontig :
+            #     print("continuuedj ", subcontig)
+            #     continue
+
+            # print("reads here: ",[len(i) for i in reads])
+            # print(names[13], " ", reads[13])
 
             if segment.get_lengths()[s] < 100 :
                 continue
 
-            # print("Looking at subcontig ", subcontig, " ", copies[subcontig], " ", len(reads[s]))
-            if len(reads[s]) > 5 and copies[subcontig] > 1 : #mininum number of reads to repolish, and if the contig is unique it should be already polished
+            # print("Looking at subcontig ", subcontig, " ", s , " ", copies[subcontig], " ", len(reads[s]))
+            if len(reads[s]) > 0 and copies[subcontig] > 1 : #if the contig is unique it should be already polished
 
                 seq = None
-                print("Repolishing ", subcontig, " with ", len(reads[s]), " reads")
+                # print("Repolishing ", subcontig, " with ", len(reads[s]), " reads")
 
                 #now repolish
                 #begin by extracting the reads from the fastq file and write them to a temporary file
@@ -185,6 +192,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     if orientations[s-1] == 0 :
                         left = reverse_complement(left)
                 #write down left in a temporary file
+                # print("left contig: ", name_of_contig_left)
                 f = open("tmp_left.fa", 'w')
                 f.write(">" + name_of_contig_left + "\n" + left + "\n")
                 f.close()
@@ -254,10 +262,11 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                             and int(ls[3])-int(ls[2]) > 0.9*(int(ls[8])-int(ls[7])) and int(ls[3])-int(ls[2]) < 1.1*(int(ls[8])-int(ls[7])) :
                             no_struct_variants = True
 
-                # print("no struct variants: ", no_struct_variants, " (", names[max(s-1, 0)], " ", names[min(s+1, len(names)-1)], ")")
+                # print("no struct variants: ", no_struct_variants, " (", names[max(s-1, 0)], " ", names[min(s+1, len(names)-1)], ") ", s , " ", len(names)-1)
 
                 if no_struct_variants or s == 0 or s == len(names)-1 :
 
+                    print("polishing ", subcontig, " with ", len(reads[s]), " reads")
                     #output the contig to a temporary file
                     f = open("tmp_contig.fa", 'w')
                     f.write(">" + subcontig + "\n" + contig_seq + "\n")
@@ -285,6 +294,8 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
 
                 if not no_struct_variants and s!= 0 and s!= len(names)-1: #let's try to reassemble the reads using neighboring contigs to anchor them
                     
+                    print("reassembling ", subcontig, " with ", len(reads[s]), " reads")
+
                     #now align the reads on the left and right chunks and take the portion of the reads between the two chunks
                     command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_reads.fa > tmp_left.paf 2> trash.txt"
                     minimap = os.system(command)
@@ -322,6 +333,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                     idx = 0
                     for read in reads[s] :
                         if read in left_coordinates and read in right_coordinates :
+                            # print("read ", read, " is between ", left_coordinates[read], " and ", right_coordinates[read])
                             if left_coordinates[read][0] < right_coordinates[read][0] :
                                 reads_between[read] = (max(int(left_coordinates[read][0]), int(left_coordinates[read][1])), 
                                                        min(int(right_coordinates[read][0]), int(right_coordinates[read][1])))
@@ -442,6 +454,9 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                 
                 if seq is not None :
                     seqs[s] = seq
+
+       
+
         
         segment.set_sequences(seqs)
 

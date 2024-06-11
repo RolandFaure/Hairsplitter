@@ -340,7 +340,7 @@ def main():
                 someDepth0 += 1
             if s.length == 0 :
                 s.length1()
-                print("WARNING: contig ", s.names, " has length = 0. This might infer in handling the coverage")
+                # print("WARNING: contig ", s.names, " has length = 0. This might infer in handling the coverage")
             
         if someDepth0 == len(segments) and reliableCoverage :
             print("WARNING: could not read coverage information in the input GFA. Coverage information for each contig is highly recommended. Continuing nevertheless, switching to --conservative mode")

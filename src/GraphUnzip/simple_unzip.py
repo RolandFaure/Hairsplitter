@@ -444,7 +444,7 @@ def remove_unsupported_links(segments, names, lines, careful=False):
             for n, neighbor in enumerate(segment.links[end]) :
                 if (segment, end, neighbor, segment.otherEndOfLinks[end][n]) not in links :
                     if not careful or (len(segment.links[end])> 1 and len(neighbor.links[segment.otherEndOfLinks[end][n]]) > 1) :
-                        print("Removing link ", segment.names, " ", neighbor.names, " ", end, " ", segment.otherEndOfLinks[end][n])
+                        # print("Removing link ", segment.names, " ", neighbor.names, " ", end, " ", segment.otherEndOfLinks[end][n])
                         toRemove.add((segment, end, neighbor, segment.otherEndOfLinks[end][n]))
 
     for segment, end, neighbor, otherEnd in toRemove :
@@ -575,6 +575,11 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         else :
                             already_locked = True
 
+                    if len(neighbor_contig.links[neighbor_end]) <= 1 : #we end up in a circle or a dead end
+                        for s in locked_nodes :
+                            s.locked = False
+                        continue
+
                     left_dilemma = (neighbor_contig, neighbor_end)
                     for neighbor in neighbor_contig.links[neighbor_end]:
                         if neighbor.locked == False :
@@ -596,6 +601,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                             locked_nodes.add(neighbor_contig)
                         else :
                             already_locked = True
+                    if len(neighbor_contig.links[neighbor_end]) <= 1 : #we end up in a circle or a dead end
+                        for s in locked_nodes :
+                            s.locked = False
+                        continue
                     right_dilemma = (neighbor_contig, neighbor_end)
                     for neighbor in neighbor_contig.links[neighbor_end]:
                         if neighbor.locked == False :
@@ -723,20 +732,28 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                             pair_to_pair_indices[pair] = (index_left, index_right)
 
             segment_to_duplicate = False
-            if all([i for i in links_to_confirm_left]) and all([i for i in links_to_confirm_right]) and (len(pairs_final) <= len(left_dilemma[0].links[left_dilemma[1]]) and left_dilemma[0]==segment or  len(pairs_final) <= len(right_dilemma[0].links[right_dilemma[1]]) and right_dilemma[0]==segment) :
+            if (all([i for i in links_to_confirm_left]) or (left_dilemma[0] != segment and np.sum(links_to_confirm_left) >= np.sum(links_to_confirm_right)) )\
+                and (all([i for i in links_to_confirm_right]) or (right_dilemma[0] != segment and np.sum(links_to_confirm_right) >= np.sum(links_to_confirm_left))) \
+                and (len(pairs_final) <= len(left_dilemma[0].links[left_dilemma[1]]) and left_dilemma[0]==segment or  len(pairs_final) <= len(right_dilemma[0].links[right_dilemma[1]]) and right_dilemma[0]==segment) :
                 segment_to_duplicate = True
 
-            # if "edge_17_59599_162874_0_103275_0_103275@0_72000_0" in segment.names :
+            # if "edge_18_365892_437244_0_71352_0_71352@0_30000_1" in segment.names :
             #     print(links_to_confirm_left, " ", links_to_confirm_right, " ", pairs_final)
+            #     print("duplicated or not because of : ", segment_to_duplicate, " ", [i for i in links_to_confirm_left], " ", [i for i in links_to_confirm_right], " ", (len(pairs_final) <= len(left_dilemma[0].links[left_dilemma[1]]) and left_dilemma[0]==segment or  len(pairs_final) <= len(right_dilemma[0].links[right_dilemma[1]]) and right_dilemma[0]==segment) )
             #     print("dilemmas: ", left_dilemma[0].names, " ", left_dilemma[1], " ", right_dilemma[0].names, " ", right_dilemma[1])
-            #     print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [i[0][0].full_name()+" "+i[1][0].full_name() for i in pairs.keys()], " ", segment_to_duplicate, " ; ", pair_to_pair_indices)
+            #     print("Looking at segment ", segment.names, " ", len(segment.links[0]), " ", len(segment.links[1]), " ", [str(i[0][0].ID)+" "+str(i[1][0].ID) for i in pairs.keys()])
+            #     print(" ", segment_to_duplicate, " ; ", pair_to_pair_indices)
 
             time_after_pairs = timer()
 
             if segment_to_duplicate :#and segment.names == ['NC_038882.1_9000_0'] :
 
-                # if "edge_43_52657_320004_0_267347@0_267348_0" in segment.names or "edge_43_320004_321291_0_1287@0" in segment.names:
+                # if "edge_18_48541_149954_0_101413_0_101413@0_98000_1" in segment.names :
                 #     print("duplicaaaating ", segment.names)
+
+                if len(pairs_final) == 0 :
+                    print("BUT WHY ", segment.names, " ", pairs, " ", [(segment.links[0][i[0]].names, segment.links[1][i[1]].names) for i in pairs])
+                    sys.exit()
 
                 #mark all the neighbors of the segment as potentially interesting
                 with lock:
@@ -786,7 +803,8 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                     next_potentially_interesting_segments.discard(segment)
                     on_which_paths_is_this_contig[segment] = []
                     toDelete.add(segment)
-                go_on = True
+                        # sys.exit(1)
+                    go_on = True
 
             for s in locked_nodes:
                 s.locked = False
@@ -798,6 +816,10 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
 #input: the graph and the gaf file, exhaustive flag (if True, remove all the links that are not supported by the gaf file)
 #output: an unzipped graph
 def simple_unzip2(segments, names, gafFile, num_threads, exhaustive = False) :
+
+    if num_threads > 1:
+        print("Problem in multithreading, so setting num threads to 1")
+        num_threads = 1
 
     lines = []
     print("Reading the gaf file...")
@@ -865,8 +887,11 @@ def simple_unzip2(segments, names, gafFile, num_threads, exhaustive = False) :
         #     pickle.dump(tuple_to_store, "/home/rfaure/Documents/these/Alice/human/tmp.pickle")
         #     sys.exit()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            results = list(executor.map(process_chunk_of_segments, [segments]*len(beginnings), beginnings, ends, [on_which_paths_is_this_contig]*len(beginnings), [paths]*len(beginnings), [potentially_interesting_segments]*len(beginnings), [next_potentially_interesting_segments]*len(beginnings), [unexplored_segments]*len(beginnings), [toDelete]*len(beginnings), [lock]*len(beginnings)))                
+        #for now we will not parallelize the process_chunk_of_segments function, to be improved in the future
+        results = [process_chunk_of_segments(segments, 0, len(segments), on_which_paths_is_this_contig, paths, potentially_interesting_segments, unexplored_segments, next_potentially_interesting_segments, toDelete, lock)]
+
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        #     results = list(executor.map(process_chunk_of_segments, [segments]*len(beginnings), beginnings, ends, [on_which_paths_is_this_contig]*len(beginnings), [paths]*len(beginnings), [potentially_interesting_segments]*len(beginnings), [next_potentially_interesting_segments]*len(beginnings), [unexplored_segments]*len(beginnings), [toDelete]*len(beginnings), [lock]*len(beginnings)))                
 
         #explore the unexplored segments (they could not be explored because of a lock) in a non parallelized manner
         results.append(process_chunk_of_segments(segments, 0, len(segments), on_which_paths_is_this_contig, paths, unexplored_segments, set(), next_potentially_interesting_segments, toDelete, lock))
