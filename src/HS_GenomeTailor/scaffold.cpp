@@ -1928,7 +1928,7 @@ int main(int argc, char *argv[])
         clipp::required("-m", "--mode").doc("mode: correct or detect") & clipp::value("mode", correct_string),
         clipp::required("-e", "--output_errors").doc("output file describing the errors found in the assembly") & clipp::value("output_errors", error_file),
         clipp::option("-o", "--output_assembly").doc("output assembly in gfa format (required if correct mode)") & clipp::value("output_assembly", output_scaffold),
-        clipp::option("-d", "--output_non_duplexed_reads").doc("file to output a file of non-duplexed reads") & clipp::value("output_non_duplexed_reads", output_scaffold),
+        clipp::option("-d", "--output_non_duplexed_reads").doc("file to output a file of non-duplexed reads") & clipp::value("output_non_duplexed_reads", path_new_reads),
         clipp::option("-p", "--path-to-tmp-folder").doc("path to a temporary folder where the intermediate files will be stored [./]") & clipp::value("path-to-tmp-folder", path_tmp_folder),
         clipp::option("-b", "--minimum-number-of-reads").doc("minimum number of reads to support a breakpoint [5]") & clipp::value("minimum-number-of-reads", min_num_reads_for_link),
         clipp::option("-t", "--threads").doc("number of threads to use for minigraph [1]") & clipp::value("threads", num_threads),
@@ -2120,7 +2120,7 @@ int main(int argc, char *argv[])
         int iteration = 0;
         while (some_reads_still_unaligned){
 
-            cout << endl << " Loop iteration " << iteration++ << "... " << endl;
+            cout << endl << " Loop iteration " << iteration << "... " << endl;
 
             //inventoriate the bridges
             cout << "  - Going through the gaf file and listing the reads that do not align end-to-end on the assembly graph..." << endl;
@@ -2131,12 +2131,17 @@ int main(int argc, char *argv[])
                 inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start, list_of_duplex_reads);
                 //discard all the duplex reads both in a new rreads file if given as input
                 if (path_new_reads != ""){
-                    cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total" << list_of_duplex_reads.size() << " reads" << endl;
+                    cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total " << list_of_duplex_reads.size() << " reads" << endl;
                     std::ofstream new_reads_file(path_new_reads);
                     std::ifstream read_stream(input_reads);
                     string line;
+                    char format = 'f';
+                    if (input_reads.substr(input_reads.find_last_of(".") + 1) == "fastq" || input_reads.substr(input_reads.find_last_of(".") + 1) == "fq"){
+                        format = 'q';
+                    }
+                    int line_number = 0;
                     while (std::getline(read_stream, line)){
-                        if (line[0] == '>' || line[0] == '@'){
+                        if ((format == 'f' && line_number % 2 == 0) || (format == 'q' && line_number % 4 == 0)){
                             std::istringstream iss(line);
                             std::string token;
                             iss >> token;
@@ -2146,6 +2151,7 @@ int main(int argc, char *argv[])
                                 new_reads_file << line << std::endl;
                             }
                         }
+                        line_number++;
                     }
                     new_reads_file.close();
                     read_stream.close();
@@ -2156,9 +2162,6 @@ int main(int argc, char *argv[])
                 inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads);
             }
 
-            
-
-            
             // cout << "Found " << bridges.size() << " bridges and " << piers.size() << " piers." << endl;
 
             //agregate the bridges
@@ -2207,6 +2210,8 @@ int main(int argc, char *argv[])
 
             //remove the temporary gfa file
             system(("rm " + tmp_gfa).c_str());
+
+            iteration++;
         }
 
         //remove the temporary files
@@ -2298,12 +2303,17 @@ int main(int argc, char *argv[])
         
         //discard all the duplex reads both in a new rreads file if given as input
         if (path_new_reads != ""){
-            cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total" << list_of_duplex_reads.size() << " reads" << endl;
+            cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total " << list_of_duplex_reads.size() << " reads" << endl;
             std::ofstream new_reads_file(path_new_reads);
             std::ifstream read_stream(input_reads);
             string line;
+            char format = 'f';
+            if (input_reads.substr(input_reads.find_last_of(".") + 1) == "fastq" || input_reads.substr(input_reads.find_last_of(".") + 1) == "fq"){
+                format = 'q';
+            }
+            int line_number = 0;
             while (std::getline(read_stream, line)){
-                if (line[0] == '>' || line[0] == '@'){
+                if ((format == 'f' && line_number % 2 == 0) || (format == 'q' && line_number % 4 == 0)){
                     std::istringstream iss(line);
                     std::string token;
                     iss >> token;
@@ -2313,6 +2323,7 @@ int main(int argc, char *argv[])
                         new_reads_file << line << std::endl;
                     }
                 }
+                line_number++;
             }
             new_reads_file.close();
             read_stream.close();

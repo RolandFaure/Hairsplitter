@@ -228,10 +228,10 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        if (allreads[backbones_reads[b]].name != "edge_18_310438_361584_0_51146_0_51146@0"){ //DEBUG
-            cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
-            continue;
-        }
+        // if (allreads[backbones_reads[b]].name != "edge_18_310438_361584_0_51146_0_51146@0"){ //DEBUG
+        //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
+        //     continue;
+        // }
 
         if (partitions.find((backbones_reads[b])) == partitions.end()){
             //just make sure it has a depth, and if not, recomputes it
@@ -352,13 +352,12 @@ void modify_GFA(
             int n = 0;
             while (n < partitions.at(backbone).size()){
                 
-
                 auto interval = partitions.at(backbone).at(n);
-                if (interval.first.first != 10000 ){
-                    cout  << "fdiocicui modufy_gfa" << endl;
-                    n+=1;
-                    continue;
-                }
+                // if (interval.first.first != 10000 ){
+                //     cout  << "fdiocicui modufy_gfa" << endl;
+                //     n+=1;
+                //     continue;
+                // }
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 unordered_map<int, vector<string>> fullReadsPerPart; //list of all reads of each part
@@ -517,10 +516,10 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
                         
-                        if (group.first != 1){
-                            cout << "ioudjqfdkljdqsmjf" << endl;
-                            continue;
-                        }
+                        // if (group.first != 1){
+                        //     cout << "ioudjqfdkljdqsmjf" << endl;
+                        //     continue;
+                        // }
                         // cout << "polishing with " << polisher << " iuce contig " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << " " << group.second.size() << endl;
                         if (group.second.size() == 0){
                             newcontig = "";
@@ -535,14 +534,10 @@ void modify_GFA(
                                 window_size = -1;
                             }
 
-
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
                             
-                                
-                            cout << "newcontig size " << newcontig.size() << " " << group.first << endl;
-                            exit(1);
                         }
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 

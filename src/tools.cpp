@@ -441,9 +441,6 @@ string consensus_reads(
         }
         outseq.close();
 
-        cout << "exijdqm " << endl;
-        exit(1);
-
     }
 
     //sort and index mapped_id.sam
