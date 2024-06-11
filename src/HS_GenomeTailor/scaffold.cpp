@@ -2147,6 +2147,7 @@ int main(int argc, char *argv[])
                             iss >> token;
                             if (list_of_duplex_reads.find(token.substr(1)) == list_of_duplex_reads.end()){
                                 new_reads_file << ">"<< line.substr(1) << std::endl;
+                                line_number++;
                                 std::getline(read_stream, line);
                                 new_reads_file << line << std::endl;
                             }
@@ -2319,6 +2320,7 @@ int main(int argc, char *argv[])
                     iss >> token;
                     if (list_of_duplex_reads.find(token.substr(1)) == list_of_duplex_reads.end()){
                         new_reads_file << ">"<< line.substr(1) << std::endl;
+                        line_number++;
                         std::getline(read_stream, line);
                         new_reads_file << line << std::endl;
                     }
