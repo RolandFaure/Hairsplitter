@@ -228,7 +228,7 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        // if (allreads[backbones_reads[b]].name != "edge_18_310438_361584_0_51146_0_51146@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_19_53518_267275_0_213757_0_213757@0"){ //DEBUG
         //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
         //     continue;
         // }
@@ -353,7 +353,7 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 10000 ){
+                // if (interval.first.first != 110000 ){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -516,7 +516,7 @@ void modify_GFA(
                     string newcontig = "";
                     if (numberOfClusters > 1 || polish){
                         
-                        // if (group.first != 1){
+                        // if (group.first != 3){
                         //     cout << "ioudjqfdkljdqsmjf" << endl;
                         //     continue;
                         // }
@@ -539,6 +539,8 @@ void modify_GFA(
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
                             
                         }
+                        cout << "finished polishing " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << endl;
+                        exit(1);
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
                             //     interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);

@@ -995,12 +995,16 @@ int check_alignment(std::string &paf_file){
                     if (size_of_indel >= 30 && new_indel){
                         new_indel = false;
                         big_indel = true;
-                        if (putative_breakpoints.find(pos_on_ref) == putative_breakpoints.end()){
-                            putative_breakpoints[pos_on_ref] = 0;
+                        int position_indel_approximate = pos_on_ref;
+                        if (c == 'I'){
+                            position_indel_approximate = int(position_indel_approximate / 100) * 100; //insertions can be positioned arbitrarily, so approximate
                         }
-                        putative_breakpoints[pos_on_ref] += 1;
-                        if (putative_breakpoints[pos_on_ref] > 2){
-                            return 2;
+                        if (putative_breakpoints.find(position_indel_approximate) == putative_breakpoints.end()){
+                            putative_breakpoints[position_indel_approximate] = 0;
+                        }
+                        putative_breakpoints[position_indel_approximate] += 1;
+                        if (putative_breakpoints[position_indel_approximate] > 2){
+                            result_code = 1;
                         }
                     }
                     if (c == 'I'){
@@ -1222,9 +1226,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         iss >> field;
         overlap1.end2 = std::atoi(field.c_str());
         
-        if (reads.find(overlap1.name1) == reads.end()){
-            reads[overlap1.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
-        }
+
         //adjust the overlap if it is just a few bases off the end of the read left
         if (overlap1.start1 <= 10){
             if (overlap1.strand == true && overlap1.start1 < overlap1.start2){
@@ -1285,20 +1287,23 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
         overlap2.name1 = overlap1.name2;
         overlap2.name2 = overlap1.name1;
 
-        if (overlap1.start1 == 0){
+        if (reads.find(overlap1.name1) == reads.end()){
+            reads[overlap1.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
+        }
+        if (overlap1.start1 == 0 && ((overlap1.strand == true && overlap1.start2 != 0) || (overlap1.strand == false && overlap1.end2 != overlap1.length2))){
             reads[overlap1.name1].first.push_back(overlap1);
         }
-        if (overlap1.end1 == overlap1.length1){
+        if (overlap1.end1 == overlap1.length1 && ((overlap1.strand == true && overlap1.end2 != overlap1.length2) || (overlap1.strand == false && overlap1.start2 != 0))){
             reads[overlap1.name1].second.push_back(overlap1);
         }
 
         if (reads.find(overlap2.name1) == reads.end()){
             reads[overlap2.name1] = {vector<Overlap_minimap>(), vector<Overlap_minimap>()};
         }
-        if (overlap2.start1 == 0){
+        if (overlap2.start1 == 0 && ((overlap2.strand == true && overlap2.start2 != 0) || (overlap2.strand == false && overlap2.end2 != overlap2.length2))){
             reads[overlap2.name1].first.push_back(overlap2);
         }
-        if (overlap2.end1 == overlap2.length1){
+        if (overlap2.end1 == overlap2.length1 && ((overlap2.strand == true && overlap2.end2 != overlap2.length2) || (overlap2.strand == false && overlap2.start2 != 0))){
             reads[overlap2.name1].second.push_back(overlap2);
         }
     }
@@ -1319,6 +1324,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     string current_read;
     for (auto r : reads){
         if (r.second.first.size() > 0 && r.second.second.size() > 0){ //take a contig that has neighbors left and right
+            cout << "read right are ";
+            for (auto rr : r.second.first){
+                cout << rr.name2 << " ";
+            }
             current_read = r.first;
             break;
         }
@@ -1339,7 +1348,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     std::unordered_set already_used_contigs = {current_read};
 
-    // cout << "starting with read " << current_read << endl;
+    cout << "starting with read " << current_read << endl;
 
     string new_current_read = current_read;
     //first extend to the right
@@ -1377,7 +1386,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             already_used_contigs.emplace(current_read);
 
                         
-                            // cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
+                            cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
                             // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                             // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1415,7 +1424,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             new_current_read = overlap.name2;
                             current_strand = next_read.strand;
                             already_used_contigs.emplace(current_read);
-                            // cout << "movingd on ztho " << new_current_read << endl;
+                            cout << "movingd on ztho " << new_current_read << endl;
 
                             break;
                         }
@@ -1467,7 +1476,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             new_current_read = overlap.name2;
                             current_strand = next_read.strand;
                             already_used_contigs.emplace(current_read);
-                            // cout << "movingd on Atho " << new_current_read << endl;
+                            cout << "movingd on Atho " << new_current_read << endl;
                             // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                             // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1506,7 +1515,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             new_current_read = overlap.name2;
                             current_strand = next_read.strand;
                             already_used_contigs.emplace(current_read);
-                            // cout << "movingd on ptho " << new_current_read << endl;
+                            cout << "movingd on ptho " << new_current_read << endl;
 
                             break;
                         }

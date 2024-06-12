@@ -33,8 +33,8 @@ using std::max;
 #define GREEN_TEXT "\033[1;32m"
 #define RESET_TEXT "\033[0m"
 
-string version = "0.3.2";
-string last_update = "2024-06-03";
+string version = "0.3.3";
+string last_update = "2024-06-12";
 
 vector<string> split(string& s, string& delimiter){
     vector<string> res;
@@ -404,10 +404,13 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
             exit(1);
         }
 
-        int min_length_for_breakpoint = max(0.2*length_of_read, 500.0); //minimum length of overhang to consider a breakpoint AND minimum length of mapping to be confident
         if (quality == 60)
         {        
             vector<string> all_contigs = split(path, delimiter);
+            int length_of_contigs_on_path = 0;
+            for (string contig : all_contigs){
+                length_of_contigs_on_path += length_of_contigs[contig];
+            }
             vector<char> orientations;
             //remove the first element
             all_contigs.erase(all_contigs.begin());
@@ -455,6 +458,14 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                 exit(1);
             }
 
+            int min_length_for_breakpoint = min(1000.0, max(min(0.2*length_of_read, 0.5*length_of_contigs_on_path), 500.0)); //minimum length of overhang to consider a breakpoint AND minimum length of mapping to be confident
+
+            // if ("S11_@2e6adada-d3ce-350a-7747-0c305639593e" == name_of_read){
+            //     cout << "read " << name_of_read << endl;
+            //     cout << "brekoint 1: " << start_of_mapping << " " << end_of_mapping << " " << min_length_for_breakpoint << endl;
+            //     cout << "brekoint 2: " << start_of_mapping << " " << end_of_mapping << " " << min_length_for_breakpoint << endl;
+            // }
+
             mapping.breakpoint1 = false;
             if (start_of_mapping > min_length_for_breakpoint && end_of_mapping-start_of_mapping > min_length_for_breakpoint){ //do not flag a breakpoint if the mapping is too short
                 mapping.breakpoint1 = true;
@@ -466,12 +477,6 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
 
             mappings[name_of_read].push_back(mapping);
 
-            // if ("685d55c2-401c-44ae-9dcd-cfcede23cd75" == name_of_read.substr(0,36) || "8f2b22a9-35df-409d-a939-baa12ef1862f" == name_of_read){
-            //     cout << "read " << name_of_read << endl;
-            //     cout << "Mapping " << mapping.contig1 << " " << mapping.position_on_contig1 << " " << mapping.orientation_on_contig1 << " " << mapping.breakpoint1 
-            //         << " " << mapping.pos_on_read1 << " " << mapping.pos_on_read2 << " " << mapping.breakpoint2 << " " << mapping.contig2 << " " << mapping.position_on_contig2 
-            //         << " " << mapping.orientation_on_contig2 << endl;
-            // }
         }
     }
     gaf_stream.close();
@@ -479,6 +484,15 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
     //sort the mappings by position on read
     for (auto& mapping : mappings){
         std::sort(mapping.second.begin(), mapping.second.end(), [](Mapping& a, Mapping& b){return a.pos_on_read1 < b.pos_on_read1;});
+
+        // if ("S11_@2e6adada-d3ce-350a-7747-0c305639593e" == mapping.first){
+        //     // cout << "read " << mapping.first << endl;
+        //     for (auto& m : mapping.second){
+        //         cout << "Mapping " << m.contig1 << " " << m.position_on_contig1 << " " << m.orientation_on_contig1 << " " << m.breakpoint1 
+        //             << " " << m.pos_on_read1 << " " << m.pos_on_read2 << " " << m.breakpoint2 << " " << m.contig2 << " " << m.position_on_contig2 
+        //             << " " << m.orientation_on_contig2 << endl;
+        //     }
+        // }
 
         bool pier_left_or_right = false;
         bool duplex = false;
@@ -543,6 +557,13 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                     }
                 }
 
+                if ("S11_@2e6adada-d3ce-350a-7747-0c305639593e" == mapping.first){
+                    // cout << "read " << mapping.first << endl;
+                    for (auto& m : mapping.second){
+                        cout << "ia m here and " << mapping.second[b].pos_on_read2 << " " << mapping.second[b+1].pos_on_read1 << endl;
+                    }
+                }
+
                 if (mapping.second[b+1].pos_on_read1-mapping.second[b].pos_on_read2 >= 0) { //if there is still an overlap, then we can't use this bridge
 
                     Bridge bridge;
@@ -562,6 +583,10 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                     bridge.strand2 = mapping.second[b+1].orientation_on_contig1;
 
                     bridge.read_name = mapping.first;
+
+                    if (bridge.contig1 == "edge_70" || bridge.contig2 == "edge_70"){
+                        cout << "bridge between " << bridge.read_name << " " << bridge.contig1 << " and " << bridge.contig2 << " with positions " << bridge.position1 << " " << bridge.position2 << endl;
+                    }
 
                     //do not consider the reads that do "half-turns" on the contigs, this is an artefact of sequencing (undetected duplex reads)
                     if (bridge.contig1 != bridge.contig2 || abs(bridge.position1-bridge.position2) > 1000 || bridge.strand1 != bridge.strand2){
@@ -2103,16 +2128,16 @@ int main(int argc, char *argv[])
     string assembly_completed = path_tmp_folder+"tmp_assembly_completed.gfa";
     string gaf_completed = path_tmp_folder+"tmp_gaf_completed.gaf";
     if (correct){
-        cout << "Reassembling the unaligned reads with raven..." << endl;
-        reassemble_unaligned_reads(gaf_file, input_reads, input_assembly, assembly_completed, gaf_completed, path_to_raven, path_minigraph, num_threads, path_tmp_folder);
+        // cout << "Reassembling the unaligned reads with raven..." << endl;
+        // reassemble_unaligned_reads(gaf_file, input_reads, input_assembly, assembly_completed, gaf_completed, path_to_raven, path_minigraph, num_threads, path_tmp_folder);
     }
     else{
         system(("cp " + input_assembly + " " + assembly_completed).c_str());
         system(("cp " + gaf_file + " " + gaf_completed).c_str());
     }
-    // system(("cp " + input_assembly + " " + assembly_completed).c_str());
-    // system(("cp " + gaf_file + " " + gaf_completed).c_str());
-    // cout << "NOT RUNNING RAVEN, TO BE REMOVED" << endl;
+    system(("cp " + input_assembly + " " + assembly_completed).c_str());
+    system(("cp " + gaf_file + " " + gaf_completed).c_str());
+    cout << "NOT RUNNING RAVEN, TO BE REMOVED" << endl;
 
     if (correct){
         cout << "\n==== Now looping and iteratively modify the GFA until all reads align end-to-end on the assembly graph ====" << endl;
@@ -2131,7 +2156,7 @@ int main(int argc, char *argv[])
                 inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start, list_of_duplex_reads);
                 //discard all the duplex reads both in a new rreads file if given as input
                 if (path_new_reads != ""){
-                    cout << "Outputting non-duplexed reads in " << path_new_reads << ", discarding in total " << list_of_duplex_reads.size() << " reads" << endl;
+                    cout << "  - Outputting non-duplexed reads in " << path_new_reads << ", discarding in total " << list_of_duplex_reads.size() << " reads" << endl;
                     std::ofstream new_reads_file(path_new_reads);
                     std::ifstream read_stream(input_reads);
                     string line;
