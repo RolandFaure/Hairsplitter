@@ -453,6 +453,7 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                 mapping.orientation_on_contig2 = false;
             }
             if (mapping.position_on_contig2 < 0){
+                cout << "debug code ffe2" << endl;
                 cout << line << endl;
                 cout << path_length << " " << path_end << " " << length_of_contigs[all_contigs[all_contigs.size()-1]] << endl;
                 exit(1);
@@ -557,13 +558,6 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                     }
                 }
 
-                if ("S11_@2e6adada-d3ce-350a-7747-0c305639593e" == mapping.first){
-                    // cout << "read " << mapping.first << endl;
-                    for (auto& m : mapping.second){
-                        cout << "ia m here and " << mapping.second[b].pos_on_read2 << " " << mapping.second[b+1].pos_on_read1 << endl;
-                    }
-                }
-
                 if (mapping.second[b+1].pos_on_read1-mapping.second[b].pos_on_read2 >= 0) { //if there is still an overlap, then we can't use this bridge
 
                     Bridge bridge;
@@ -583,10 +577,6 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
                     bridge.strand2 = mapping.second[b+1].orientation_on_contig1;
 
                     bridge.read_name = mapping.first;
-
-                    if (bridge.contig1 == "edge_70" || bridge.contig2 == "edge_70"){
-                        cout << "bridge between " << bridge.read_name << " " << bridge.contig1 << " and " << bridge.contig2 << " with positions " << bridge.position1 << " " << bridge.position2 << endl;
-                    }
 
                     //do not consider the reads that do "half-turns" on the contigs, this is an artefact of sequencing (undetected duplex reads)
                     if (bridge.contig1 != bridge.contig2 || abs(bridge.position1-bridge.position2) > 1000 || bridge.strand1 != bridge.strand2){
@@ -2117,27 +2107,26 @@ int main(int argc, char *argv[])
     int num_unaligned_reads_start = 0;
     int num_jumpings_reads_start = 0;
     int num_undetected_duplex_reads_start = 0;
+    vector<Bridge> bridges3;
+    vector<Pier> piers3;
+    std::set<string> list_of_duplex_reads3;
     count_unaligned_reads(gaf_file, input_reads, num_unaligned_reads_start);
-    int num_well_aligned_reads_end = 0;
-    int num_partially_aligned_reads_end = 0;
-    int num_unaligned_reads_end = 0;
-    int num_jumpings_reads_end = 0;
-    int num_undetected_duplex_reads_end = 0;
+    inventoriate_bridges_and_piers(gaf_file, bridges3, piers3, input_assembly, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start, list_of_duplex_reads3);
 
     //reassemble unaligned reads with raven
     string assembly_completed = path_tmp_folder+"tmp_assembly_completed.gfa";
     string gaf_completed = path_tmp_folder+"tmp_gaf_completed.gaf";
     if (correct){
-        // cout << "Reassembling the unaligned reads with raven..." << endl;
-        // reassemble_unaligned_reads(gaf_file, input_reads, input_assembly, assembly_completed, gaf_completed, path_to_raven, path_minigraph, num_threads, path_tmp_folder);
+        cout << "Reassembling the unaligned reads with raven..." << endl;
+        reassemble_unaligned_reads(gaf_file, input_reads, input_assembly, assembly_completed, gaf_completed, path_to_raven, path_minigraph, num_threads, path_tmp_folder);
     }
     else{
         system(("cp " + input_assembly + " " + assembly_completed).c_str());
         system(("cp " + gaf_file + " " + gaf_completed).c_str());
     }
-    system(("cp " + input_assembly + " " + assembly_completed).c_str());
-    system(("cp " + gaf_file + " " + gaf_completed).c_str());
-    cout << "NOT RUNNING RAVEN, TO BE REMOVED" << endl;
+    // system(("cp " + input_assembly + " " + assembly_completed).c_str());
+    // system(("cp " + gaf_file + " " + gaf_completed).c_str());
+    // cout << "NOT RUNNING RAVEN, TO BE REMOVED" << endl;
 
     if (correct){
         cout << "\n==== Now looping and iteratively modify the GFA until all reads align end-to-end on the assembly graph ====" << endl;
@@ -2153,7 +2142,8 @@ int main(int argc, char *argv[])
             std::vector<Pier> piers;
             std::set<string> list_of_duplex_reads;
             if (iteration == 0){
-                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_start, num_partially_aligned_reads_start, num_jumpings_reads_start, num_undetected_duplex_reads_start, list_of_duplex_reads);
+                int nothing;
+                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, nothing, nothing ,nothing, nothing, list_of_duplex_reads);
                 //discard all the duplex reads both in a new rreads file if given as input
                 if (path_new_reads != ""){
                     cout << "  - Outputting non-duplexed reads in " << path_new_reads << ", discarding in total " << list_of_duplex_reads.size() << " reads" << endl;
@@ -2185,7 +2175,7 @@ int main(int argc, char *argv[])
             }
             else{
                 int nothing;
-                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads);
+                inventoriate_bridges_and_piers(gaf_completed, bridges, piers, assembly_completed, nothing, nothing ,nothing, nothing, list_of_duplex_reads);
             }
 
             // cout << "Found " << bridges.size() << " bridges and " << piers.size() << " piers." << endl;
@@ -2251,8 +2241,19 @@ int main(int argc, char *argv[])
         string final_gaf = path_tmp_folder+"tmp_last_cleanup.gaf";
         last_cleanup(assembly_completed, output_scaffold, input_reads, final_gaf, path_minigraph, num_threads, path_tmp_folder);
 
+        vector<Bridge> bridges2;
+        vector<Pier> piers2;
+        int num_well_aligned_reads_end = 0;
+        int num_partially_aligned_reads_end = 0;
+        int num_jumpings_reads_end = 0;
+        int num_undetected_duplex_reads_end = 0;
+        int num_unaligned_reads_end = 0;
+        std::set<string> list_of_duplex_reads2;
+        inventoriate_bridges_and_piers(final_gaf, bridges2, piers2, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads2);
+ 
+
         //count the number of reads that align end-to-end, partially and not at all
-        count_unaligned_reads(final_gaf, input_reads, num_unaligned_reads);
+        count_unaligned_reads(final_gaf, input_reads, num_unaligned_reads_end);
 
         //print the number of reads that aligned end-to-end, partially and not at all before and after 
         cout << "____________________________________________________________________________________________________" << endl;
@@ -2263,52 +2264,48 @@ int main(int argc, char *argv[])
         for (int i = 0 ; i < 25-num_well_aligned_reads_start_str.size() ; i++){
             cout << " ";
         }
-        cout << " | " << num_well_aligned_reads;
-        for (int i = 0 ; i < 25-std::to_string(num_well_aligned_reads).size() ; i++){
+        cout << " | " << num_well_aligned_reads_end;
+        for (int i = 0 ; i < 25-std::to_string(num_well_aligned_reads_end).size() ; i++){
             cout << " ";
         }
         cout << "|" << endl;
 
-        string num_undetected_duplex_reads_end_str = std::to_string(num_undetected_duplex_reads_end);
-        cout << "|    Number of undetected duplex reads      | " << num_undetected_duplex_reads_end_str;
-        for (int i = 0 ; i < 25-num_undetected_duplex_reads_end_str.size() ; i++){
-            cout << " ";
-        }
-        cout << " | " << num_undetected_duplex_reads_start;
+        cout << "|    Number of undetected duplex reads      | " << num_undetected_duplex_reads_start;
         for (int i = 0 ; i < 25-std::to_string(num_undetected_duplex_reads_start).size() ; i++){
             cout << " ";
         }
-        cout << "|" << endl;
-
-        string num_jumpings_reads_end_str = std::to_string(num_jumpings_reads_end);
-        cout << "|    Number of jumping reads                 | " << num_jumpings_reads_end_str;
-        for (int i = 0 ; i < 25-num_jumpings_reads_end_str.size() ; i++){
+        cout << " | " << num_undetected_duplex_reads_end;
+        for (int i = 0 ; i < 25-std::to_string(num_undetected_duplex_reads_end).size() ; i++){
             cout << " ";
         }
-        cout << " | " << num_jumpings_reads_start;
+        cout << "|" << endl;
+
+        cout << "|    Number of jumping reads                | " << num_jumpings_reads_start;
         for (int i = 0 ; i < 25-std::to_string(num_jumpings_reads_start).size() ; i++){
             cout << " ";
         }
-        cout << "|" << endl;
-
-        string num_partially_aligned_reads_start_str = std::to_string(num_partially_aligned_reads_start);
-        cout << "|    Number of partially aligned reads       | " << num_partially_aligned_reads_start_str;
-        for (int i = 0 ; i < 25-num_partially_aligned_reads_start_str.size() ; i++){
-            cout << " ";
-        }
-        cout << " | " << num_partially_aligned_reads;
-        for (int i = 0 ; i < 25-std::to_string(num_partially_aligned_reads).size() ; i++){
+        cout << " | " << num_jumpings_reads_end;
+        for (int i = 0 ; i < 25-std::to_string(num_jumpings_reads_end).size() ; i++){
             cout << " ";
         }
         cout << "|" << endl;
 
-        string num_unaligned_reads_start_str = std::to_string(num_unaligned_reads_start);
-        cout << "|    Number of unaligned reads              | " << num_unaligned_reads_start_str;
-        for (int i = 0 ; i < 25-num_unaligned_reads_start_str.size() ; i++){
+        cout << "|    Number of partially aligned reads      | " << num_partially_aligned_reads_start;
+        for (int i = 0 ; i < 25-std::to_string(num_partially_aligned_reads_start).size() ; i++){
             cout << " ";
         }
-        cout << " | " << num_unaligned_reads;
-        for (int i = 0 ; i < 25-std::to_string(num_unaligned_reads).size() ; i++){
+        cout << " | " << num_partially_aligned_reads_end;
+        for (int i = 0 ; i < 25-std::to_string(num_partially_aligned_reads_end).size() ; i++){
+            cout << " ";
+        }
+        cout << "|" << endl;
+
+        cout << "|    Number of unaligned reads              | " << num_unaligned_reads_start;
+        for (int i = 0 ; i < 25-std::to_string(num_unaligned_reads_start).size() ; i++){
+            cout << " ";
+        }
+        cout << " | " << num_unaligned_reads_end;
+        for (int i = 0 ; i < 25-std::to_string(num_unaligned_reads_end).size() ; i++){
             cout << " ";
         }
         cout << "|" << endl;

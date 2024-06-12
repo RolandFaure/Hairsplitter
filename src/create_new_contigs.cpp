@@ -539,8 +539,8 @@ void modify_GFA(
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
                             
                         }
-                        cout << "finished polishing " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << endl;
-                        exit(1);
+                        // cout << "finished polishing " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << endl;
+                        // exit(1);
                         // if (newcontig == ""){
                             // newcontig = consensus_reads(toPolish, full_backbone, 
                             //     interval.first.first, interval.first.second-interval.first.first+1, group.second, thread_id, outFolder, techno, MINIMAP, RACON);
