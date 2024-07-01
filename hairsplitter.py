@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.4"
-__date__ = "2024-06-12"
+__version__ = "1.9.5"
+__date__ = "2024-07-01"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -714,7 +714,7 @@ def main():
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
 
-    command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + nb_threads \
+    command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + str(nb_threads) \
           + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")

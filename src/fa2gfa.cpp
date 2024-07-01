@@ -31,6 +31,9 @@ int main(int argc, char *argv[])
             {
                 name = name.substr(0, pos);
             }
+            else{ //if no spaces were found, delete the line break
+                name = name.substr(0, name.size()-1);
+            }
             sequence = "";
             i++;
         }
