@@ -25,15 +25,17 @@ int main(int argc, char *argv[])
 
             //delete the '>' character
             name = line.substr(1, line.size() - 1);
-            //stop the name at the first space
-            size_t pos = name.find(" ");
-            if (pos != std::string::npos)
+
+            //stop the name at the first non alphanumeric character
+            for (int j = 0; j < name.size(); j++)
             {
-                name = name.substr(0, pos);
+                if (!isalnum(name[j]))
+                {
+                    name = name.substr(0, j);
+                    break;
+                }
             }
-            // else{ //if no spaces were found, delete the line break
-            //     name = name.substr(0, name.size()-1);
-            // }
+
             sequence = "";
             i++;
         }
