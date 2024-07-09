@@ -371,25 +371,25 @@ string consensus_reads(
         technoFlag = " -x map-hifi ";
     }
 
-    // string com = " -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".paf 2>"+ outFolder +"trash.txt";
-    // string commandMap = MINIMAP + com; 
-    // auto map = system(commandMap.c_str());
-    // if (map != 0){
-    //     cout << "ERROR minimap2 failed, while running " << commandMap << endl;
-    //     exit(1);
-    // }
+    string com2 = " -a -t 1 "+ technoFlag + " " + outFolder +"unpolished_"+id+".fasta "+ outFolder +"reads_"+id+".fasta > "+ outFolder +"mapped_"+id+".sam 2>"+ outFolder +"trash.txt";
+    string commandMap = MINIMAP + com2; 
+    auto map = system(commandMap.c_str());
+    if (map != 0){
+        cout << "ERROR minimap2 failed, while running " << commandMap << endl;
+        exit(1);
+    }
 
     //create a sam file from the CIGARs and the reads
-    std::ofstream sam(outFolder+"mapped_"+id+".sam");
-    sam << "@HD\tVN:1.6\tSO:coordinate" << endl;
-    sam << "@SQ\tSN:seq\tLN:" << backbone.size() << endl;
-    for (int read = 0 ; read < polishingReads.size() ; read++){
-        // cout << "readeue " << read << " " << polishingReads[read].size() << endl;
-        if (polishingReads[read].size() > 0){
-            sam << "read" << read << "\t0\tseq\t"<< CIGARs[read].second <<"\t60\t" << CIGARs[read].first << "\t*\t0\t0\t" << polishingReads[read] << "\t*\tAS:i:0\tXS:i:0" << endl;
-        }   
-    }
-    sam.close();
+    // std::ofstream sam(outFolder+"mapped_"+id+".sam");
+    // sam << "@HD\tVN:1.6\tSO:coordinate" << endl;
+    // sam << "@SQ\tSN:seq\tLN:" << backbone.size() << endl;
+    // for (int read = 0 ; read < polishingReads.size() ; read++){
+    //     // cout << "readeue " << read << " " << polishingReads[read].size() << endl;
+    //     if (polishingReads[read].size() > 0){
+    //         sam << "read" << read << "\t0\tseq\t"<< CIGARs[read].second <<"\t60\t" << CIGARs[read].first << "\t*\t0\t0\t" << polishingReads[read] << "\t*\tAS:i:0\tXS:i:0" << endl;
+    //     }   
+    // }
+    // sam.close();
 
     //check that the alignment of the reads were correct, otherwise change the backbone
     string nameOfFile = outFolder +"mapped_"+id+".sam";
@@ -452,8 +452,7 @@ string consensus_reads(
     }
 
     //run a basic consensus
-    command = "samtools consensus -m simple -c 0 -a "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
-    // cout << "Running " << command << endl;
+    command = "samtools consensus -m simple -c 0 "+ outFolder +"mapped_"+id+".bam > "+ outFolder +"consensus_"+id+".fasta";
     auto res_cons = system(command.c_str());
     if (res_cons != 0){
         cout << "ERROR basic_consensus failed, while running " << command << endl;

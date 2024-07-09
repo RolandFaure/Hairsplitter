@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.6"
-__date__ = "2024-07-08"
+__version__ = "1.9.7"
+__date__ = "2024-07-09"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -629,7 +629,7 @@ def main():
 
     #"Usage: ./separate_reads <columns> <num_threads> <error_rate> <DEBUG> <outfile> "
     command = path_separate_reads + " " + tmp_dir + "/variants.col " + str(nb_threads) + " " + str(error_rate) + " hs/tmp/ploidy.txt " + str(int(low_memory)) \
-        + " " + str(rarest_strain_abundance) + " " + tmp_dir + "/reads_haplo.gro " + flag_debug
+        + " " + str(rarest_strain_abundance) + " "+ str(amplicon)+ " " + tmp_dir + "/reads_haplo.gro " + flag_debug
     #write in the log file the time at which the separation starts
     f = open(logFile, "a")
     f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")

@@ -228,6 +228,8 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
+        cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
+
         // if (allreads[backbones_reads[b]].name != "edge_19_53518_267275_0_213757_0_213757@0"){ //DEBUG
         //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
         //     continue;
@@ -287,6 +289,7 @@ void modify_GFA(
             vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
 
             for (int n = 0 ; n < partitions.at(backbone).size() ; n++){
+                cout << "in partition " << n << " between positions " << partitions.at(backbone).at(n).first.first << " and " << partitions.at(backbone).at(n).first.second << endl;
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
                     std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions.at(backbone).at(n).second, 

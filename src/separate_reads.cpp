@@ -1354,13 +1354,13 @@ std::vector<int> merge_haplotypes_to_fit_within_limit(
 
 int main(int argc, char *argv[]){
 
-    if (argc < 9){
+    if (argc != 10){
         if (argc==2 && (argv[1] == string("-h") || argv[1] == string("--help"))){
-            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+            cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <amplicon> <outfile> <DEBUG>" << endl;
             return 0;
         }
 
-        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <outfile> <DEBUG>" << endl;
+        cout << "Usage: ./separate_reads <columns> <num_threads> <error_rate> <ploidy_of_contigs> <low_memory> <rarest-strain-abundance> <amplicon> <outfile> <DEBUG>" << endl;
         return 1;
     }
 
@@ -1368,8 +1368,9 @@ int main(int argc, char *argv[]){
     int num_threads = atoi(argv[2]);
     string ploidy_file = argv[4]; //max number of haplotypes athorized on a contig (0 means infinite)
     float errorRate = atof(argv[3]);
-    bool debug = bool(atoi(argv[8]));
-    string outfile = argv[7];
+    bool amplicon = bool(atoi(argv[7]));
+    bool debug = bool(atoi(argv[9]));
+    string outfile = argv[8];
     bool low_memory = bool(atoi(argv[5]));
 
     float rarest_strain_abundance = atof(argv[6]);
@@ -1444,6 +1445,13 @@ int main(int argc, char *argv[]){
     }
     else if (numberOfReadsAbove4000 < 20 && meanLength < 2000){
         sizeOfWindow = 500;
+    }
+
+    if (amplicon){ //take as size of window the length of the longest contig
+        sizeOfWindow = 0;
+        for (auto l : length_of_contigs){
+            sizeOfWindow = max(sizeOfWindow, int(l));
+        }
     }
 
     //to make the progress bar

@@ -82,7 +82,7 @@ optional arguments:
   -f FASTQ, --fastq FASTQ
                         Sequencing reads fasta/q (required)
   -x TECHNOLOGY, --technology TECHNOLOGY
-                        {ont, pacbio, hifi} [ont]
+                        {ont, pacbio, hifi,amplicon} [ont]
   -t THREADS, --threads THREADS
                         Number of threads [1]
   -s, --dont_simplify   Don't rename the contigs and don't merge them
