@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.7"
-__date__ = "2024-07-09"
+__version__ = "1.9.8"
+__date__ = "2024-07-23"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -290,6 +290,37 @@ def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, sa
 
     return path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_determine_multiplicity, path_graphunzip
 
+#convert the gfa assembly if it contains non-capital letters, -, and output a warning if other characters are present
+def check_input_assembly(assembly_file, robust_assembly_file):
+    f = open(assembly_file, "r")
+    g = open(robust_assembly_file, "w")
+    warning = False
+    for line in f:
+        if line[0] == "S":
+            g.write(line.split("\t")[0] + "\t" + line.split("\t")[1] + "\t")
+            for c in line.split("\t")[2] :
+                character = c
+                if c.islower() :
+                    character = c.upper()
+
+                if character == "-" or character == " " or character == "\t" or ord(character) <= 32 : #this is an indel of the input sequence, we remove it
+                    ...
+                elif character != "A" and character != "C" and character != "G" and character != "T" :
+                    warning = True
+                    #print the ascii code of the character
+                    g.write("A")
+                else :
+                    g.write(c)
+
+            g.write("\n")
+        else :
+            g.write(line)
+    f.close()
+    g.close()
+
+    if warning :
+        print("WARNING: The assembly contains characters other than ACGT. They were converted to A. This might lead to errors.")
+
 def main():
 
     print("\n\t******************\n\t*                *\n\t*  Hairsplitter  *\n\t*    Welcome!    *\n\t*                *\n\t******************\n")
@@ -423,6 +454,10 @@ def main():
         print("ERROR: Assembly file must be in GFA or FASTA format. File extension not recognized.")
         sys.exit(1)
 
+    # 0.1 Check the assembly for non-capital letters and weird characters like - 
+    robust_assembly = tmp_dir + "/robust_assembly.gfa"
+    check_input_assembly(gfaAssembly, robust_assembly)
+
     # 1. Clean the assembly using correct_structural_errors.py
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
     print(" When several haplotypes are present, it is common that big structural variations between the haplotypes go unnoticed by the assembler. Here, HairSplitter corrects the assembly"
@@ -437,7 +472,7 @@ def main():
             print(" - Already cleaned assembly found from previous run")
         else:
             continue_from_previous_run = False
-            command = path_GenomeTailor + " -i " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
+            command = path_GenomeTailor + " -i " + robust_assembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
                 + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
                 + " -d " + tmp_dir + "/reads.fa -p " + tmp_dir + " > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
             readsFile = tmp_dir + "/reads.fa"
@@ -480,14 +515,14 @@ def main():
         f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
         f.write(" - The corrected assembly was too complicated, falling back on the original assembly\n")
         f.close()
-        new_assembly = gfaAssembly
+        new_assembly = robust_assembly
     elif skip_minigraph :
         f = open(logFile, "a")
         f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
         f.write(" - Skipping the assembly correction step because --correct-assembly was not used")
         f.close()
         print(" - Skipping the assembly correction step because --correct-assembly was not used")
-        new_assembly = gfaAssembly
+        new_assembly = robust_assembly
 
     # 2. Map the reads on the assembly
     print("\n===== STAGE 2: Aligning reads on the reference   [", datetime.datetime.now() ,"]\n")

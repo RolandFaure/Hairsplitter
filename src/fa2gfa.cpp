@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
             //stop the name at the first non alphanumeric character
             for (int j = 0; j < name.size(); j++)
             {
-                //stop the name is whitespace, linebreak or tab found or carriage return
+                //stop the name is whitespace or linebreak or tab or carriage return
                 if (name[j] == ' ' || name[j] == '\n' || name[j] == '\t' || name[j] == '\r')
                 {
                     name = name.substr(0, j);
