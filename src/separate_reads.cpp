@@ -686,6 +686,13 @@ void create_read_graph_matrix(
     Eigen::SparseMatrix<int> &adjacency_matrix, //containing only the 1s
     float &errorRate){
 
+    // //output the sub-adjacency matrix of reads 0, 5 and 12 and 31
+    // cout << "adjacency mawtrix 0 : " << endl;
+    // cout << ". . ;" << similarity.coeff(0,5) << " " << difference.coeff(0,5) <<  " ; " << similarity.coeff(0,12) << " " << difference.coeff(0,12) << " ; " << similarity.coeff(0,31) << " " << difference.coeff(0,31) << endl;
+    // cout << similarity.coeff(5,0) << " " << difference.coeff(5,0) << " ; . . ; " << similarity.coeff(5,12) << " " << difference.coeff(5,12) << " ; " << similarity.coeff(5,31) << " " << difference.coeff(5,31) << endl;
+    // cout << similarity.coeff(12,0) << " " << difference.coeff(12,0) << " ; " << similarity.coeff(12,5) << " " << difference.coeff(12,5) << " ; ." << similarity.coeff(12,31) << " " << difference.coeff(12,31) << endl;
+    // cout << similarity.coeff(31,0) << " " << difference.coeff(31,0) << " ; " << similarity.coeff(31,5) << " " << difference.coeff(31,5) << " ; " << similarity.coeff(31,12) << " " << difference.coeff(31,12) << " ; ." << endl;
+
     set<int> listOfGroups;
     int max_cluster = 0;
 
@@ -714,6 +721,7 @@ void create_read_graph_matrix(
                     diffs[read2] = it.value();
                 }
             }
+
 
             for (auto r = 0 ; r < mask.size() ; r++){
                 if (mask[r] && r != read1 && sims[r]> 0){
@@ -756,6 +764,16 @@ void create_read_graph_matrix(
                 if (idx < smallest.size()){
                     idx = min(idx+4, (int) smallest.size()-1);
                     distance_threshold_above_which_two_reads_should_be_linked = smallest[idx].second;
+                }
+            }
+
+            if (read1 == 0){
+                cout << "distance threshold above which two reads should be linked : " << distance_threshold_above_which_two_reads_should_be_linked << endl;
+                cout << "distance threshold below which two reads are considered different : " << distance_threshold_below_which_two_reads_are_considered_different << endl;
+                for (auto neighbor : smallest){
+                    if (neighbor.first == 5){
+                        cout << "neighbor 5 : " << neighbor.second << endl;
+                    }
                 }
             }
 
@@ -1594,7 +1612,14 @@ int main(int argc, char *argv[]){
 
             if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
-                // cout << "adjacency matrix computed " << errorRate << endl;
+                cout << "adjacency matrix computed " << errorRate << endl;
+
+                // cout << "here are all the links in the adjacency matrix: " << endl;
+                // for (int k = 0; k < adjacency_matrix.outerSize(); ++k) {
+                //     for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, k); it; ++it) {
+                //         cout << it.row() << " " << it.col() << " " << it.value() << endl;
+                //     }
+                // }
             }
             else{
                 // cout << "creating the neighbor list" << endl;
@@ -1602,8 +1627,6 @@ int main(int argc, char *argv[]){
                     v.reserve(20);
                 }
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
-
-            
 
                 // cout << "ididinnd q" << endl;
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
@@ -1673,16 +1696,16 @@ int main(int argc, char *argv[]){
                 haplotypes = mergedHaplotypes;
             }
 
-            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            // if (low_memory){
-            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            // }
-            // else{
-            //     outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            //     vector<bool> nomask (haplotypes.size(), true);
-            //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
-            // }
-            // cout << "Done" << endl;
+            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            if (low_memory){
+                outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            }
+            else{
+                outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+                vector<bool> nomask (haplotypes.size(), true);
+                outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
+            }
+            cout << "Done" << endl;
             // cout << "haplotypes: " << endl;
             // int idd = 0;
             // for (auto h : haplotypes){

@@ -1323,10 +1323,10 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
     string current_read;
     for (auto r : reads){
         if (r.second.first.size() > 0 && r.second.second.size() > 0){ //take a contig that has neighbors left and right
-            cout << "read right are ";
-            for (auto rr : r.second.first){
-                cout << rr.name2 << " ";
-            }
+            // cout << "read right are ";
+            // for (auto rr : r.second.first){
+            //     cout << rr.name2 << " ";
+            // }
             current_read = r.first;
             break;
         }
@@ -1347,7 +1347,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     std::unordered_set already_used_contigs = {current_read};
 
-    cout << "starting with read " << current_read << endl;
+    // cout << "starting with read " << current_read << endl;
 
     string new_current_read = current_read;
     //first extend to the right
@@ -1385,7 +1385,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             already_used_contigs.emplace(current_read);
 
                         
-                            cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
+                            // cout << "movingd on tho " << new_current_read << " thanks to overlap : " << endl;
                             // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                             // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1423,7 +1423,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             new_current_read = overlap.name2;
                             current_strand = next_read.strand;
                             already_used_contigs.emplace(current_read);
-                            cout << "movingd on ztho " << new_current_read << endl;
+                            // cout << "movingd on ztho " << new_current_read << endl;
 
                             break;
                         }
@@ -1475,7 +1475,7 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
                             new_current_read = overlap.name2;
                             current_strand = next_read.strand;
                             already_used_contigs.emplace(current_read);
-                            cout << "movingd on Atho " << new_current_read << endl;
+                            // cout << "movingd on Atho " << new_current_read << endl;
                             // cout << overlap.length1 << " " << overlap.name1 << " " << overlap.start1 << " " << overlap.end1 << " " << overlap.strand << endl;
                             // cout << overlap.length2 << " " << overlap.name2 << " " << overlap.start2 << " " << overlap.end2 << " " << overlap.strand << endl;
 
@@ -1567,16 +1567,16 @@ std::string basic_assembly(std::string read_file, string &MINIMAP, string &tmp_f
 
     //now convert the contig parts into a string
     string new_contig_string = "";
-    for (auto c : new_contig_full){
-        cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
-        if (c.strand){
-            new_contig_string += reads_sequences[c.read].substr(c.start, c.end-c.start);
-        }
-        else{
-            string s = reads_sequences[c.read].substr(c.start, c.end-c.start);
-            new_contig_string += reverse_complement(s);
-        }
-    }
+    // for (auto c : new_contig_full){
+    //     cout << "contig part " << c.read << " " << c.start << " " << c.end << " " << c.strand << endl;
+    //     if (c.strand){
+    //         new_contig_string += reads_sequences[c.read].substr(c.start, c.end-c.start);
+    //     }
+    //     else{
+    //         string s = reads_sequences[c.read].substr(c.start, c.end-c.start);
+    //         new_contig_string += reverse_complement(s);
+    //     }
+    // }
 
     return new_contig_string;
 }

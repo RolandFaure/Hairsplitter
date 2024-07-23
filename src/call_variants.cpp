@@ -712,14 +712,11 @@ void keep_only_robust_variants(
         for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
             distancePartition dis = distance(listOfFinalPartitions[p], snp, snp.ref_base);
 
-            // cout << "distance between " << snp.pos << endl;
-            // // listOfFinalPartitions[p].print();
-            // // print_snp(snp);
-            // cout << " is " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << " " << " " << 0.5*snp.content.size() << computeChiSquare(dis)<< endl;
-
             float chisqu = computeChiSquare(dis);
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
                 && chisqu > 15){
+                // cout << "suspect position : " << snp.pos << " " << chisqu << endl;
+                // cout << "correlates with partition " << p << endl;
                 snps_out.push_back(snp);
                 chisquare_sum += chisqu;
                 number_of_interesting_positions += 1;
@@ -1143,6 +1140,7 @@ float computeChiSquare(distancePartition dis){
     // cout << "expected/obtained : " << dis.n00 << "/"<<(1-pmax1)*(1-pmax2)*n << " ; " << dis.n01 << "/"<<(1-pmax1)*pmax2*n
     // << " ; " << dis.n10 << "/" << pmax1*(1-pmax2)*n << " ; " << dis.n11 << "/" << pmax1*pmax2*n << endl;
     //chi square test with 1 degree of freedom
+
     float res;
     res = pow((dis.n00-(1-pmax1)*(1-pmax2)*n),2)/((1-pmax1)*(1-pmax2)*n)
         + pow((dis.n01-(1-pmax1)*pmax2*n),2)/((1-pmax1)*pmax2*n)
