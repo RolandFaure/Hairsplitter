@@ -1015,8 +1015,23 @@ void output_filtered_PAF(std::string fileOut, std::string fileIn, std::vector <R
  * @param allreads vector of all reads (including backbone reads which can be contigs)
  * @param backbone_reads vector of all the indices of the backbone reads in allreads
  * @param fileOut output file
+ * @param sortstrategy strategy to sort the contigs ("size", "coverage")
  */
-void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut){
+void output_FASTA(std::vector <Read> &allreads, std::vector<unsigned long int> &backbone_reads, std::string fileOut, std::string sortstrategy){
+
+    if (sortstrategy == "coverage"){
+        //sort the contigs to output by decreasing coverage
+        std::sort(backbone_reads.begin(), backbone_reads.end(), [&allreads](unsigned long int a, unsigned long int b){
+            return allreads[a].depth > allreads[b].depth;
+        });
+    }
+    else {
+        //sort the contigs to output by decreasing size
+        std::sort(backbone_reads.begin(), backbone_reads.end(), [&allreads](unsigned long int a, unsigned long int b){
+            return allreads[a].sequence_.size() > allreads[b].sequence_.size();
+        });
+    }
+
     ofstream out(fileOut);
     for (auto r : backbone_reads){
         if (allreads[r].name != "delete_me" && allreads[r].sequence_.size() > 0){

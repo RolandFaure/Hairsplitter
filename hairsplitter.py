@@ -748,8 +748,10 @@ def main():
 
     outfile = args.output.rstrip('/') + "/hairsplitter_final_assembly.gfa"
 
-
-    command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + str(nb_threads) \
+    sort_on_coverage = ""
+    if amplicon == "1" :
+        sort_on_coverage = " -x"
+    command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + str(nb_threads) + sort_on_coverage \
           + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")

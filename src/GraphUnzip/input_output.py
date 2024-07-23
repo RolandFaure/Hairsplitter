@@ -351,7 +351,7 @@ def get_contig_GFA(gfaFile, contig, contigOffset):
 # Input :
 #   offset file is for speeding up exportation
 #   merge_adjacent_contig is to produce a GFA with contigs merged
-def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAssembly.gfa", offsetsFile = "", merge_adjacent_contigs = False, rename_contigs = False): 
+def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAssembly.gfa", offsetsFile = "", merge_adjacent_contigs = False, rename_contigs = False, sort_strategy = 'length') : 
     
     #compute the offsetfile : it will be useful for speeding up exportation. It will enable get_contig not to have to look through the whoooooole file each time to find one contig
     noOffsets = False
@@ -375,8 +375,12 @@ def export_to_GFA(listOfSegments, copies, gfaFile="", exportFile="results/newAss
  
     #Now that the preliminary work is done, start writing the new gfa file    
 
-    # now sort the segments by length, to output at the beginning of the files the longests fragments
-    listOfSegments.sort(key = lambda x : x.length, reverse = True)
+    # now sort the segments either by length or by coverge, to output at the beginning of the files the longests or most covered fragments
+    if sort_strategy == "coverage" :
+        listOfSegments.sort(key = lambda x : x.depth, reverse = True)
+    else :
+        listOfSegments.sort(key = lambda x : x.length, reverse = True)
+
 
 
     f = open(exportFile, "w")

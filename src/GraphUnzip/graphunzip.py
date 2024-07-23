@@ -144,12 +144,12 @@ def parse_args_unzip() :
         help="""(Hi-C only)[default] Proposes the best untangling it can get (can be misled by approximate coverage information). Use this option if the contig coverage information of the graph can be trusted""",
     )
 
-    # groupBehavior.add_argument(
-    #     "-m",
-    #     "--meta",
-    #     action="store_true",
-    #     help="""Use this option if the graph is metagenomic, to prevent HairSplitter making dubious assumptions about the coverage""",
-    # )
+    groupBehavior.add_argument(
+        "-x",
+        "--amplicon",
+        action="store_true",
+        help="""Use this option if the input is amplicon data""",
+    )
     
     groupBehavior.add_argument(
         "-e",
@@ -314,6 +314,8 @@ def main():
         reliableCoverage = not args.conservative
         exhaustive = args.exhaustive
 
+        amplicon = args.amplicon
+
         num_threads= int(args.num_threads)
 
         # multiploid = args.meta
@@ -461,7 +463,10 @@ def main():
         if merge:
             print("Merging contigs that can be merged...")
             tmp_non_merged_gfa_file = outFile + ".tmp"
-            io.export_to_GFA(segments, copies, gfaFile, exportFile=tmp_non_merged_gfa_file, merge_adjacent_contigs=False, rename_contigs=rename)
+            sort_strategy = "length"
+            if amplicon:
+                sort_strategy = "coverage"
+            io.export_to_GFA(segments, copies, gfaFile, exportFile=tmp_non_merged_gfa_file, merge_adjacent_contigs=False, rename_contigs=rename, sort_strategy=sort_strategy)
             merge_adjacent_contigs_GFA(tmp_non_merged_gfa_file, outFile)
             # os.remove(tmp_non_merged_gfa_file)
         else:
