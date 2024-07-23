@@ -310,7 +310,7 @@ def check_input_assembly(assembly_file, robust_assembly_file):
                     #print the ascii code of the character
                     g.write("A")
                 else :
-                    g.write(c)
+                    g.write(character)
 
             g.write("\n")
         else :
