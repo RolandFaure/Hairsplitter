@@ -337,7 +337,7 @@ string consensus_reads(
 
     int window_size = racon_window_size;
     if (window_size == -1){
-        window_size = backbone.size();
+        window_size = backbone.size()*2;
     }
     else if (window_size == 0){
         window_size = 500;
