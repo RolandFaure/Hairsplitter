@@ -228,7 +228,7 @@ void modify_GFA(
     #pragma omp parallel for
     for (int b = 0 ; b < max_backbone ; b++){
 
-        cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
+        // cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
 
         // if (allreads[backbones_reads[b]].name != "edge_19_53518_267275_0_213757_0_213757@0"){ //DEBUG
         //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
