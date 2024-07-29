@@ -235,7 +235,7 @@ void modify_GFA(
         //     continue;
         // }
 
-        if (partitions.find((backbones_reads[b])) == partitions.end()){
+        if (partitions.find((backbones_reads[b])) == partitions.end() && !polish){
             //just make sure it has a depth, and if not, recomputes it
             if (allreads[backbones_reads[b]].depth == -1){
                 double total_depth = 0;
@@ -245,6 +245,9 @@ void modify_GFA(
                 allreads[backbones_reads[b]].depth = total_depth / allreads[backbones_reads[b]].sequence_.size();
             }
             continue;
+        }
+        else if (partitions.find((backbones_reads[b])) == partitions.end() && polish){
+            partitions[backbones_reads[b]].push_back(make_pair(make_pair(0, allreads[backbones_reads[b]].sequence_.size()), vector<int>(allreads[backbones_reads[b]].neighbors_.size(), 0)));
         }
 
         //first load all the reads
@@ -270,7 +273,7 @@ void modify_GFA(
 
         //if partitions[backbone].size() == 0, see if we need to repolish or not, depending on wether the coverage is coherent or not
         bool dont_recompute_contig = false;
-        if (partitions.at(backbone).size() == 0 && allreads[backbones_reads[b]].depth > 1){
+        if (!polish && partitions.at(backbone).size() == 0 && allreads[backbones_reads[b]].depth > 1){
             double total_depth = 0;
             for (auto n : allreads[backbones_reads[b]].neighbors_){
                 total_depth += allOverlaps[n].position_1_2 - allOverlaps[n].position_1_1;
@@ -282,14 +285,13 @@ void modify_GFA(
             }
         }        
 
-
-        if (partitions.find(backbone) != partitions.end() && partitions.at(backbone).size() > 0 && !dont_recompute_contig){
+        if ((partitions.find(backbone) != partitions.end() && partitions.at(backbone).size() > 0 && !dont_recompute_contig) ){
 
             //stitch all intervals of each backbone read
             vector<unordered_map <int,set<int>>> stitches(partitions.at(backbone).size()); //aggregates the information from stitchesLeft and stitchesRight to know what link to keep
 
             for (int n = 0 ; n < partitions.at(backbone).size() ; n++){
-                cout << "in partition " << n << " between positions " << partitions.at(backbone).at(n).first.first << " and " << partitions.at(backbone).at(n).first.second << endl;
+                // cout << "in partition " << n << " between positions " << partitions.at(backbone).at(n).first.first << " and " << partitions.at(backbone).at(n).first.second << endl;
                 //for each interval, go through the different parts and see with what part before and after they fit best
                 if (n > 0){
                     std::unordered_map<int, std::set<int>> stitchLeft = stitch(partitions.at(backbone).at(n).second, 
@@ -337,6 +339,7 @@ void modify_GFA(
                     }
                 }
             }
+
             // cout << "sticch size 2 " << stitches.size() << endl;
 
             //create hangingLinks, a list of links that are not yet connected but will soon be
