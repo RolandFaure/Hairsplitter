@@ -35,6 +35,9 @@ if __name__ == "__main__":
                 if line.startswith("S"):
                     
                     ls = line.strip().split("\t")
+                    if len(ls) < 3:
+                        length_of_contigs[ls[1]] = 0
+                        continue
                     length_of_contigs[ls[1]] = len(ls[2])
                     for chunk in range (int(np.floor((len(ls[2])-1)/length)+1)): #-1 to avoid creating a contig of length 0
                         if chunk*length < len(ls[2]):
