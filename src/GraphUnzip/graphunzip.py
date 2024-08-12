@@ -17,7 +17,7 @@ from finish_untangling import trim_overlaps
 from finish_untangling import merge_adjacent_contigs_GFA
 from solve_with_long_reads import bridge_with_long_reads
 #from solve_with_long_reads2 import bridge_with_long_reads2
-from solve_with_HiC import solve_with_HiC
+#from solve_with_HiC import solve_with_HiC
 from determine_multiplicity import determine_multiplicity
 from determine_multiplicity import determine_multiplicity_based_on_gaf
 from contig_DBG import DBG_long_reads
@@ -358,6 +358,9 @@ def main():
         useTag = False
         
         if interactionFileH != "Empty":
+
+            # print("ERROR: This version on graphunzip does not support HiC")
+            # sys.exit(1)
             
             if not os.path.exists(interactionFileH) :
                 print("ERROR: could not access ", interactionFileH)
