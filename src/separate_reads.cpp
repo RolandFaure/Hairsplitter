@@ -767,15 +767,15 @@ void create_read_graph_matrix(
                 }
             }
 
-            if (read1 == 0){
-                cout << "distance threshold above which two reads should be linked : " << distance_threshold_above_which_two_reads_should_be_linked << endl;
-                cout << "distance threshold below which two reads are considered different : " << distance_threshold_below_which_two_reads_are_considered_different << endl;
-                for (auto neighbor : smallest){
-                    if (neighbor.first == 5){
-                        cout << "neighbor 5 : " << neighbor.second << endl;
-                    }
-                }
-            }
+            // if (read1 == 0){
+            //     cout << "distance threshold above which two reads should be linked : " << distance_threshold_above_which_two_reads_should_be_linked << endl;
+            //     cout << "distance threshold below which two reads are considered different : " << distance_threshold_below_which_two_reads_are_considered_different << endl;
+            //     for (auto neighbor : smallest){
+            //         if (neighbor.first == 5){
+            //             cout << "neighbor 5 : " << neighbor.second << endl;
+            //         }
+            //     }
+            // }
 
             for (auto neighbor : smallest){
                 if (neighbor.second > distance_threshold_below_which_two_reads_are_considered_different 
@@ -1612,7 +1612,7 @@ int main(int argc, char *argv[]){
 
             if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
-                cout << "adjacency matrix computed " << errorRate << endl;
+                // cout << "adjacency matrix computed " << errorRate << endl;
 
                 // cout << "here are all the links in the adjacency matrix: " << endl;
                 // for (int k = 0; k < adjacency_matrix.outerSize(); ++k) {
@@ -1696,16 +1696,16 @@ int main(int argc, char *argv[]){
                 haplotypes = mergedHaplotypes;
             }
 
-            cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            if (low_memory){
-                outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-            }
-            else{
-                outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
-                vector<bool> nomask (haplotypes.size(), true);
-                outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
-            }
-            cout << "Done" << endl;
+            // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
+            // if (low_memory){
+            //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            // }
+            // else{
+            //     outputGraph(adjacency_matrix, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
+            //     vector<bool> nomask (haplotypes.size(), true);
+            //     outputGraph_several_clusterings(adjacency_matrix, allclusters_debug, nomask, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+"_all.gdf");
+            // }
+            // cout << "Done" << endl;
             // cout << "haplotypes: " << endl;
             // int idd = 0;
             // for (auto h : haplotypes){

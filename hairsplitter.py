@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.10"
-__date__ = "2024-08-12"
+__version__ = "1.9.11"
+__date__ = "2024-08-13"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
     # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
+
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
@@ -443,8 +444,8 @@ def main():
     if args.assembly[-3:] == "gfa":
         gfaAssembly = args.assembly
     elif args.assembly[-5:] == "fasta" or args.assembly[-2:] == "fa" or args.assembly[-3:]=="fna":
+        gfaAssembly = tmp_dir + "/assembly.gfa"
         if not continue_from_previous_run or not os.path.exists(tmp_dir + "/assembly.gfa") :
-            gfaAssembly = tmp_dir + "/assembly.gfa"
             command = path_fa2gfa + " " + args.assembly + " > " + gfaAssembly
             res_fasta2gfa = os.system(command)
             if res_fasta2gfa != 0:
@@ -510,12 +511,7 @@ def main():
                     break
 
     if N50 < 10000 and not skip_minigraph:
-        print(" - The improved assembly is too complicated, falling back on the original assembly")
-        f = open(logFile, "a")
-        f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")
-        f.write(" - The corrected assembly was too complicated, falling back on the original assembly\n")
-        f.close()
-        new_assembly = robust_assembly
+        print(" - WARNING : The corrected assembly has quite a low N50, you might want to re-run the pipeline without the assembly correction step")
     elif skip_minigraph :
         f = open(logFile, "a")
         f.write("==== STAGE 1: Cleaning graph of hidden structural variations   ["+str(datetime.datetime.now())+"]\n")

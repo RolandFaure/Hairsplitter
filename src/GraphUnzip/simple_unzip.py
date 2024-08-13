@@ -568,7 +568,7 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                         locked_nodes.add(neighbor_contig)
                     else :
                         already_locked = True
-                    while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
+                    while len(neighbor_contig.links[neighbor_end]) == 1 and len(neighbor_contig.links[neighbor_end][0].links[neighbor_contig.otherEndOfLinks[neighbor_end][0]]) == 1 and neighbor_contig != segment :
                         neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
                         if neighbor_contig.locked == False :
                             locked_nodes.add(neighbor_contig)
@@ -595,7 +595,7 @@ def process_chunk_of_segments(segments, beginning, end, on_which_paths_is_this_c
                     else :
                         already_locked = True
 
-                    while len(neighbor_contig.links[neighbor_end]) == 1 and neighbor_contig != segment :
+                    while len(neighbor_contig.links[neighbor_end]) == 1 and len(neighbor_contig.links[neighbor_end][0].links[neighbor_contig.otherEndOfLinks[neighbor_end][0]]) == 1 and neighbor_contig != segment :
                         neighbor_contig, neighbor_end = neighbor_contig.links[neighbor_end][0], 1-neighbor_contig.otherEndOfLinks[neighbor_end][0]
                         if neighbor_contig.locked == False :
                             locked_nodes.add(neighbor_contig)
