@@ -247,7 +247,7 @@ void modify_GFA(
             continue;
         }
         else if (partitions.find((backbones_reads[b])) == partitions.end() && polish){
-            partitions[backbones_reads[b]].push_back(make_pair(make_pair(0, allreads[backbones_reads[b]].sequence_.size()), vector<int>(allreads[backbones_reads[b]].neighbors_.size(), 0)));
+            partitions[backbones_reads[b]] = {make_pair(make_pair(0, allreads[backbones_reads[b]].sequence_.size()), vector<int>(allreads[backbones_reads[b]].neighbors_.size(), 0))};
         }
 
         //first load all the reads
@@ -641,12 +641,7 @@ void modify_GFA(
 
                     Read r(newcontig, newcontig.size());
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
-                    if (readsPerPart.size() > 1){
-                        r.depth = newdepths[group.first];
-                    }
-                    else {
-                        r.depth = allreads[backbone].depth;
-                    }
+                    r.depth = newdepths[group.first];
 
                     // if (r.name == "s0.ctg000001l@1_84000_2"){
                     //     cout << "oiaooeiiddz" << endl;
