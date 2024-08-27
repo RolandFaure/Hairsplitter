@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.12"
-__date__ = "2024-08-14"
+__version__ = "1.9.13"
+__date__ = "2024-08-27"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -23,7 +23,7 @@ import datetime
 
 
 # command line arguments
-def parse_args():
+def parse_args(args_string=None):
 
     parser = argparse.ArgumentParser()
 
@@ -42,7 +42,7 @@ def parse_args():
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
-    parser.add_argument("--clean", help="Clean the temporary files", action="store_true")
+    parser.add_argument("--no_clean", help="Don't clean the temporary files", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
     parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
@@ -57,7 +57,13 @@ def parse_args():
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
 
-    return parser.parse_args()
+    if args_string is not None:
+        # Split the string into a list of arguments
+        args = parser.parse_args(args_string.split())
+    else:
+        args = parser.parse_args()
+
+    return args
 
 def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph\
                        , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs\
@@ -347,7 +353,7 @@ def main():
     minimap2_params = args.minimap2_params
     haploid_coverage = float(args.haploid_coverage)
     continue_from_previous_run = args.resume
-    clean_tmp = args.clean
+    clean_tmp = not args.no_clean
     technology = args.use_case
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
@@ -362,6 +368,31 @@ def main():
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
+    #check if --resume was used. If so, fetch the command line in the output folder
+    if continue_from_previous_run :
+        if not os.path.exists(logFile) :
+            print("ERROR: --resume was used but no log file was found in the output folder.")
+            sys.exit(1)
+        #the command is the first line of the log file
+        f = open(logFile, "r")
+        command = " ".join(f.readline().strip().split(" ")[1:])
+        f.close()
+        #check if the command is the same as the one used to run the script (e.g. same parameters, except --resume)
+        args_resume = parse_args(args_string=command)
+        if args_resume.assembly != args.assembly or args_resume.fastq != args.fastq or args_resume.haploid_coverage != args.haploid_coverage \
+            or args_resume.use_case != args.use_case or args_resume.polisher != args.polisher or args_resume.threads != args.threads \
+            or args_resume.output != args.output or args_resume.version != args.version or args_resume.debug != args.debug \
+            or args_resume.correct_assembly != args.correct_assembly or args_resume.low_memory != args.low_memory or args_resume.no_clean != args.no_clean \
+            or args_resume.rarest_strain_abundance != args.rarest_strain_abundance or args_resume.minimap2_params != args.minimap2_params \
+            or args_resume.path_to_minimap2 != args.path_to_minimap2 or args_resume.path_to_minigraph != args.path_to_minigraph \
+            or args_resume.path_to_racon != args.path_to_racon or args_resume.path_to_medaka != args.path_to_medaka \
+            or args_resume.path_to_samtools != args.path_to_samtools or args_resume.path_to_python != args.path_to_python \
+            or args_resume.path_to_raven != args.path_to_raven :
+            print("ERROR: --resume was used but there seem to be discrepancies in the command used before and now:")
+            print("Before: ", sys.argv[0] + " " + command)
+            print("Now: ", " ".join(sys.argv))
+            sys.exit(1)
+
     # check if output folder exists
     if os.path.exists(args.output) and not args.force and not args.resume:
         print("ERROR: output folder already exists. Use -F to overwrite.")
@@ -372,8 +403,8 @@ def main():
 
     #output the command line used to run HairSplitter and the version in the log file
     f = open(logFile, "w")
+    f.write(" ".join(sys.argv)+"\n")
     f.write("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__+"\n")
-    f.write("Command line used to run HairSplitter: "+" ".join(sys.argv)+"\n")
     f.close()
 
     #print the command line used to run HairSplitter
@@ -532,6 +563,7 @@ def main():
     f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
     f.write(" - Cutting the contigs in chunks of 300000bp to avoid memory issues\n")
     f.write(command)
+    f.close()
 
     res_cut_gfa = os.system(command)
     if res_cut_gfa != 0 :
@@ -543,6 +575,7 @@ def main():
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
     command = path_gfa2fa + " " + new_assembly + " > " + fastaAsm
+    f = open(logFile, "a")
     f.write(" - Converting the assembly in fasta format\n")
     f.write(command)
     f.close()
@@ -794,7 +827,7 @@ def main():
         sys.exit(1)
 
     if clean_tmp :
-        command = "rm -r " + reads_on_asm + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/reads_haplo.gro " + tmp_dir + "/ploidy.txt " + tmp_dir + "/reads.fasta " + tmp_dir + "/reads_on_new_contig.gaf " + tmp_dir + "/reads_on_new_contig.gro " + tmp_dir + "/reads_on_new_contig.sam " + tmp_dir + "/reads_on_new_contig.bam " + tmp_dir + "/reads_on_new_contig.bam.bai " 
+        command = "rm -r " + reads_on_asm + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/reads_haplo.gro " + tmp_dir + "/ploidy.txt " + tmp_dir + "/reads.fasta " + tmp_dir + "/reads_on_new_contig.gaf " 
         res_clean = os.system(command)
         if res_clean != 0:
             print("ERROR: Could not remove temporary files. Was trying to run: " + command)

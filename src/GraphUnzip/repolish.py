@@ -169,7 +169,7 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
             if len(reads[s]) > 0 and copies[subcontig] > 1 : #if the contig is unique it should be already polished
 
                 seq = None
-                # print("Repolishing ", subcontig, " with ", len(reads[s]), " reads")
+                print("Repolishing ", subcontig, " with ", len(reads[s]), " reads")
 
                 #now repolish
                 #begin by extracting the reads from the fastq file and write them to a temporary file
