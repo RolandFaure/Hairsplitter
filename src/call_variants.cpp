@@ -396,10 +396,10 @@ float generate_msa(
     // int step = 1; //porportions of reads
     // int prop = 1; //proportion of positions
     // int firstRead = 0;
-    // int lastRead = 10;
+    // int lastRead = 1000;
     // int numberOfReads = lastRead-firstRead;
-    // int start = 200;
-    // int end = 400;
+    // int start = 191830;
+    // int end = 191950;
     // vector<string> reads (int(numberOfReads/step));
     // string cons = "";
     // for (unsigned int i = start ; i < end; i+=prop){
@@ -519,11 +519,18 @@ vector<Column> call_variants(
             snps[position].second_base = content_sorted[1].first;
             snps[position].pos = position;
         }
-        // if (position == 85640 ){//&& allreads[contig].name == "edge_2"){
+        // if (position == 191928 ){//&& allreads[contig].name == "edge_2"){
         //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
         //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
         //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
+        //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << content_sorted[0].first << " "
+        //          << content_sorted[1].first << endl;
         //     cout << "with frequencies : " << content_sorted[0].second << " " << content_sorted[1].second << " " << content_sorted[2].second << " " << content_sorted[3].second<< endl;
+        //     cout << "here is the colmun : " << endl;
+        //     for (auto c : snps[position].content){
+        //         cout << convert_base_to_triplet((int) c) << " ";
+        //     }
+        //     cout << endl;
         // }
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
@@ -656,6 +663,9 @@ void keep_only_robust_variants(
 
         if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
 
+            // cout << "here is a kept partition " << p_value << endl;
+            // partitions[p1].print();
+
             bool different = true;
             
             for (auto p2 = 0 ; p2 < listOfFinalPartitions.size() ; p2++){
@@ -716,7 +726,7 @@ void keep_only_robust_variants(
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
                 && chisqu > 15){
                 // cout << "suspect position : " << snp.pos << " " << chisqu << endl;
-                // cout << "correlates with partition " << p << endl;
+                // cout << "correlates with partition " << p << " : " << dis.n00 << " " << dis.n01 << " "<< dis.n10 << " " << dis.n11 << endl;
                 snps_out.push_back(snp);
                 chisquare_sum += chisqu;
                 number_of_interesting_positions += 1;
@@ -1267,7 +1277,7 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name != "edge_79_0_3198_0_3198_0_3198@00"){ //for debugging purposes
+            if (allreads[contig].name == "edge_124@9"){ //for debugging purposes
 
                 // cout << "Looking at contig number " << index << " out of " << backbone_reads.size() << " (" << allreads[contig].name << ")" << ". By thread " 
                 //     << omp_get_thread_num() << ", " << allreads[contig].neighbors_.size() << " reads align here.\n";

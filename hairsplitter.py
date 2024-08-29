@@ -9,7 +9,7 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.13"
+__version__ = "1.9.14"
 __date__ = "2024-08-27"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
@@ -45,11 +45,11 @@ def parse_args(args_string=None):
     parser.add_argument("--no_clean", help="Don't clean the temporary files", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
-    parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
+    # parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
-    parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
+    # parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
     parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
-    parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
+    # parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
 
@@ -341,8 +341,10 @@ def main():
     nb_threads = args.threads
     #path to src folder can be imputed from the first argument of the command line
     path_to_src = sys.argv[0].split("hairsplitter.py")[0]+"src/"
-    path_to_minimap2 = args.path_to_minimap2
-    path_to_minigraph = args.path_to_minigraph
+    path_to_minimap2 = "minimap2"
+    path_to_minigraph = "minigraph"
+    path_to_racon = "racon"
+    path_to_samtools = "samtools"
     path_to_raven = args.path_to_raven
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
@@ -384,9 +386,8 @@ def main():
             or args_resume.output != args.output or args_resume.version != args.version or args_resume.debug != args.debug \
             or args_resume.correct_assembly != args.correct_assembly or args_resume.low_memory != args.low_memory or args_resume.no_clean != args.no_clean \
             or args_resume.rarest_strain_abundance != args.rarest_strain_abundance or args_resume.minimap2_params != args.minimap2_params \
-            or args_resume.path_to_minimap2 != args.path_to_minimap2 or args_resume.path_to_minigraph != args.path_to_minigraph \
-            or args_resume.path_to_racon != args.path_to_racon or args_resume.path_to_medaka != args.path_to_medaka \
-            or args_resume.path_to_samtools != args.path_to_samtools or args_resume.path_to_python != args.path_to_python \
+            or args_resume.path_to_medaka != args.path_to_medaka \
+            or args_resume.path_to_python != args.path_to_python \
             or args_resume.path_to_raven != args.path_to_raven :
             print("ERROR: --resume was used but there seem to be discrepancies in the command used before and now:")
             print("Before: ", sys.argv[0] + " " + command)
@@ -442,8 +443,8 @@ def main():
 
     #check the dependencies
     path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_determine_multiplicity, path_graphunzip =\
-        check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, \
-                       args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, \
+        check_dependencies(tmp_dir, path_to_minimap2, path_to_minigraph, path_to_racon, \
+                       args.path_to_medaka, args.polisher, path_to_samtools, path_to_src, \
                         path_to_python, skip_minigraph, path_GenomeTailor, path_cut_gfa, path_fa2gfa, \
                         path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, \
                         path_determine_multiplicity,
@@ -505,8 +506,8 @@ def main():
         else:
             continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + robust_assembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
-                + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
-                + " -d " + tmp_dir + "/reads.fa -p " + tmp_dir + " > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
+                + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + path_to_minimap2 + " --minigraph " + path_to_minigraph + " --racon " + path_to_racon + " --path-to-raven " + path_to_raven \
+                + " -d " + tmp_dir + "/reads.fa -p " + tmp_dir + " --path-to-bluntify " + path_to_src + "HS_GenomeTailor/bluntify.py > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
             readsFile = tmp_dir + "/reads.fa"
             # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
             #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
@@ -698,6 +699,7 @@ def main():
     f = open(logFile, "a")
     f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
+    f.write("\n")
     f.close()
 
     if continue_from_previous_run and os.path.exists(tmp_dir + "/reads_haplo.gro") :
@@ -741,9 +743,9 @@ def main():
         + polish_everything + " " \
         + amplicon + " " \
         + path_to_minimap2 + " " \
-        + args.path_to_racon + " " \
+        + path_to_racon + " " \
         + args.path_to_medaka + " " \
-        + args.path_to_samtools + " " \
+        + path_to_samtools + " " \
         + path_to_python + " " \
         + flag_debug
     print(" Running : ", command)
@@ -751,6 +753,7 @@ def main():
     f = open(logFile, "a")
     f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
+    f.write("\n")
     f.close()
 
     if continue_from_previous_run and os.path.exists(zipped_GFA) :
@@ -781,7 +784,7 @@ def main():
     if amplicon == "1" :
         sort_on_coverage = " -x"
     command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + str(nb_threads) + sort_on_coverage \
-          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
+          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/logGraphUnzip.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")
     f.write("\n==== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")

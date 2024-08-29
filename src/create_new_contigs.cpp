@@ -230,10 +230,10 @@ void modify_GFA(
 
         // cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
 
-        // if (allreads[backbones_reads[b]].name != "edge_19_53518_267275_0_213757_0_213757@0"){ //DEBUG
-        //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
-        //     continue;
-        // }
+        if (allreads[backbones_reads[b]].name != "edge_124@6"){ //DEBUG
+            cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
+            continue;
+        }
 
         if (partitions.find((backbones_reads[b])) == partitions.end() && !polish){
             //just make sure it has a depth, and if not, recomputes it
@@ -359,11 +359,17 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 110000 ){
-                //     cout  << "fdiocicui modufy_gfa" << endl;
-                //     n+=1;
-                //     continue;
-                // }
+                if (interval.first.first != 132000 ){
+                    cout  << "fdiocicui modufy_gfa" << endl;
+                    n+=1;
+                    continue;
+                }
+
+                cout << "the partition between " << interval.first.first << " and " << interval.first.second << " is " << endl;
+                for (auto p : interval.second){
+                    cout << p << " ";
+                }
+                cout << endl;
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 unordered_map<int, vector<string>> fullReadsPerPart; //list of all reads of each part
@@ -507,7 +513,16 @@ void modify_GFA(
 
                 vector<int> futureHangingLinks;
 
+                cout << "the partition between " << interval.first.first << " and " << interval.first.second << " is now " << endl;
+                for (auto p : interval.second){
+                    cout << p << " ";
+                }
+                cout << endl;
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads, allOverlaps, backbone);
+                cout << "new depths " << endl;
+                for (auto d : newdepths){
+                    cout << d.first << " " << d.second << endl;
+                }
 
                 for (auto group : readsPerPart){
                     
@@ -918,6 +933,7 @@ std::unordered_map<int, double> recompute_depths(std::pair<int,int> &limits, std
 
         int limit_read_left = allOverlaps[allreads[backbone].neighbors_[c]].position_2_1;
         int limit_read_right = allOverlaps[allreads[backbone].neighbors_[c]].position_2_2;
+        cout << "read " << c << " is in partition " << partition[c] << " and has limits " << limit_read_left << " " << limit_read_right << endl;
         newCoverage[partition[c]] += max(0.0, double(min(limit_read_right, limits.second)-max(limit_read_left, limits.first))/lengthOfInterval );
 
     }

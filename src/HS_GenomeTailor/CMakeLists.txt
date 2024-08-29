@@ -9,6 +9,7 @@ project(HS_GenomeTailor)
 set(TARGET_H
     scaffold.h,
     align.h,
+    likelihood.h,
     robin_hood.h,
     clipp.h
    )
@@ -16,10 +17,11 @@ set(TARGET_H
 # Local source files here
 set(TARGET_SRC
     scaffold.cpp,
+    likelihood.cpp,
     align.cpp
     )
 
-file(GLOB SOURCE "scaffold.cpp" "align.cpp")
+file(GLOB SOURCE "scaffold.cpp" "align.cpp" "likelihood.cpp")
 add_executable(HS_GenomeTailor ${SOURCE})
 target_compile_options (HS_GenomeTailor PRIVATE -g)
 target_compile_options (HS_GenomeTailor PRIVATE -lm)
