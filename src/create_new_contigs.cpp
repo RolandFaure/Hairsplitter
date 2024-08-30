@@ -348,7 +348,7 @@ void modify_GFA(
                 if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 0){
                     allLinks[linkIdx].end1 = -1;
                 }
-                else {
+                if (allLinks[linkIdx].neighbor2 == backbone && allLinks[linkIdx].end2 == 0){
                     allLinks[linkIdx].end2 = -1;
                 }
                 allLinks[linkIdx].group = 0;
@@ -364,12 +364,6 @@ void modify_GFA(
                 //     n+=1;
                 //     continue;
                 // }
-
-                cout << "the partition between " << interval.first.first << " and " << interval.first.second << " is " << endl;
-                for (auto p : interval.second){
-                    cout << p << " ";
-                }
-                cout << endl;
 
                 unordered_map<int, vector<string>> readsPerPart; //list of all reads of each part
                 unordered_map<int, vector<string>> fullReadsPerPart; //list of all reads of each part
@@ -549,7 +543,6 @@ void modify_GFA(
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
-                            
                         }
                         // cout << "finished polishing " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << endl;
                         // exit(1);
@@ -771,7 +764,7 @@ void modify_GFA(
                         allLinks[linkIdx].end1 = 1;
                         allLinks[linkIdx].neighbor1 = allreads.size() ;
                     }
-                    else {
+                    if (allLinks[linkIdx].neighbor2 == backbone && allLinks[linkIdx].end2 == 1){
                         allLinks[linkIdx].end2 = 1;
                         allLinks[linkIdx].neighbor2 = allreads.size() ;
                     }
@@ -1549,7 +1542,7 @@ int main(int argc, char *argv[])
             std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
                 <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <amplicon> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
                 << "<path-to-python> <debug>" << std::endl;
-            cout << argc << endl;
+            cout << argc << " " << 20 << endl;
             return 0;
         }
 

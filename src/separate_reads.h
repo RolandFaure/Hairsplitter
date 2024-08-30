@@ -19,7 +19,9 @@ void parse_column_file(
     std::vector<long int> &length_of_contigs,
     std::vector<double> &coverage_of_contigs,
     std::vector<std::vector<std::pair<int,int>>>& readLimits,
-    std::vector<int>& numberOfReads);
+    std::vector<int>& numberOfReads,
+    int max_coverage,
+    float rarest_strain_abundance);
 
 void list_similarities_and_differences_between_reads(
     std::vector<Column> &snps, 

@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.15"
-__date__ = "2024-08-29"
+__version__ = "1.9.16"
+__date__ = "2024-08-30"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -564,6 +564,7 @@ def main():
     f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
     f.write(" - Cutting the contigs in chunks of 300000bp to avoid memory issues\n")
     f.write(command)
+    f.write("\n")
     f.close()
 
     res_cut_gfa = os.system(command)
