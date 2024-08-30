@@ -230,10 +230,10 @@ void modify_GFA(
 
         // cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
 
-        if (allreads[backbones_reads[b]].name != "edge_124@6"){ //DEBUG
-            cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
-            continue;
-        }
+        // if (allreads[backbones_reads[b]].name != "edge_124@6"){ //DEBUG
+        //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
+        //     continue;
+        // }
 
         if (partitions.find((backbones_reads[b])) == partitions.end() && !polish){
             //just make sure it has a depth, and if not, recomputes it
@@ -359,11 +359,11 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                if (interval.first.first != 132000 ){
-                    cout  << "fdiocicui modufy_gfa" << endl;
-                    n+=1;
-                    continue;
-                }
+                // if (interval.first.first != 122000 ){
+                //     cout  << "fdiocicui modufy_gfa" << endl;
+                //     n+=1;
+                //     continue;
+                // }
 
                 cout << "the partition between " << interval.first.first << " and " << interval.first.second << " is " << endl;
                 for (auto p : interval.second){
@@ -513,16 +513,7 @@ void modify_GFA(
 
                 vector<int> futureHangingLinks;
 
-                cout << "the partition between " << interval.first.first << " and " << interval.first.second << " is now " << endl;
-                for (auto p : interval.second){
-                    cout << p << " ";
-                }
-                cout << endl;
                 unordered_map <int, double> newdepths = recompute_depths(interval.first, interval.second, allreads, allOverlaps, backbone);
-                cout << "new depths " << endl;
-                for (auto d : newdepths){
-                    cout << d.first << " " << d.second << endl;
-                }
 
                 for (auto group : readsPerPart){
                     
