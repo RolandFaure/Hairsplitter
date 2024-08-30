@@ -1935,6 +1935,14 @@ int main(int argc, char *argv[])
         clipp::option("-v", "--version").set(print_version).doc("print version information and exit")
     );
 
+    //if the the user ask for the version, print it and exit
+    if (print_version){
+        cout << "version: " << version << endl;
+        cout << "last update: " << last_update << endl;
+        cout << "author: Roland Faure" << endl;
+        return 0;
+    }
+
     //parse the command line
     //if the command line is invalid or the user asked for help, print the usage and exit
     if(!parse(argc, argv, cli) || help) {
@@ -2004,9 +2012,11 @@ int main(int argc, char *argv[])
     //if did not work, try the find the bluntify in the parent directory (compared to executable)
     if (bluntify_run != 0){
         string path_to_bluntify = "python3 "+string(argv[0]);
+        cout << "path to bluntify: " << path_to_bluntify << endl;
         path_to_bluntify = path_to_bluntify.substr(0, path_to_bluntify.find_last_of("/"));
+        cout << "path to bluntify: " << path_to_bluntify << endl;
         path_to_bluntify = path_to_bluntify.substr(0, path_to_bluntify.find_last_of("/"));
-        path_to_bluntify += "/bluntify.py";
+        path_to_bluntify += "src/HS_GenomeTailor/bluntify.py";
         bluntify_run = system((path_to_bluntify + " -h >trash.tmp 2>trash.tmp").c_str());
         cout << "path to bluntify: " << path_to_bluntify << endl;
         if (bluntify_run == 0){

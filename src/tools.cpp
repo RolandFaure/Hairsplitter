@@ -484,7 +484,7 @@ string consensus_reads(
         // exit(1);
     }
 
-    cout << "polishing with command " << commandPolish << endl;
+    // cout << "polishing with command " << commandPolish << endl;
 
     std::ifstream polishedRead(outFolder +"polished_"+id+".fasta");
     string consensus;
