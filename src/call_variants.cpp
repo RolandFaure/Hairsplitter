@@ -1277,7 +1277,7 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name == "edge_124@9"){ //for debugging purposes
+            if (allreads[contig].name != "edge_124@009"){ //for debugging purposes
 
                 // cout << "Looking at contig number " << index << " out of " << backbone_reads.size() << " (" << allreads[contig].name << ")" << ". By thread " 
                 //     << omp_get_thread_num() << ", " << allreads[contig].neighbors_.size() << " reads align here.\n";
