@@ -606,6 +606,8 @@ def main():
         #run minimap but do not store the sequences, they are still in the file of reads
         command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params \
             + " 2> "+tmp_dir+"/logminimap.txt | awk 'BEGIN {FS=\"\t\"; OFS=\"\t\"} {a=length($10) ; $10=\"*\"; $11=\"*\"; printf $0; printf\"\tLN:i:\"; print a;}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
+        # command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params \
+        #     + " 2> "+tmp_dir+"/logminimap.txt | awk 'BEGIN {FS=\"\t\"; OFS=\"\t\"} {if (NF>=10) {a=length($10); printf $0; printf\"\tLN:i:\"; print a;} else print;}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
         #command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
 
         print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
