@@ -71,25 +71,7 @@ float generate_msa(
     allreads[bbcontig].new_backbone(make_pair(backboneReadIndex, allreads[bbcontig].neighbors_.size()), allreads[bbcontig].neighbors_.size()+1);
     string read_str = allreads[bbcontig].sequence_.str();
 
-    //small loop to compute truePartition DEBUG
-    // if (DEBUG){
-    //     for (auto n = 0 ; n<allreads[bbcontig].neighbors_.size() ; n++){
-
-    //         long int neighbor = allreads[bbcontig].neighbors_[n];
-    //         Overlap overlap = allOverlaps[neighbor];
-            
-    //         if (overlap.sequence1 == bbcontig){
-
-    //             truePar.push_back(allreads[overlap.sequence2].name[1]);
-    //             // cout << "name : " << allreads[overlap.sequence2].name << " " << allreads[overlap.sequence2].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-    //         }
-    //         else{
-    //             truePar.push_back(allreads[overlap.sequence1].name[1]);
-    //             // cout << "name : " << allreads[overlap.sequence1].name << " " << allreads[overlap.sequence1].name[1] << " " << truePartition[truePartition.size()-1] << endl;
-    //         }    
-    //     }
-    // }
-
+   
     // string fileOut = "/home/rfaure/Documents/these/overlap_filtering/species/Escherichia/triploid/answer_"+std::to_string(read)+".tsv";
     // std::ofstream out(fileOut);
     // for (auto c : truePart){out<<c;}out.close();
@@ -191,6 +173,7 @@ float generate_msa(
         }
         else{
             alignment = convert_cigar(CIGARs[n]);
+
             // if (n == 29){
             //     cout << "Alignkldjmfq kdidid " << alignment << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[n]].sequence1].name.substr(0,10) << " " << endl;
             // }
@@ -308,6 +291,7 @@ float generate_msa(
                     indexQuery++;
                     numberOfInsertionsThere = 0;
 
+
                     // if (indexQuery == 29){
                     //     cout << "musdhg: " << previous_previous_previous_char << " " << previous_previous_char << " " << previous_char << " " << three_mer << " " << endl;
                     // }
@@ -392,60 +376,61 @@ float generate_msa(
     newref = newRef;
 
     //print snps (just for debugging)
-    // cout << "Printing SNPs, in split_read: cicizzx" << endl;
-    // int step = 1; //porportions of reads
-    // int prop = 1; //proportion of positions
-    // int firstRead = 0;
-    // int lastRead = 10;
-    // int numberOfReads = lastRead-firstRead;
-    // int start = 200;
-    // int end = 400;
-    // vector<string> reads (int(numberOfReads/step));
-    // string cons = "";
-    // for (unsigned int i = start ; i < end; i+=prop){
-    //     for (short n = 0 ; n < numberOfReads ; n+= step){
-    //         unsigned char c = ' ';
-    //         int ri = 0;
-    //         int soughtRead = firstRead+n;
-    //         for (auto r : snps[i].readIdxs){
-    //             if (r == soughtRead){
-    //                 c = snps[i].content[ri];
-    //             }
-    //             ri ++;
-    //         }
-    //         reads[n/step] += std::min(c, (unsigned char) 126);
-    //     }
-    //     // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
-    //     //     int snpidx = insertionPos[10000*i+insert];
-    //     //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
-    //     //         char c = ' ';
-    //     //         int ri = 0;
-    //     //         for (auto r : snps[snpidx].readIdxs){
-    //     //             if (r == n){
-    //     //                 c = snps[snpidx].content[ri];
-    //     //             }
-    //     //             ri ++;
-    //     //         }
-    //     //         reads[n/step] += c;
-    //     //     }
-    //     // }
-    // }
-    // cout << "Here are the aligned reads : " << endl;
-    // int index = firstRead;
-    // for (auto neighbor : reads){
-    //     if (neighbor[neighbor.size()-1] != ' '){
-    //         cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name << endl;
-    //     }
-    //     index+= step;
-    // }
-    // int n =start;
-    // for(unsigned char i : consensus.substr(start, end-start)){
-    //     cout << newRef[n];
-    //     n+=prop;
-    // } cout << endl;
-    // cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
-    // exit(1);
-    
+    /*
+    cout << "Printing SNPs, in split_read: cicizzx" << endl;
+    int step = 1; //porportions of reads
+    int prop = 1; //proportion of positions
+    int firstRead = 0;
+    int lastRead = 20;
+    int numberOfReads = lastRead-firstRead;
+    int start = 0;
+    int end = 200;
+    vector<string> reads (int(numberOfReads/step));
+    string cons = "";
+    for (unsigned int i = start ; i < end; i+=prop){
+        for (short n = 0 ; n < numberOfReads ; n+= step){
+            unsigned char c = ' ';
+            int ri = 0;
+            int soughtRead = firstRead+n;
+            for (auto r : snps[i].readIdxs){
+                if (r == soughtRead){
+                    c = snps[i].content[ri];
+                }
+                ri ++;
+            }
+            reads[n/step] += std::min(c, (unsigned char) 126);
+        }
+        // for (short insert = 0 ; insert < min(9999,numberOfInsertionsHere[i]) ; insert++ ){
+        //     int snpidx = insertionPos[10000*i+insert];
+        //     for (short n = 0 ; n < numberOfReads*step ; n+= step){
+        //         char c = ' ';
+        //         int ri = 0;
+        //         for (auto r : snps[snpidx].readIdxs){
+        //             if (r == n){
+        //                 c = snps[snpidx].content[ri];
+        //             }
+        //             ri ++;
+        //         }
+        //         reads[n/step] += c;
+        //     }
+        // }
+    }
+    cout << "Here are the aligned reads : " << endl;
+    int index = firstRead;
+    for (auto neighbor : reads){
+        if (neighbor[neighbor.size()-1] != ' '){
+            cout << neighbor << " " << index << " " << allreads[allOverlaps[allreads[bbcontig].neighbors_[index]].sequence1].name << endl;
+        }
+        index+= step;
+    }
+    int n =start;
+    for(unsigned char i : consensus.substr(start, end-start)){
+        cout << newRef[n];
+        n+=prop;
+    } cout << endl;
+    cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
+    exit(1);
+    */
     
     return totalDistance/totalLengthOfAlignment;
 
@@ -519,11 +504,18 @@ vector<Column> call_variants(
             snps[position].second_base = content_sorted[1].first;
             snps[position].pos = position;
         }
-        // if (position == 85640 ){//&& allreads[contig].name == "edge_2"){
+        // if (position == 191928 ){//&& allreads[contig].name == "edge_2"){
         //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
         //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
         //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
+        //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << content_sorted[0].first << " "
+        //          << content_sorted[1].first << endl;
         //     cout << "with frequencies : " << content_sorted[0].second << " " << content_sorted[1].second << " " << content_sorted[2].second << " " << content_sorted[3].second<< endl;
+        //     cout << "here is the colmun : " << endl;
+        //     for (auto c : snps[position].content){
+        //         cout << convert_base_to_triplet((int) c) << " ";
+        //     }
+        //     cout << endl;
         // }
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
@@ -634,7 +626,7 @@ void keep_only_robust_variants(
         return;
     }
     
-    float threshold = std::min(4, std::max(2, (int) (mean_error*100))); //do not use this arbitrary threshold anymore, use the computation proposed in the paper
+    // float threshold = std::min(4, std::max(2, (int) (mean_error*100))); //do not use this arbitrary threshold anymore, use the computation proposed in the paper
 
     vector<Partition> listOfFinalPartitions;
     for (auto p1 = 0 ; p1 < partitions.size() ; p1++){
@@ -655,6 +647,9 @@ void keep_only_robust_variants(
         // }
 
         if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
+
+            // cout << "here is a kept partition " << p_value << endl;
+            // partitions[p1].print();
 
             bool different = true;
             
@@ -716,7 +711,7 @@ void keep_only_robust_variants(
             if (dis.n00 + dis.n01 + dis.n10 + dis.n11 > 0.5*snp.content.size() 
                 && chisqu > 15){
                 // cout << "suspect position : " << snp.pos << " " << chisqu << endl;
-                // cout << "correlates with partition " << p << endl;
+                // cout << "correlates with partition " << p << " : " << dis.n00 << " " << dis.n01 << " "<< dis.n10 << " " << dis.n11 << endl;
                 snps_out.push_back(snp);
                 chisquare_sum += chisqu;
                 number_of_interesting_positions += 1;
@@ -1267,7 +1262,7 @@ int main(int argc, char *argv[])
         for (int contigIndex = 0 ; contigIndex < backbone_reads.size() ; contigIndex++){
 
             long int contig = backbone_reads[contigIndex];
-            if (allreads[contig].name != "edge_79_0_3198_0_3198_0_3198@00"){ //for debugging purposes
+            if (allreads[contig].name != "edge_124@009"){ //for debugging purposes
 
                 // cout << "Looking at contig number " << index << " out of " << backbone_reads.size() << " (" << allreads[contig].name << ")" << ". By thread " 
                 //     << omp_get_thread_num() << ", " << allreads[contig].neighbors_.size() << " reads align here.\n";
@@ -1339,6 +1334,7 @@ int main(int argc, char *argv[])
     //output the errorRate
     std::ofstream errorRateFile;
     errorRateFile.open(error_rate_out);
+    cout << "total error rate : " << totalErrorRate << " number of contigs : " << numberOfContigsWHereErrorRateIsComputed << endl;
     errorRateFile << totalErrorRate/numberOfContigsWHereErrorRateIsComputed << endl;
     errorRateFile.close();
 

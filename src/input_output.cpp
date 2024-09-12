@@ -360,8 +360,8 @@ void parse_SAM(std::string fileSAM, std::vector <Overlap>& allOverlaps, std::vec
                 else if (fieldnumber == 5){
                     cigar = field;
                 }
-                else if (fieldnumber == 9){
-                    length1 = field.size();
+                else if (field.substr(0,5) == "LN:i:"){
+                    length1 = stoi(field.substr(5, field.size()-5));
                 }
                 else if (field.substr(0,5) == "NM:i:"){
                     nonmatching = stoi(field.substr(5, field.size()-5));

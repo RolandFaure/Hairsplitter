@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.11"
-__date__ = "2024-08-13"
+__version__ = "1.9.17"
+__date__ = "2024-08-30"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -23,7 +23,7 @@ import datetime
 
 
 # command line arguments
-def parse_args():
+def parse_args(args_string=None):
 
     parser = argparse.ArgumentParser()
 
@@ -42,14 +42,14 @@ def parse_args():
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
     parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
-    parser.add_argument("--clean", help="Clean the temporary files", action="store_true")
+    parser.add_argument("--no_clean", help="Don't clean the temporary files", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
     parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
-    parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
+    # parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
     parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
-    parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
+    # parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
     parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
-    parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
+    # parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
     parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
     parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
 
@@ -57,7 +57,13 @@ def parse_args():
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
 
 
-    return parser.parse_args()
+    if args_string is not None:
+        # Split the string into a list of arguments
+        args = parser.parse_args(args_string.split())
+    else:
+        args = parser.parse_args()
+
+    return args
 
 def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph\
                        , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs\
@@ -335,8 +341,10 @@ def main():
     nb_threads = args.threads
     #path to src folder can be imputed from the first argument of the command line
     path_to_src = sys.argv[0].split("hairsplitter.py")[0]+"src/"
-    path_to_minimap2 = args.path_to_minimap2
-    path_to_minigraph = args.path_to_minigraph
+    path_to_minimap2 = "minimap2"
+    path_to_minigraph = "minigraph"
+    path_to_racon = "racon"
+    path_to_samtools = "samtools"
     path_to_raven = args.path_to_raven
     readsFile = args.fastq
     tmp_dir = args.output.rstrip('/') + "/tmp"
@@ -347,7 +355,7 @@ def main():
     minimap2_params = args.minimap2_params
     haploid_coverage = float(args.haploid_coverage)
     continue_from_previous_run = args.resume
-    clean_tmp = args.clean
+    clean_tmp = not args.no_clean
     technology = args.use_case
 
     path_GenomeTailor = path_to_src + "build/HS_GenomeTailor/HS_GenomeTailor"
@@ -362,6 +370,30 @@ def main():
 
     logFile = args.output.rstrip('/') + "/hairsplitter.log"
 
+    #check if --resume was used. If so, fetch the command line in the output folder
+    if continue_from_previous_run :
+        if not os.path.exists(logFile) :
+            print("ERROR: --resume was used but no log file was found in the output folder.")
+            sys.exit(1)
+        #the command is the first line of the log file
+        f = open(logFile, "r")
+        command = " ".join(f.readline().strip().split(" ")[1:])
+        f.close()
+        #check if the command is the same as the one used to run the script (e.g. same parameters, except --resume)
+        args_resume = parse_args(args_string=command)
+        if args_resume.assembly != args.assembly or args_resume.fastq != args.fastq or args_resume.haploid_coverage != args.haploid_coverage \
+            or args_resume.use_case != args.use_case or args_resume.polisher != args.polisher or args_resume.threads != args.threads \
+            or args_resume.output != args.output or args_resume.version != args.version or args_resume.debug != args.debug \
+            or args_resume.correct_assembly != args.correct_assembly or args_resume.low_memory != args.low_memory or args_resume.no_clean != args.no_clean \
+            or args_resume.rarest_strain_abundance != args.rarest_strain_abundance or args_resume.minimap2_params != args.minimap2_params \
+            or args_resume.path_to_medaka != args.path_to_medaka \
+            or args_resume.path_to_python != args.path_to_python \
+            or args_resume.path_to_raven != args.path_to_raven :
+            print("ERROR: --resume was used but there seem to be discrepancies in the command used before and now:")
+            print("Before: ", sys.argv[0] + " " + command)
+            print("Now: ", " ".join(sys.argv))
+            sys.exit(1)
+
     # check if output folder exists
     if os.path.exists(args.output) and not args.force and not args.resume:
         print("ERROR: output folder already exists. Use -F to overwrite.")
@@ -372,8 +404,8 @@ def main():
 
     #output the command line used to run HairSplitter and the version in the log file
     f = open(logFile, "w")
+    f.write(" ".join(sys.argv)+"\n")
     f.write("HairSplitter v"+__version__+" ("+__github__+"). Last update: "+__date__+"\n")
-    f.write("Command line used to run HairSplitter: "+" ".join(sys.argv)+"\n")
     f.close()
 
     #print the command line used to run HairSplitter
@@ -411,8 +443,8 @@ def main():
 
     #check the dependencies
     path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, path_determine_multiplicity, path_graphunzip =\
-        check_dependencies(tmp_dir, args.path_to_minimap2, args.path_to_minigraph, args.path_to_racon, \
-                       args.path_to_medaka, args.polisher, args.path_to_samtools, path_to_src, \
+        check_dependencies(tmp_dir, path_to_minimap2, path_to_minigraph, path_to_racon, \
+                       args.path_to_medaka, args.polisher, path_to_samtools, path_to_src, \
                         path_to_python, skip_minigraph, path_GenomeTailor, path_cut_gfa, path_fa2gfa, \
                         path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs, \
                         path_determine_multiplicity,
@@ -471,11 +503,12 @@ def main():
 
         if continue_from_previous_run and os.path.exists(new_assembly) :
             print(" - Already cleaned assembly found from previous run")
+            readsFile = tmp_dir + "/reads.fa"
         else:
             continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + robust_assembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
-                + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon + " --path-to-raven " + path_to_raven \
-                + " -d " + tmp_dir + "/reads.fa -p " + tmp_dir + " > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
+                + " -e " + tmp_dir + "/assembly_breakpoints.txt -m correct --minimap2 " + path_to_minimap2 + " --minigraph " + path_to_minigraph + " --racon " + path_to_racon + " --path-to-raven " + path_to_raven \
+                + " -d " + tmp_dir + "/reads.fa -p " + tmp_dir + " --path-to-bluntify " + path_to_src + "HS_GenomeTailor/bluntify.py > " + tmp_dir + "/logGenomeTailor.txt 2>&1"
             readsFile = tmp_dir + "/reads.fa"
             # command = "python " + path_to_src + "GraphUnzip/correct_structural_errors.py -a " + gfaAssembly + " -o " + new_assembly + " -r " + readsFile + " -t " \
             #     + str(nb_threads) + " --minimap2 " + args.path_to_minimap2 + " --minigraph " + args.path_to_minigraph + " --racon " + args.path_to_racon \
@@ -493,22 +526,22 @@ def main():
 
             print(" - Improved alignment of reads on assembly. The improved assembly is stored in " + new_assembly)
 
-            #now check if the improved assembly is not too complicated, else fall back on the original assembly
-            #the metric is : did the N50 fall below 10kb ?
-            f = open(new_assembly, "r")
-            contigs_length = []
-            for line in f :
-                if "S" == line[0] :
-                    contigs_length.append(len(line.split("\t")[2]))
-            f.close()
-            contigs_length.sort(reverse=True)
-            cumul = 0
-            total_length = sum(contigs_length)
-            for l in contigs_length :
-                cumul += l
-                if cumul > total_length/2 :
-                    N50 = l
-                    break
+        #now check if the improved assembly is not too complicated, else fall back on the original assembly
+        #the metric is : did the N50 fall below 10kb ?
+        f = open(new_assembly, "r")
+        contigs_length = []
+        for line in f :
+            if "S" == line[0] :
+                contigs_length.append(len(line.split("\t")[2]))
+        f.close()
+        contigs_length.sort(reverse=True)
+        cumul = 0
+        total_length = sum(contigs_length)
+        for l in contigs_length :
+            cumul += l
+            if cumul > total_length/2 :
+                N50 = l
+                break
 
     if N50 < 10000 and not skip_minigraph:
         print(" - WARNING : The corrected assembly has quite a low N50, you might want to re-run the pipeline without the assembly correction step")
@@ -532,6 +565,8 @@ def main():
     f.write("\n==== STAGE 2: Aligning reads on the reference   ["+str(datetime.datetime.now())+"]\n")
     f.write(" - Cutting the contigs in chunks of 300000bp to avoid memory issues\n")
     f.write(command)
+    f.write("\n")
+    f.close()
 
     res_cut_gfa = os.system(command)
     if res_cut_gfa != 0 :
@@ -543,6 +578,7 @@ def main():
     print(" - Converting the assembly in fasta format")
     fastaAsm = tmp_dir + "/cleaned_assembly.fasta"
     command = path_gfa2fa + " " + new_assembly + " > " + fastaAsm
+    f = open(logFile, "a")
     f.write(" - Converting the assembly in fasta format\n")
     f.write(command)
     f.close()
@@ -569,12 +605,18 @@ def main():
         print(" - Aligning the reads on the assembly")
 
         #run minimap but do not store the sequences, they are still in the file of reads
-        command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
-           # + " | awk 'BEGIN{FS=OFS=\"\t\"} {if($1 ~ /^@/) print $0; else {for(i=1; i<=NF; i++) {if(i==10) $i=\"*\";} print $0}}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt"
+        command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params \
+            + " 2> "+tmp_dir+"/logminimap.txt | awk 'BEGIN {FS=\"\t\"; OFS=\"\t\"} {a=length($10) ; $10=\"*\"; $11=\"*\"; printf $0; printf\"\tLN:i:\"; print a;}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
+        # command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params \
+        #     + " 2> "+tmp_dir+"/logminimap.txt | awk 'BEGIN {FS=\"\t\"; OFS=\"\t\"} {if (NF>=10) {a=length($10); printf $0; printf\"\tLN:i:\"; print a;} else print;}' > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
+        #command = path_to_minimap2 + " " + fastaAsm + " " + readsFile + " " + techno_flag + " -a --secondary=no -M 0.05 -Y -t "+ str(nb_threads) + " " + minimap2_params + " 2> "+tmp_dir+"/logminimap.txt > " + reads_on_asm + " 2> "+tmp_dir+"/logminimap.txt" 
+
         print(" - Running minimap with command line:\n     " , command , "\n   The log of minimap2 can be found at "+tmp_dir+"/logminimap.txt")
         #write in the log file the time at which the alignment starts
         f = open(logFile, "a")
         f.write(" - Aligning the reads on the assembly\n")
+        f.write(command)
+        f.write("\n")
         f.close()
         res_minimap = os.system(command)
         if res_minimap != 0 :
@@ -665,6 +707,7 @@ def main():
     f = open(logFile, "a")
     f.write("\n==== STAGE 4: Separating reads by haplotype of origin   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
+    f.write("\n")
     f.close()
 
     if continue_from_previous_run and os.path.exists(tmp_dir + "/reads_haplo.gro") :
@@ -708,9 +751,9 @@ def main():
         + polish_everything + " " \
         + amplicon + " " \
         + path_to_minimap2 + " " \
-        + args.path_to_racon + " " \
+        + path_to_racon + " " \
         + args.path_to_medaka + " " \
-        + args.path_to_samtools + " " \
+        + path_to_samtools + " " \
         + path_to_python + " " \
         + flag_debug
     print(" Running : ", command)
@@ -718,6 +761,7 @@ def main():
     f = open(logFile, "a")
     f.write("\n==== STAGE 5: Creating all the new contigs   ["+str(datetime.datetime.now())+"]\n")
     f.write(command)
+    f.write("\n")
     f.close()
 
     if continue_from_previous_run and os.path.exists(zipped_GFA) :
@@ -748,7 +792,7 @@ def main():
     if amplicon == "1" :
         sort_on_coverage = " -x"
     command = path_graphunzip + " unzip -R -e -l " + gaffile + " -g " + zipped_GFA + simply + " -o " + outfile + " -r " + readsFile + " -t " + str(nb_threads) + sort_on_coverage \
-          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/trash.txt"
+          + " 2>"+tmp_dir+"/logGraphUnzip.txt >"+tmp_dir+"/logGraphUnzip.txt"
     #write in the log file the time at which the untangling starts
     f = open(logFile, "a")
     f.write("\n==== STAGE 6: Untangling (~scaffolding) the new assembly graph to improve contiguity   ["+str(datetime.datetime.now())+"]\n")
@@ -794,7 +838,7 @@ def main():
         sys.exit(1)
 
     if clean_tmp :
-        command = "rm -r " + reads_on_asm + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/reads_haplo.gro " + tmp_dir + "/ploidy.txt " + tmp_dir + "/reads.fasta " + tmp_dir + "/reads_on_new_contig.gaf " + tmp_dir + "/reads_on_new_contig.gro " + tmp_dir + "/reads_on_new_contig.sam " + tmp_dir + "/reads_on_new_contig.bam " + tmp_dir + "/reads_on_new_contig.bam.bai " 
+        command = "rm -r " + reads_on_asm + " " + tmp_dir + "/variants.col " + tmp_dir + "/variants.vcf " + tmp_dir + "/reads_haplo.gro " + tmp_dir + "/ploidy.txt " + tmp_dir + "/reads.fasta " + tmp_dir + "/reads_on_new_contig.gaf " 
         res_clean = os.system(command)
         if res_clean != 0:
             print("ERROR: Could not remove temporary files. Was trying to run: " + command)

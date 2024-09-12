@@ -53,7 +53,8 @@ void parse_column_file(
     std::vector<double> &coverage_of_contigs,
     std::vector<std::vector<std::pair<int,int>>> &readLimits,
     std::vector<int>& numberOfReads,
-    int max_coverage){
+    int max_coverage,
+    float rarest_strain_abundance){
 
     std::ifstream infile(file);
     std::string line;
@@ -143,17 +144,29 @@ void parse_column_file(
             snp.pos = std::atoi(pos.c_str());
             snp.ref_base = ref_base;
             snp.second_base = second_frequent_base;
+            int cov_maj_base = 0;
+            int cov_sec_base = 0;
             int cov = 0;
             for (int n = 0; n < content.size(); n++){
-                if (content[n] != ' ' && cov < max_coverage){ //ignore the reads after this
+                if (content[n] != ' ' && cov < max_coverage){ //ignore the reads after this to speed up the process
                     snp.content.push_back(content[n]);
                     snp.readIdxs.push_back(readIdxs[n]);
+                    if (content[n] == ref_base){
+                        cov_maj_base++;
+                    }
+                    else if (content[n] == second_frequent_base){
+                        cov_sec_base++;
+                    }
                 }   
                 if (content[n] != ' ' && readIdxs[n] >= 0){
                     cov++;
                 }  
             }
-            snps[snps.size()-1].push_back(snp);                
+
+            //if the second snp is too rare, we ignore it
+            if (cov_sec_base >= rarest_strain_abundance * (cov_maj_base+cov_sec_base)){
+                snps[snps.size()-1].push_back(snp);  
+            }              
 
         }
         else if (line_type == "READ"){
@@ -1392,7 +1405,7 @@ int main(int argc, char *argv[]){
     bool low_memory = bool(atoi(argv[5]));
 
     float rarest_strain_abundance = atof(argv[6]);
-    int max_coverage;
+    int max_coverage; //above this, do not even parse the extra reads
     if (rarest_strain_abundance == 0){
         max_coverage = 1000000000;
     }
@@ -1412,7 +1425,7 @@ int main(int argc, char *argv[]){
     std::vector<long int> length_of_contigs;
     std::vector<double> coverages_contigs;
     vector<vector<pair<int,int>>> readLimits;
-    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage);
+    parse_column_file(columns_file, snps_in, index_of_names, name_of_contigs, names_of_reads, length_of_contigs, coverages_contigs, readLimits, numberOfReads, max_coverage, rarest_strain_abundance);
 
     std::unordered_map<string, int> ploidy_of_contigs;
     std::ifstream ploidy_file_stream(ploidy_file);

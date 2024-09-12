@@ -230,7 +230,7 @@ void modify_GFA(
 
         // cout << "hairsplitting contig " << allreads[backbones_reads[b]].name << endl;
 
-        // if (allreads[backbones_reads[b]].name != "edge_19_53518_267275_0_213757_0_213757@0"){ //DEBUG
+        // if (allreads[backbones_reads[b]].name != "edge_124@6"){ //DEBUG
         //     cout << "continuuinng " << allreads[backbones_reads[b]].name << endl;
         //     continue;
         // }
@@ -247,7 +247,7 @@ void modify_GFA(
             continue;
         }
         else if (partitions.find((backbones_reads[b])) == partitions.end() && polish){
-            partitions[backbones_reads[b]].push_back(make_pair(make_pair(0, allreads[backbones_reads[b]].sequence_.size()), vector<int>(allreads[backbones_reads[b]].neighbors_.size(), 0)));
+            partitions[backbones_reads[b]] = {make_pair(make_pair(0, allreads[backbones_reads[b]].sequence_.size()), vector<int>(allreads[backbones_reads[b]].neighbors_.size(), 0))};
         }
 
         //first load all the reads
@@ -348,7 +348,7 @@ void modify_GFA(
                 if (allLinks[linkIdx].neighbor1 == backbone && allLinks[linkIdx].end1 == 0){
                     allLinks[linkIdx].end1 = -1;
                 }
-                else {
+                if (allLinks[linkIdx].neighbor2 == backbone && allLinks[linkIdx].end2 == 0){
                     allLinks[linkIdx].end2 = -1;
                 }
                 allLinks[linkIdx].group = 0;
@@ -359,7 +359,7 @@ void modify_GFA(
             while (n < partitions.at(backbone).size()){
                 
                 auto interval = partitions.at(backbone).at(n);
-                // if (interval.first.first != 110000 ){
+                // if (interval.first.first != 122000 ){
                 //     cout  << "fdiocicui modufy_gfa" << endl;
                 //     n+=1;
                 //     continue;
@@ -543,7 +543,6 @@ void modify_GFA(
                             newcontig = consensus_reads(toPolish, full_backbone, 
                                 interval.first.first, interval.first.second-interval.first.first+1, group.second, fullReadsPerPart[group.first], CIGARsPerPart[group.first], 
                                     thread_id, outFolder, techno, window_size, MINIMAP, RACON, path_to_python, path_src);
-                            
                         }
                         // cout << "finished polishing " << allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first) << endl;
                         // exit(1);
@@ -641,12 +640,7 @@ void modify_GFA(
 
                     Read r(newcontig, newcontig.size());
                     r.name = allreads[backbone].name + "_"+ to_string(interval.first.first)+ "_" + to_string(group.first);
-                    if (readsPerPart.size() > 1){
-                        r.depth = newdepths[group.first];
-                    }
-                    else {
-                        r.depth = allreads[backbone].depth;
-                    }
+                    r.depth = newdepths[group.first];
 
                     // if (r.name == "s0.ctg000001l@1_84000_2"){
                     //     cout << "oiaooeiiddz" << endl;
@@ -770,7 +764,7 @@ void modify_GFA(
                         allLinks[linkIdx].end1 = 1;
                         allLinks[linkIdx].neighbor1 = allreads.size() ;
                     }
-                    else {
+                    if (allLinks[linkIdx].neighbor2 == backbone && allLinks[linkIdx].end2 == 1){
                         allLinks[linkIdx].end2 = 1;
                         allLinks[linkIdx].neighbor2 = allreads.size() ;
                     }
@@ -1548,7 +1542,7 @@ int main(int argc, char *argv[])
             std::cout << "Usage: ./create_new_contigs <original_assembly> <reads_file> <error_rate> <gro_file> <sam_file> "
                 <<"<tmpfolder> <num_threads> <technology> <output_graph> <output_gaf> <polisher> <polish_everything> <amplicon> <path_to_minimap> <path-to-racon> <path-to-medaka> <path-to-samtools> "
                 << "<path-to-python> <debug>" << std::endl;
-            cout << argc << endl;
+            cout << argc << " " << 20 << endl;
             return 0;
         }
 

@@ -471,7 +471,7 @@ def main():
                 sort_strategy = "coverage"
             io.export_to_GFA(segments, copies, gfaFile, exportFile=tmp_non_merged_gfa_file, merge_adjacent_contigs=False, rename_contigs=rename, sort_strategy=sort_strategy)
             merge_adjacent_contigs_GFA(tmp_non_merged_gfa_file, outFile)
-            # os.remove(tmp_non_merged_gfa_file)
+            os.remove(tmp_non_merged_gfa_file)
         else:
             io.export_to_GFA(segments, copies, gfaFile, exportFile=outFile, merge_adjacent_contigs=merge, rename_contigs=rename)
     

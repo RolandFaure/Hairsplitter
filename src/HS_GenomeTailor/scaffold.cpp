@@ -33,8 +33,8 @@ using std::max;
 #define GREEN_TEXT "\033[1;32m"
 #define RESET_TEXT "\033[0m"
 
-string version = "0.3.3";
-string last_update = "2024-06-12";
+string version = "0.3.5";
+string last_update = "2024-08-26";
 
 vector<string> split(string& s, string& delimiter){
     vector<string> res;
@@ -102,12 +102,8 @@ void count_unaligned_reads(std::string gaf_file, std::string read_file, int& num
     number_of_unaligned_reads = 0;
 
     //first inventoriate the unaligned parts of the reads
+    std::set<string> read_aligned;
     string line;
-    string current_read;
-    int current_length;
-    unordered_map<string, bool> full_alignment_detected;
-    unordered_map<string, int> length_of_reads;
-    unordered_map<string, int> length_of_alignments_of_reads;
     while (std::getline(gaf_stream, line)){
         string name_of_read;
         int length_of_read;
@@ -125,21 +121,9 @@ void count_unaligned_reads(std::string gaf_file, std::string read_file, int& num
         iss >> name_of_read >> length_of_read >> start_of_mapping >> end_of_mapping >> strand >> path >> path_length >> path_start >> path_end >> nothing >> nothing >> quality;
 
         //check if the read aligns end to end
-        if (quality > 0 && start_of_mapping <= min((double)too_long, 0.2*length_of_read) && end_of_mapping >= max(0.8*length_of_read, (double)length_of_read-too_long)){
-            full_alignment_detected[name_of_read] = true;
-            length_of_reads[name_of_read] = length_of_read;
-            length_of_alignments_of_reads[name_of_read] = end_of_mapping-start_of_mapping;
+        if (quality == 60){
+            read_aligned.insert(name_of_read);
         }
-        else if (quality > 0){
-            if (length_of_alignments_of_reads.find(name_of_read) == length_of_alignments_of_reads.end()){
-                length_of_alignments_of_reads[name_of_read] = end_of_mapping-start_of_mapping;
-                length_of_reads[name_of_read] = length_of_read;
-            }
-            else{
-                length_of_alignments_of_reads[name_of_read] += end_of_mapping-start_of_mapping;
-            }
-        }
-
     }
     gaf_stream.close();
 
@@ -149,7 +133,7 @@ void count_unaligned_reads(std::string gaf_file, std::string read_file, int& num
     while (std::getline(read_stream, line)){
         if (line[0] == '>' || line[0] == '@'){
             read_name = line.substr(1, line.find_first_of(" \t\n")-1);
-            if (length_of_reads.find(read_name) == length_of_reads.end()){
+            if (read_aligned.find(read_name) == read_aligned.end()){
                 number_of_unaligned_reads++;
             }
         }
@@ -339,7 +323,7 @@ void reassemble_unaligned_reads(std::string gaf_file, std::string read_file, std
 
     //remove the temporary files
     system(("rm " + raven_asm).c_str());
-    system(("rm "+ tmp_folder +"raven.cereal").c_str());
+    system("rm raven.cereal");
     system(("rm " + file_of_unaligned_reads).c_str());
     system(("rm " + file_of_full_unaligned_reads).c_str());
     system(("rm "+ tmp_folder +"raven.log").c_str());
@@ -578,9 +562,10 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
 
                     bridge.read_name = mapping.first;
 
-                    //do not consider the reads that do "half-turns" on the contigs, this is an artefact of sequencing (undetected duplex reads)
-                    if (bridge.contig1 != bridge.contig2 || abs(bridge.position1-bridge.position2) > 1000 || bridge.strand1 != bridge.strand2){
+                    //do not consider the reads that do "half-turns" on the contigs right in the middle of the reads, this is an artefact of sequencing (undetected duplex reads)
+                    if (bridge.contig1 != bridge.contig2 || abs(bridge.position1-bridge.position2) > 1000 || bridge.strand1 != bridge.strand2 || abs(bridge.pos_read_on_contig1-mapping.second[0].length_of_read/2) > 0.1*mapping.second[0].length_of_read){
                         bridges.push_back(bridge);
+                        // cout << "duplex read: " << mapping.first << endl;
                         bridge_or_not = true;
                     }
                     else{
@@ -624,6 +609,9 @@ void inventoriate_bridges_and_piers(std::string gaf_file, std::vector<Bridge>& b
         }
         else if (bridge_or_not){
             number_of_jumping_reads++;
+        }
+        else{
+            cout << "htis does nto make sense" << endl;
         }
     }
 }
@@ -1912,21 +1900,10 @@ void output_errors(string error_file, std::vector<SolidBridge>& solid_bridges, s
 
 int main(int argc, char *argv[])
 {
-    //just check which reads are well aligned in "tmp_last_cleanup.gaf"
-    // int num_well_aligned_readsz = 0;
-    // int num_partially_aligned_readsz = 0;
-    // int num_unaligned_readsz = 0;
-    // string gagaf = "tmp_last_cleanup.gaf";
-    // gagaf = "reads_aligned_on_assembly.gaf";
-    // string reads = "hs/tmp/reads.fasta";
-    // check_which_reads_are_well_aligned(gagaf, reads, num_well_aligned_readsz, num_partially_aligned_readsz, num_unaligned_readsz);
-    // cout << "ECICIC " << num_well_aligned_readsz << " " << num_partially_aligned_readsz << " " << num_unaligned_readsz << endl;
-    // exit(1);
 
     //build a clipp.h command line parser
     bool help = false;
     bool print_version = false;
-    bool correct = false;
     string input_assembly, input_reads, gaf_file, output_scaffold, error_file, correct_string;
     int num_threads = 1;
     int min_num_reads_for_link = 5;
@@ -1936,6 +1913,7 @@ int main(int argc, char *argv[])
     string path_to_raven = "raven";
     string path_tmp_folder = "./";
     string path_new_reads = "";
+    string path_bluntify = "python3 bluntify.py";
 
     auto cli = clipp::group(
         clipp::required("-i", "--input_assembly").doc("input assembly in gfa format") & clipp::value("input_assembly", input_assembly),
@@ -1952,9 +1930,18 @@ int main(int argc, char *argv[])
         clipp::option("--minimap2").doc("path to minimap2") & clipp::value("minimap2", path_minimap2),
         clipp::option("--racon").doc("path to racon") & clipp::value("racon", path_racon),
         clipp::option("--path-to-raven").doc("path to raven") & clipp::value("path-to-raven", path_to_raven),
+        clipp::option("--path-to-bluntify").doc("path to bluntify.py") & clipp::value("bluntify", path_bluntify),
         clipp::option("-h", "--help").set(help).doc("print this help message and exit"),
         clipp::option("-v", "--version").set(print_version).doc("print version information and exit")
     );
+
+    //if the the user ask for the version, print it and exit
+    if (print_version){
+        cout << "version: " << version << endl;
+        cout << "last update: " << last_update << endl;
+        cout << "author: Roland Faure" << endl;
+        return 0;
+    }
 
     //parse the command line
     //if the command line is invalid or the user asked for help, print the usage and exit
@@ -1971,13 +1958,16 @@ int main(int argc, char *argv[])
     system(("mkdir -p " + path_tmp_folder).c_str());
 
     if (correct_string == "correct"){
-        correct = true;
     }
     else if (correct_string == "detect"){
-        correct = false;
     }
     else{
         std::cerr << "Error: mode should be either 'correct' or 'detect'" << std::endl;
+        return 1;
+    }
+
+    if (correct_string == "correct" && output_scaffold == ""){
+        std::cerr << "Error: output assembly (-o) is required in correct mode" << std::endl;
         return 1;
     }
 
@@ -2012,11 +2002,37 @@ int main(int argc, char *argv[])
 
     //check the dependencies
     cout << "Checking dependencies..." << endl;
-    bool minimap_ok, minigraph_ok, racon_ok, raven_ok;
+    bool minimap_ok, minigraph_ok, racon_ok, raven_ok, bluntify_ok;
     minimap_ok = (system((path_minimap2 + " -h >trash.tmp 2>trash.tmp").c_str()) == 0);
     minigraph_ok = (system((path_minigraph + " --version >trash.tmp 2>trash.tmp").c_str()) == 0);
     racon_ok = (system((path_racon + " -h >trash.tmp 2>trash.tmp").c_str()) == 0);
     raven_ok = (path_to_raven != "" && system((path_to_raven + " --version >trash.tmp 2>trash.tmp").c_str()) == 0);
+    //try to run bluntify.py
+    auto bluntify_run = system(("python3 " + path_bluntify + " -h >trash.tmp 2>trash.tmp").c_str());
+    //if did not work, try the find the bluntify in the parent directory (compared to executable)
+    if (bluntify_run != 0){
+        string path_to_bluntify = "python3 "+string(argv[0]);
+        path_to_bluntify = path_to_bluntify.substr(0, path_to_bluntify.find_last_of("/"));
+        path_to_bluntify = path_to_bluntify.substr(0, path_to_bluntify.find_last_of("/"));
+        path_to_bluntify += "src/HS_GenomeTailor/bluntify.py";
+        bluntify_run = system((path_to_bluntify + " -h >trash.tmp 2>trash.tmp").c_str());
+        // cout << "path to bluntify: " << path_to_bluntify << endl;
+        if (bluntify_run == 0){
+            path_bluntify = path_to_bluntify;
+            bluntify_ok = true;
+        }
+        else{
+            bluntify_ok = false;
+        }
+    }
+    else{
+        path_bluntify = "python3 " + path_bluntify;
+        bluntify_ok = true;
+    }
+    if (!bluntify_ok){
+        cout << "Error: bluntify.py not found. Error in the installation" << endl;
+        return 1;
+    }
     system("rm trash.tmp");
 
     // Print the table of dependencies
@@ -2044,7 +2060,7 @@ int main(int argc, char *argv[])
     bool input_reads_is_fastq = (input_reads_format == "fastq" || input_reads_format == "fq");
     bool input_assembly_exists = (std::ifstream(input_assembly).good());
     bool input_reads_exists = (std::ifstream(input_reads).good()); 
-    bool output_scaffold_is_gfa = (output_scaffold_format == "gfa" || !correct);
+    bool output_scaffold_is_gfa = (output_scaffold_format == "gfa" || correct_string != "correct");
     bool gaf_file_is_gaf = (gaf_file.substr(gaf_file.find_last_of(".") + 1) == "gaf");
 
 
@@ -2065,7 +2081,7 @@ int main(int argc, char *argv[])
     else{
         std::cout << "|  input_reads      | " << RED_TEXT "not found" << RESET_TEXT " |" << std::endl;
     }
-    if (correct){
+    if (correct_string == "correct"){
         std::cout << "|  output_scaffold  |  " << (output_scaffold_is_gfa ? GREEN_TEXT "  gfa  " : RED_TEXT "not gfa") << RESET_TEXT "  |" << std::endl;
     }
     if (gaf_file != ""){
@@ -2081,9 +2097,36 @@ int main(int argc, char *argv[])
         std::cout << "Error: some input files are missing. Please check the file paths and try again." << std::endl;
         return 1;
     }
-    if (correct && output_scaffold == ""){
+    if (correct_string == "correct" && output_scaffold == ""){
         std::cout << "Error: the output assembly file (-o) is required in correct mode. Please provide a valid path and try again." << std::endl;
         return 1;
+    }
+
+    //check that the input graph does not contain overlaps other than 0M. If so, remove them at your own risk using bluntify.py
+    std::ifstream input(input_assembly);
+    string line;
+    bool overlaps_found = false;
+    while (std::getline(input, line)){
+        if (line[0] == 'L'){
+            std::istringstream iss(line);
+            std::string token;
+            std::string name1, name2, orientation1, orientation2, cigar;
+            iss >> token >> name1 >> orientation1 >> name2 >> orientation2 >> cigar;
+            if (cigar != "0M"){
+                overlaps_found = true;
+                break;
+            }
+        }
+    }
+    if (overlaps_found){
+        string blunt_asm = path_tmp_folder + "bluntified_assembly.gfa";
+        cout << RED_TEXT "WARNING:" << RESET_TEXT " the input assembly contains overlaps other than 0M. GenomeTailor will try to bluntify the graph, but will trust blindly the CIGARs and sometimes delete link to achieve bluntification. Please check the bluntified assembly at " 
+            << blunt_asm << ". A better option could be to use gimbricate+seqwish." << endl;
+        auto bluntify_run = system((path_bluntify + " -t -n " + input_assembly + " " + blunt_asm).c_str());
+        if (bluntify_run != 0){
+            cout << "Error: bluntify.py failed. Was trying to run" << endl<< path_bluntify + " -t -d " + input_assembly + " " + blunt_asm << endl;
+        }
+        input_assembly = blunt_asm;
     }
 
     //if the gaf file is not provided, create it with minigraph
@@ -2116,9 +2159,10 @@ int main(int argc, char *argv[])
     //reassemble unaligned reads with raven
     string assembly_completed = path_tmp_folder+"tmp_assembly_completed.gfa";
     string gaf_completed = path_tmp_folder+"tmp_gaf_completed.gaf";
-    if (correct){
+    if (correct_string == "correct"){
         cout << "Reassembling the unaligned reads with raven..." << endl;
         reassemble_unaligned_reads(gaf_file, input_reads, input_assembly, assembly_completed, gaf_completed, path_to_raven, path_minigraph, num_threads, path_tmp_folder);
+        system(("cp " + assembly_completed + " " + path_tmp_folder+"assembly_after_raven.gaf").c_str());
     }
     else{
         system(("cp " + input_assembly + " " + assembly_completed).c_str());
@@ -2128,7 +2172,7 @@ int main(int argc, char *argv[])
     // system(("cp " + gaf_file + " " + gaf_completed).c_str());
     // cout << "NOT RUNNING RAVEN, TO BE REMOVED" << endl;
 
-    if (correct){
+    if (correct_string == "correct"){
         cout << "\n==== Now looping and iteratively modify the GFA until all reads align end-to-end on the assembly graph ====" << endl;
         bool some_reads_still_unaligned = true;
         int iteration = 0;
@@ -2222,6 +2266,8 @@ int main(int argc, char *argv[])
 
             //realign the reads on the new assembly
             cout << "  - Realigning the reads on the new assembly..." << endl;
+            //copy the completed gaf to save it
+            system(("cp " + gaf_completed + " " + path_tmp_folder+"tmp_gaf_iteration_"+ std::to_string(iteration) +"_.gaf").c_str());
             realign_reads_on_assembly(solid_bridges, solid_piers, assembly_completed, input_reads, gaf_completed, path_minigraph, num_threads, path_tmp_folder); //the new result is stored in gaf_completed
 
             //remove the temporary gfa file
@@ -2249,9 +2295,8 @@ int main(int argc, char *argv[])
         int num_undetected_duplex_reads_end = 0;
         int num_unaligned_reads_end = 0;
         std::set<string> list_of_duplex_reads2;
-        inventoriate_bridges_and_piers(final_gaf, bridges2, piers2, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads2);
- 
 
+        inventoriate_bridges_and_piers(final_gaf, bridges2, piers2, assembly_completed, num_well_aligned_reads_end, num_partially_aligned_reads_end, num_jumpings_reads_end, num_undetected_duplex_reads_end, list_of_duplex_reads2);
         //count the number of reads that align end-to-end, partially and not at all
         count_unaligned_reads(final_gaf, input_reads, num_unaligned_reads_end);
 
@@ -2311,7 +2356,7 @@ int main(int argc, char *argv[])
         cout << "|" << endl;
         cout << "----------------------------------------------------------------------------------------------------" << endl;
     }
-    else{ //just detect the misassemblies
+    else if (correct_string == "detect"){ //just detect the misassemblies
         //inventoriate the bridges
         cout << "  - Going through the gaf file and listing the reads that do not align end-to-end on the assembly graph..." << endl;
         std::vector<Bridge> bridges;
@@ -2375,6 +2420,7 @@ int main(int argc, char *argv[])
         cout << "-------------------------------------------------------------------------" << endl;
     
     }
+
 
     cout << endl << "Done! Customer service at github.com/RolandFaure/GenomeTailor" << endl;
 }

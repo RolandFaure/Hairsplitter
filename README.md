@@ -51,6 +51,7 @@ cd Hairsplitter/src/
 mkdir build && cd build
 cmake ..
 make
+cd ../../ && chmod +x hairsplitter.py
 ```
 
 # Usage

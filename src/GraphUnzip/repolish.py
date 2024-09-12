@@ -393,62 +393,66 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
                         command = "racon -w 50 -t " + str(threads) + " tmp_reads_cut.fa tmp_toPolish.paf tmp_toPolish.fa > tmp_repolished.fa 2>trash.txt"
                         racon = os.system(command)
                         if racon != 0 :
-                            print("Error while running racon: " + command + "\n")
-                            sys.exit(1)
+                            #polishign failed, fall back sequence
+                            seq = contig_seq
+                            # print("Error while running racon: " + command + "\n")
+                            # sys.exit(1)
 
-                        #now retrieve the repolished sequence, realign it one last time against left and right and store it in the segment
-                        command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_repolished.fa > tmp_left.paf 2> trash.txt"
-                        minimap = os.system(command)
-                        if minimap != 0 :
-                            print("Error while running minimap2: " + command + "\n")
-                            sys.exit(1)
-                        command = "minimap2 -cx map-pb --secondary=no tmp_right.fa tmp_repolished.fa > tmp_right.paf 2> trash.txt"
-                        minimap = os.system(command)
-                        if minimap != 0 :
-                            print("Error while running minimap2: " + command + "\n")
-                            sys.exit(1)
-
-                        #retrieve the coordinates of the reads mapping on the left chunk
-                        reversed_seq = False
-                        left_coordinates = (0,0)
-                        with open("tmp_left.paf", 'r') as paf :
-                            for line in paf :
-                                line = line.strip().split('\t')
-                                left_coordinates = (int(line[2]), int(line[3]))
-                                if line[5] == "-":
-                                    reversed_seq = True
-                                break
-                        right_coordinates = (0,0)
-                        with open("tmp_right.paf", 'r') as paf :
-                            for line in paf :
-                                line = line.strip().split('\t')
-                                right_coordinates = (int(line[2]), int(line[3]))
-                                break
-
-                        if reversed_seq :
-                            left_coordinates, right_coordinates = right_coordinates, left_coordinates
-
-                        if right_coordinates == (0,0) or left_coordinates == (0,0) :
-                            #problem in the polishing
-                            print("DEBUG code 3309")
-                            seq = None
                         else:
-                            #now retrieve the repolished sequence between left_coordinates and right_coordinates
-                            with open("tmp_repolished.fa", 'r') as repolished :
-                                repolished.readline()
-                                seq = repolished.readline().strip()
-                                # if left_coordinates == (0,0):
-                                #     left_coordinates = (0, min(500, len(seq)))
-                                # if right_coordinates == (0,0): #should not happen, but could if bad polishing
-                                #     right_coordinates=(max(min(500, len(seq)), len(seq)-500), len(seq))
 
-                                seq = seq[max(left_coordinates[0], left_coordinates[1])-1:min(right_coordinates[0], right_coordinates[1])+1]
-                                if reversed_seq :
-                                    # print("REVERSIIIIIING !", orientations[s])
-                                    seq = reverse_complement(seq)
-                                    # sys.exit(1)
-                            
-                            # print("repolished sequence: ", seq)
+                            #now retrieve the repolished sequence, realign it one last time against left and right and store it in the segment
+                            command = "minimap2 -cx map-pb --secondary=no tmp_left.fa tmp_repolished.fa > tmp_left.paf 2> trash.txt"
+                            minimap = os.system(command)
+                            if minimap != 0 :
+                                print("Error while running minimap2: " + command + "\n")
+                                sys.exit(1)
+                            command = "minimap2 -cx map-pb --secondary=no tmp_right.fa tmp_repolished.fa > tmp_right.paf 2> trash.txt"
+                            minimap = os.system(command)
+                            if minimap != 0 :
+                                print("Error while running minimap2: " + command + "\n")
+                                sys.exit(1)
+
+                            #retrieve the coordinates of the reads mapping on the left chunk
+                            reversed_seq = False
+                            left_coordinates = (0,0)
+                            with open("tmp_left.paf", 'r') as paf :
+                                for line in paf :
+                                    line = line.strip().split('\t')
+                                    left_coordinates = (int(line[2]), int(line[3]))
+                                    if line[5] == "-":
+                                        reversed_seq = True
+                                    break
+                            right_coordinates = (0,0)
+                            with open("tmp_right.paf", 'r') as paf :
+                                for line in paf :
+                                    line = line.strip().split('\t')
+                                    right_coordinates = (int(line[2]), int(line[3]))
+                                    break
+
+                            if reversed_seq :
+                                left_coordinates, right_coordinates = right_coordinates, left_coordinates
+
+                            if right_coordinates == (0,0) or left_coordinates == (0,0) :
+                                #problem in the polishing
+                                print("DEBUG code 3309")
+                                seq = None
+                            else:
+                                #now retrieve the repolished sequence between left_coordinates and right_coordinates
+                                with open("tmp_repolished.fa", 'r') as repolished :
+                                    repolished.readline()
+                                    seq = repolished.readline().strip()
+                                    # if left_coordinates == (0,0):
+                                    #     left_coordinates = (0, min(500, len(seq)))
+                                    # if right_coordinates == (0,0): #should not happen, but could if bad polishing
+                                    #     right_coordinates=(max(min(500, len(seq)), len(seq)-500), len(seq))
+
+                                    seq = seq[max(left_coordinates[0], left_coordinates[1])-1:min(right_coordinates[0], right_coordinates[1])+1]
+                                    if reversed_seq :
+                                        # print("REVERSIIIIIING !", orientations[s])
+                                        seq = reverse_complement(seq)
+                                        # sys.exit(1)
+                                
+                                # print("repolished sequence: ", seq)
                     #because we made sure the orientation was positive when choosing left and right
                     segment.set_orientation(s, 1)
                 
