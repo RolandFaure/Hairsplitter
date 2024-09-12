@@ -503,6 +503,7 @@ def main():
 
         if continue_from_previous_run and os.path.exists(new_assembly) :
             print(" - Already cleaned assembly found from previous run")
+            readsFile = tmp_dir + "/reads.fa"
         else:
             continue_from_previous_run = False
             command = path_GenomeTailor + " -i " + robust_assembly + " -o " + new_assembly + " -r " + readsFile + " -t " + str(nb_threads) \
