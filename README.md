@@ -161,7 +161,7 @@ HairSplitter is organized as series of modules, some of these modules being of i
 6. *Improving contiguity* Contigs are generally separated only locally. To improve contiguity, use the long reads that align on several contigs sequentially.
  
 # Citation
- Please cite the preprint on bioRxiv: [https://www.biorxiv.org/content/10.1101/2024.02.13.580067v1](https://www.biorxiv.org/content/10.1101/2024.02.13.580067v1)
+ HairSplitter is published in the Peer-Community Journal (PCJ): Faure, Roland; Lavenier, Dominique; Flot, Jean-François. HairSplitter: haplotype assembly from long, noisy reads. Peer Community Journal, Volume 4 (2024), article no. e96. doi : 10.24072/pcjournal.481. [https://peercommunityjournal.org/articles/10.24072/pcjournal.481/](https://peercommunityjournal.org/articles/10.24072/pcjournal.481/)
  
  
 
