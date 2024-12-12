@@ -587,7 +587,7 @@ void create_read_graph_low_memory(
         difference_with_other_reads.assign(mask.size(), 0);
 
         if (mask_extend[read1]){
-            int max_compat = 5;
+            int max_compat = 0;
             for (int read2 = 0 ; read2 < mask.size() ; read2++){
                 if (mask_extend[read2] && read1 != read2 ){
                     //compare the sims and diffs between read1 and read2
@@ -625,7 +625,7 @@ void create_read_graph_low_memory(
             }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && similarity_with_other_reads[r] + difference_with_other_reads[r] < max(5.0,0.7*max_compat) ){ //to exclude reads that do not overlap much
+                if (mask[r] && r != read1 && similarity_with_other_reads[r] + difference_with_other_reads[r] < 0.7*max_compat ){ //to exclude reads that do not overlap much
                     distance_with_other_reads[r] = 0;
                 }
             }
@@ -668,6 +668,19 @@ void create_read_graph_low_memory(
                     neighbor_list_low_memory[neighbor.first].push_back(read1);
                 }
             }
+            // if (nb_of_neighbors == 0){
+            //     cout << "could not find any neighbors for read " << read1 << endl;
+            //     cout << "here are the decisiotns that led to this: " << endl;
+            //     cout << "distance_threshold_below_which_two_reads_are_considered_different " << distance_threshold_below_which_two_reads_are_considered_different << endl;
+            //     cout << "distance_threshold_above_which_two_reads_should_be_linked " << distance_threshold_above_which_two_reads_should_be_linked << endl;
+            //     cout << "smallest.size() " << smallest.size() << endl;
+            //     for (auto neighbor : smallest){
+            //         if (neighbor.second > 0){
+            //             cout << "neighbor " << neighbor.first << " " << neighbor.second << endl;
+            //         }
+            //     }
+            //     exit(1);
+            // }
         }
     }
 
@@ -717,7 +730,7 @@ void create_read_graph_matrix(
             vector <float> distance_with_other_reads (mask.size(), 0);
             vector <int> sims (mask.size(), 0);
             vector <int> diffs (mask.size(), 0);
-            int max_compat = 5; //to remove reads that match on few positions, see how much compatibility you can find at most
+            int max_compat = 0; //to remove reads that match on few positions, see how much compatibility you can find at most
 
             //iterate through all the other reads
 
@@ -747,7 +760,7 @@ void create_read_graph_matrix(
             }
 
             for (auto r = 0 ; r < distance_with_other_reads.size() ; r++){
-                if (mask[r] && r != read1 && sims[r] + diffs[r] < max(5.0,0.7*max_compat) ){
+                if (mask[r] && r != read1 && sims[r] + diffs[r] < 0.7*max_compat ){
                     distance_with_other_reads[r] = 0;
                 }
             }
@@ -991,7 +1004,6 @@ void finalize_clustering(
  * @param sizeOfWindow To look only at the interesting snps
  * @return std::vector<int> 
  */
-
 std::vector<int> merge_wrongly_split_haplotypes(
     std::vector<int> &clusteredReads, 
     std::vector<Column> &snps,  
@@ -1626,13 +1638,6 @@ int main(int argc, char *argv[]){
             if (!low_memory_now){
                 create_read_graph_matrix(mask_at_this_position, chunk, sizeOfWindow, similarity, difference, adjacency_matrix, errorRate);
                 // cout << "adjacency matrix computed " << errorRate << endl;
-
-                // cout << "here are all the links in the adjacency matrix: " << endl;
-                // for (int k = 0; k < adjacency_matrix.outerSize(); ++k) {
-                //     for (Eigen::SparseMatrix<int>::InnerIterator it(adjacency_matrix, k); it; ++it) {
-                //         cout << it.row() << " " << it.col() << " " << it.value() << endl;
-                //     }
-                // }
             }
             else{
                 // cout << "creating the neighbor list" << endl;
@@ -1640,7 +1645,6 @@ int main(int argc, char *argv[]){
                     v.reserve(20);
                 }
                 create_read_graph_low_memory(snps, mask_at_this_position, chunk, sizeOfWindow, neighbor_list_low_memory, errorRate);
-
                 // cout << "ididinnd q" << endl;
                 // neighbor_list_low_memory_strengthened = strengthen_adjacency_matrix(neighbor_list_low_memory, numberOfReadsHere);
                 neighbor_list_low_memory_strengthened = neighbor_list_low_memory;
@@ -1663,6 +1667,7 @@ int main(int argc, char *argv[]){
             }
             allclusters_debug.push_back(clusteredReads1);
             vector<vector<int>> localClusters = {};
+
 
             // cout << "runnignd cw again and again" << endl;
             int lastpos = -10;
@@ -1710,7 +1715,7 @@ int main(int argc, char *argv[]){
             }
 
             // cout << "outputting graph hs/tmp/graph_" <<  std::to_string(chunk*sizeOfWindow) +".gdf" << endl;
-            // if (low_memory){
+            // if (low_memory_now){
             //     outputGraph_low_memory(neighbor_list_low_memory_strengthened, haplotypes, "hs/tmp/graph_"+std::to_string(chunk*sizeOfWindow)+".gdf");
             // }
             // else{

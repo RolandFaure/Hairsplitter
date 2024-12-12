@@ -29,6 +29,8 @@ std::vector<Column> call_variants(
     std::string &ref,
     std::vector<size_t> &suspectPostitions,
     float &meanError, 
+    float automatic_snp_threshold,
+    std::vector<Column>  &automatic_snps, 
     std::string &tmpFolder,
     bool DEBUG);
 

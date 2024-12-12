@@ -453,6 +453,8 @@ vector<Column> call_variants(
     std::string &ref,
     std::vector<size_t> &suspectPostitions, 
     float &meanError,
+    float automatic_snp_threshold,
+    std::vector<Column>  &automatic_snps, 
     std::string &tmpFolder,
     bool DEBUG){
 
@@ -523,6 +525,10 @@ vector<Column> call_variants(
             && ((content_sorted[1].first - '!')%5 != 4 || (content_sorted[1].first/5%5 != content_sorted[0].first%5 && content_sorted[1].first/25%5 != content_sorted[0].first%5) ) //don't call indels that are adjacent to homopolymers, it's the best way to call false positives
             && position - posoflastsnp > 5){ //the snp is not too close to the previous one
             
+            if (content_sorted[1].second > automatic_snp_threshold*content_sorted[0].second){
+                automatic_snps.push_back(snps[position]);
+            }
+
             posoflastsnp = position;
             suspectPositions.push_back(position);
 
@@ -564,6 +570,7 @@ vector<Column> call_variants(
  * 
  * @param snps_in Input snps
  * @param snps_out Filtered snps
+ * @param automatic_snp_threshold OUtput all positions that have at least this proportion
  * @param num_threads 
  */
 void keep_only_robust_variants(
@@ -645,6 +652,7 @@ void keep_only_robust_variants(
         //     cout << "here is a parition " << p_value << endl;
         //     partitions[p1].print();
         // }
+        // partitions[p1].print();
 
         if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
 
@@ -720,7 +728,7 @@ void keep_only_robust_variants(
         }
     }
 
-    double mean_chisquare = chisquare_sum/number_of_interesting_positions; //now see if there aren't a few position we missed
+    //now see if there aren't a few position we missed even in snps_in
     int idxSnps = 0;
     vector<Column> snps_out_tmp = snps_out;
     snps_out = vector<Column>();
@@ -736,9 +744,9 @@ void keep_only_robust_variants(
             {
                 for (auto p = 0 ; p < listOfFinalPartitions.size() ; p++){
                     distancePartition dis = distance(listOfFinalPartitions[p], msa[position], msa[position].ref_base);
-                    if (computeChiSquare(dis) > std::min(mean_chisquare, 20.0) && dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4){ //the dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4 is to avoid calling false positives because if e.g. you have dis.n01==0 and dis.n00==1 this may look good but actually no 
+                    if (computeChiSquare(dis) > 20.0 && dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4){ //the dis.n10 + dis.n00 > 4 && dis.n01 + dis.n11 > 4 is to avoid calling false positives because if e.g. you have dis.n01==0 and dis.n00==1 this may look good but actually no 
                         snps_out.push_back(msa[position]);
-                        // cout << "fkldjsqdsmlj new sus pos : " << position << " " << computeChiSquare(dis) << endl;
+                        // cout << "fkldjsqdsmlj new sus pos : " << position << " " << computeChiSquare(dis) << " " << dis.n00 << " " << dis.n01 << " " << dis.n10 << " " << dis.n11 << endl;
                         break;
                     }
                 }
@@ -1203,8 +1211,8 @@ int main(int argc, char *argv[])
     std::vector <Overlap> allOverlaps;
     vector <Link> allLinks;
 
-    if (argc < 11){
-        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <amplicon> <DEBUG> <file_out> <vcfFile>\n";
+    if (argc < 12){
+        std::cout << "Usage: ./call_variants <gfa_file> <reads_file> <sam_file> <num_threads> <tmpDir> <error_rate_out> <amplicon> <DEBUG> <file_out> <vcfFile> <automatic_snp_threshold>\n";
         return 0;
     }
     std::string gfafile = argv[1];
@@ -1217,6 +1225,7 @@ int main(int argc, char *argv[])
     bool DEBUG = bool(std::stoi(argv[8]));
     std::string file_out = argv[9];
     std::string vcfFile = argv[10];
+    float automatic_snp_threshold = std::stof(argv[11]);
     //erase the output files
     std::ofstream out(file_out);
     out.close();
@@ -1300,7 +1309,8 @@ int main(int argc, char *argv[])
                 //call variants
 
                 vector<size_t> suspectPostitions;
-                vector<Column> variants_here = call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, tmpFolder, DEBUG);
+                vector<Column> automatic_snps;
+                vector<Column> variants_here = call_variants(snps, allreads, allOverlaps, contig, ref3mers, suspectPostitions, meanDistance, automatic_snp_threshold, automatic_snps, tmpFolder, DEBUG);
 
                 //filter the variants
                 vector<Column> filteredSnps;
@@ -1312,7 +1322,27 @@ int main(int argc, char *argv[])
                 //     vector<Column> variants_here2 = rescue_snps(snps, meanDistance, partitions, suspectPostitions);
                 // }
 
-                variants[contig] = filteredSnps;
+                //merge the filteredSNPs with the automatic ones
+                vector<Column> mergedSnps;
+                int index_on_automatic = 0;
+                int index_on_filtered = 0;
+                while (index_on_automatic < automatic_snps.size() && index_on_filtered < filteredSnps.size()){
+                    if (automatic_snps[index_on_automatic].pos < filteredSnps[index_on_filtered].pos){
+                        mergedSnps.push_back(automatic_snps[index_on_automatic]);
+                        index_on_automatic++;
+                    }
+                    else if (automatic_snps[index_on_automatic].pos > filteredSnps[index_on_filtered].pos){
+                        mergedSnps.push_back(filteredSnps[index_on_filtered]);
+                        index_on_filtered++;
+                    }
+                    else{
+                        mergedSnps.push_back(automatic_snps[index_on_automatic]);
+                        index_on_automatic++;
+                        index_on_filtered++;
+                    }
+                }
+
+                variants[contig] = mergedSnps;
 
                 //free up memory by deleting the sequence of the reads used there
                 string empty = "";
