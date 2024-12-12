@@ -22,41 +22,32 @@ import argparse
 import datetime
 
 
-# command line arguments
 def parse_args(args_string=None):
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-i", "--assembly", help="Original assembly in GFA or FASTA format (required)", required=True)
     parser.add_argument("-f", "--fastq", help="Sequencing reads fastq or fasta (required)", required=True)
-    parser.add_argument("-c", "--haploid-coverage", help="Expected haploid coverage. 0 if does not apply [0]", default=0)
-    parser.add_argument("-x", "--use-case", help="{ont, pacbio, hifi,amplicon} [ont]", default="ont")
-    parser.add_argument("-p", "--polisher", help="{racon,medaka} medaka is more accurate but much slower [racon]", default="racon")
-    # parser.add_argument("-m", "--multiploid", help="Use this option if all haplotypes can be assumed to have the same coverage", action="store_true")
+    parser.add_argument("-c", "--haploid-coverage", help="Expected haploid coverage. 0 if does not apply [0]", default=0, type=int)
+    parser.add_argument("-x", "--use-case", help="{ont, pacbio, hifi, amplicon} [ont]", default="ont", type=str)
+    parser.add_argument("-p", "--polisher", help="{racon, medaka} medaka is more accurate but much slower [racon]", default="racon", type=str)
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
-
-    parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1)
+    parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1, type=int)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
-    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by c% of the reads [0.33]", default=0.33)
+    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion c of the reads [0.33]", default=0.33, type=float)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-s", "--dont_simplify", help="Don't merge the contig", action="store_true")
-    parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype ", action="store_true")
+    parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype", action="store_true")
     parser.add_argument("-F", "--force", help="Force overwrite of output folder if it exists", action="store_true")
-    parser.add_argument("-l", "--low-memory", help= "Turn on the low-memory mode (at the expense of speed)", action="store_true")
+    parser.add_argument("-l", "--low-memory", help="Turn on the low-memory mode (at the expense of speed)", action="store_true")
     parser.add_argument("--no_clean", help="Don't clean the temporary files", action="store_true")
     parser.add_argument("--rarest-strain-abundance", help="Limit on the relative abundance of the rarest strain to detect (0 might be slow for some datasets) [0.01]", default=0.01, type=float)
-    parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="")
-    # parser.add_argument("--path_to_minimap2", help="Path to the executable minimap2 [minimap2]", default="minimap2")
-    parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph")
-    # parser.add_argument("--path_to_racon", help="Path to the executable racon [racon]", default="racon")
-    parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka")
-    # parser.add_argument("--path_to_samtools", help="Path to samtools [samtools]", default="samtools")
-    parser.add_argument("--path_to_python", help="Path to python [python]", default="python")
-    parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven")
-
+    parser.add_argument("--minimap2-params", help="Parameters to pass to minimap2", default="", type=str)
+    parser.add_argument("--path_to_minigraph", help="Path to the executable minigraph [minigraph]", default="minigraph", type=str)
+    parser.add_argument("--path_to_medaka", help="Path to the executable medaka [medaka]", default="medaka", type=str)
+    parser.add_argument("--path_to_python", help="Path to python [python]", default="python", type=str)
+    parser.add_argument("--path_to_raven", help="Path to raven [raven]", default="raven", type=str)
     parser.add_argument("-v", "--version", help="Print version and exit", action="store_true")
     parser.add_argument("-d", "--debug", help="Debug mode", action="store_true")
-
 
     if args_string is not None:
         # Split the string into a list of arguments
@@ -65,6 +56,7 @@ def parse_args(args_string=None):
         args = parser.parse_args()
 
     return args
+
 
 def check_dependencies(tmp_dir, minimap2, minigraph, racon, medaka, polisher, samtools, path_to_src, path_to_python, skip_minigraph\
                        , path_GenomeTailor, path_cut_gfa, path_fa2gfa, path_gfa2fa, path_call_variants, path_separate_reads, path_create_new_contigs\
