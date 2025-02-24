@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.18"
-__date__ = "2024-12-11"
+__version__ = "1.9.20"
+__date__ = "2025-02-24"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -33,7 +33,7 @@ def parse_args(args_string=None):
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1, type=int)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
-    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion c of the reads [0.33]", default=0.33, type=float)
+    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion c of the reads [0.33]", default=0.33, type=float, required=False)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-s", "--dont_simplify", help="Don't merge the contig", action="store_true")
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype", action="store_true")
