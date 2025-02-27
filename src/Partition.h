@@ -65,6 +65,8 @@ public :
     void strengthen_partition(Partition &p); // At the postition where the partition is not very confident, use what's defined in p
 
     std::vector<short> get_tweaked_partition(); //returns the partition tweaked to take into account the fact that 0s and 1s are not equiprobable
+    
+    int number_of_correlating_snps;
 
 private :
 

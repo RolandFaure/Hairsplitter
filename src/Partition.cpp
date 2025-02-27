@@ -26,6 +26,7 @@ Partition::Partition(){
     conf_score = 0;
     pos_left = -1;
     pos_right = -1;
+    number_of_correlating_snps = 0;
 }
 
 Partition::Partition(Column& snp, int pos, unsigned char ref_base){
@@ -33,6 +34,7 @@ Partition::Partition(Column& snp, int pos, unsigned char ref_base){
     pos_left = pos;
     pos_right = pos;
     conf_score = 0;
+    number_of_correlating_snps = 0;
 
     readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
@@ -85,6 +87,7 @@ Partition::Partition(Column& snp, int pos, vector<bool> &mask, unsigned char ref
     pos_left = pos;
     pos_right = pos;
     conf_score = 0;
+    number_of_correlating_snps = 0;
 
     readIdx = vector<int>(snp.readIdxs.begin(), snp.readIdxs.end());
 
@@ -180,6 +183,10 @@ double comb_lgamma(double n, double k){
     return std::exp(std::lgamma(n+1) - std::lgamma(k+1) - std::lgamma(n-k+1));
 }
 
+double comb_lgamma_log(double n, double k){
+    return std::lgamma(n+1) - std::lgamma(k+1) - std::lgamma(n-k+1);
+}
+
 /**
  * @brief check if the partition is significant, i.e. if the number of variants is big enough
  * 
@@ -193,7 +200,7 @@ float Partition::isSignificant(int total_number_of_columns_in_pileup){
     int numberOfReads = 0;
     int number_of_columns = 0;
     for (auto p = 0 ; p < mostFrequentBases.size() ; p++){
-        if (mostFrequentBases[p] == -1 && moreFrequence[p] > 1 && lessFrequence[p] == 0){
+        if (mostFrequentBases[p] == -1 && moreFrequence[p]> 1 && lessFrequence[p] == 0){
             numberOfMutatedReads++;
             if (moreFrequence[p] > number_of_columns){
                 number_of_columns = moreFrequence[p];
@@ -204,7 +211,15 @@ float Partition::isSignificant(int total_number_of_columns_in_pileup){
         }
     }
 
-    double p_value = pow(float(numberOfMutatedReads)/numberOfReads, number_of_columns*numberOfMutatedReads) * comb_lgamma(numberOfReads, numberOfMutatedReads) * comb_lgamma(total_number_of_columns_in_pileup, number_of_columns);
+    // cout << "valuses in Partition.cpp: " << endl;
+    // cout << numberOfMutatedReads << " " << numberOfReads << endl;
+    // cout << number_of_columns << " " << total_number_of_columns_in_pileup << endl;
+
+    // cout << log(float(numberOfMutatedReads)/numberOfReads)* number_of_columns*numberOfMutatedReads << endl;
+    // cout << comb_lgamma_log(numberOfReads, numberOfMutatedReads) << endl;
+    // cout << comb_lgamma_log(total_number_of_columns_in_pileup, number_of_columns) << endl;
+
+    double p_value = std::exp( log(float(numberOfMutatedReads)/numberOfReads)* number_of_columns*numberOfMutatedReads + comb_lgamma_log(numberOfReads, numberOfMutatedReads) + comb_lgamma_log(total_number_of_columns_in_pileup, number_of_columns));
 
     // if (numberOfMutatedReads == 10){
     

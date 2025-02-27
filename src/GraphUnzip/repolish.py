@@ -464,15 +464,6 @@ def repolish_contigs(segments, gfa_file, gaf_file, fastq_file, copies, threads=1
         
         segment.set_sequences(seqs)
 
-    #remove temporary files
-    os.remove("tmp_reads.fa")
-    os.remove("tmp_left.fa")
-    os.remove("tmp_right.fa")
-    os.remove("tmp_complete_contig.fa")
-    os.remove("tmp_contig.fa")
-    os.remove("tmp.paf")
-    os.remove("tmp_repolished.fa")
-    os.remove("trash.txt")
     return segments
 
 

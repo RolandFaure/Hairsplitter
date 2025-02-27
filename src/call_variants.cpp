@@ -383,8 +383,8 @@ float generate_msa(
     int firstRead = 0;
     int lastRead = 20;
     int numberOfReads = lastRead-firstRead;
-    int start = 0;
-    int end = 200;
+    int start = 1200;
+    int end = 1300;
     vector<string> reads (int(numberOfReads/step));
     string cons = "";
     for (unsigned int i = start ; i < end; i+=prop){
@@ -431,7 +431,6 @@ float generate_msa(
     cout << "meanDistance : " << totalDistance/totalLengthOfAlignment << endl;
     exit(1);
     */
-    
     return totalDistance/totalLengthOfAlignment;
 
     //*/
@@ -506,7 +505,7 @@ vector<Column> call_variants(
             snps[position].second_base = content_sorted[1].first;
             snps[position].pos = position;
         }
-        // if (position == 191928 ){//&& allreads[contig].name == "edge_2"){
+        // if (position == 1231 ){//&& allreads[contig].name == "edge_2"){
         //     cout << "at pos " << position << " the two mcall_variatns.cppost frequent bases are : " << convert_base_to_triplet((int) content_sorted[0].first) << " "
         //          << convert_base_to_triplet( (int) content_sorted[1].first ) << " " << convert_base_to_triplet( (int) content_sorted[2].first ) << " " <<
         //          convert_base_to_triplet((int) content_sorted[3].first) << endl;
@@ -518,6 +517,10 @@ vector<Column> call_variants(
         //         cout << convert_base_to_triplet((int) c) << " ";
         //     }
         //     cout << endl;
+        //     cout << content_sorted[1].second  << " should be bigger than " << minimumNumberOfReadsToBeConsideredSuspect << endl;
+        //     cout << "seconde is " << content_sorted[2].second << endl;
+        //     cout << "qflkd " << (content_sorted[1].first - '!')%5 << ",  " << position << " " << posoflastsnp << endl;
+
         // }
         if (content_sorted[1].second > minimumNumberOfReadsToBeConsideredSuspect //there is a "frequent" base other than the ref base
             && (content_sorted[1].second > content_sorted[2].second * 5 || minimumNumberOfReadsToBeConsideredSuspect == 2) //this other base occurs much more often than the third most frequent base (could it really be chance ?)
@@ -531,8 +534,6 @@ vector<Column> call_variants(
 
             posoflastsnp = position;
             suspectPositions.push_back(position);
-
-            // cout << "selecting at pos " << position << endl;
 
             char ref_base = content_sorted[0].first;
             char second_frequent_base = content_sorted[1].first;
@@ -582,8 +583,6 @@ void keep_only_robust_variants(
 
     snps_out = vector<Column>();
 
-    // cout << "filtering contqoflmj ig " << n << endl;
-
     vector<Partition> partitions;
     int lastposition = -5;
 
@@ -595,6 +594,7 @@ void keep_only_robust_variants(
         }
         bool found = false;
         auto position = snp.pos;
+        int number_of_correlating_snps = 0;
         for (auto p = 0 ; p < partitions.size() ; p++){
             //if the partition is too far away, do not bother comparing
             if (std::abs(snp.pos-partitions[p].get_right())>50000){
@@ -603,7 +603,13 @@ void keep_only_robust_variants(
             distancePartition dis = distance(partitions[p], snp, snp.ref_base);
             auto comparable = dis.n00 + dis.n11 + + dis.n01 + dis.n10;
 
-            // if (partitions[p].get_left() == 2744 && snp.pos == 2852){
+            if (dis.n00+dis.n01 > 0.1*comparable && dis.n00+dis.n01 < 0.9*comparable && dis.n01+dis.n11 > 0.1*comparable && dis.n01+dis.n11 < 0.9*comparable
+                && computeChiSquare(dis) > 15){
+                number_of_correlating_snps += 1;
+                partitions[p].number_of_correlating_snps += 1;
+            }
+
+            // if (partitions[p].get_left() == 530 && snp.pos == 1086){
             //     cout << "comparitng " << endl;
             //     partitions[p].print();
             //     cout << "with " << snp.pos << endl;
@@ -622,7 +628,9 @@ void keep_only_robust_variants(
             }
         }
         if (!found){    // the second condition is here to create partitions only at specific spots of the backbone
-            partitions.push_back(Partition(snp, position, snp.ref_base));
+            Partition p(snp, position, snp.ref_base);
+            p.number_of_correlating_snps = number_of_correlating_snps;
+            partitions.push_back(p);
         }
         else{
             lastposition = snp.pos;      //two suspect positions next to each other can be artificially correlated through alignement artefacts
@@ -652,9 +660,10 @@ void keep_only_robust_variants(
         //     cout << "here is a parition " << p_value << endl;
         //     partitions[p1].print();
         // }
+        // cout << "partitiion to dedsdqi " << p_value  << " "  << partitions[p1].number_of_correlating_snps << endl;
         // partitions[p1].print();
 
-        if (p_value < 0.001 && partitions[p1].isInformative(false, mean_error)){
+        if ( (p_value < 0.001 || partitions[p1].number_of_correlating_snps > 1) && partitions[p1].isInformative(false, mean_error)){
 
             // cout << "here is a kept partition " << p_value << endl;
             // partitions[p1].print();
