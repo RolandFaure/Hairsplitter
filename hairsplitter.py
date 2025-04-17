@@ -9,8 +9,8 @@ Author: Roland Faure
 
 __author__ = "Roland Faure"
 __license__ = "GPL3"
-__version__ = "1.9.21"
-__date__ = "2025-02-27"
+__version__ = "1.9.22"
+__date__ = "2025-04-17"
 __maintainer__ = "Roland Faure"
 __email__ = "roland.faure@irisa.fr"
 __github__ = "github.com/RolandFaure/HairSplitter"
@@ -34,6 +34,7 @@ def parse_args(args_string=None):
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1, type=int)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
     parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion c of the reads [0.33]", default=0.33, type=float, required=False)
+    parser.add_argument("-q", "--min-read-quality", help="If reads have an average quality below this threshold, filter out (fastq input only) [0]", default=0, type=int)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-s", "--dont_simplify", help="Don't merge the contig", action="store_true")
     parser.add_argument("-P", "--polish-everything", help="Polish every contig with racon, even those where there is only one haplotype", action="store_true")
@@ -396,6 +397,11 @@ def main():
         # create output folder
         os.mkdir(args.output)
 
+    # Check if quality filter is used with FASTA input
+    if args.min_read_quality > 0 and (readsFile.endswith(".fasta") or readsFile.endswith(".fa") or readsFile.endswith(".fna") or readsFile.endswith(".fasta.gz") or readsFile.endswith(".fa.gz")):
+        print("ERROR: Quality filtering cannot be applied to FASTA input. Please provide FASTQ input for quality filtering.")
+        sys.exit(1)
+
     #output the command line used to run HairSplitter and the version in the log file
     f = open(logFile, "w")
     f.write(" ".join(sys.argv)+"\n")
@@ -484,6 +490,27 @@ def main():
     # 0.1 Check the assembly for non-capital letters and weird characters like - 
     robust_assembly = tmp_dir + "/robust_assembly.gfa"
     check_input_assembly(gfaAssembly, robust_assembly)
+
+    # 0.2 Filter reads by quality if demanded
+    if args.min_read_quality > 0 and (readsFile.endswith(".fastq") or readsFile.endswith(".fq")):
+        print("\n===== STAGE 0.2: Filtering reads by quality [", datetime.datetime.now(), "]\n")
+        filtered_reads = tmp_dir + "/filtered_reads.fastq"
+        def filter_reads_by_quality(input_file, output_file, min_quality):
+            with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
+                while True:
+                    header = infile.readline().strip()
+                    if not header:
+                        break
+                    sequence = infile.readline().strip()
+                    plus = infile.readline().strip()
+                    quality = infile.readline().strip()
+
+                    avg_quality = sum(ord(char) - 33 for char in quality) / len(quality)
+                    if avg_quality >= min_quality:
+                        outfile.write(f"{header}\n{sequence}\n{plus}\n{quality}\n")
+
+        filter_reads_by_quality(readsFile, filtered_reads, args.min_read_quality)
+        readsFile = filtered_reads
 
     # 1. Clean the assembly using correct_structural_errors.py
     print("\n===== STAGE 1: Cleaning graph of hidden structural variations [", datetime.datetime.now() ,"]\n\n")
