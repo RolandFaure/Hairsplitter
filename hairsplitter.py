@@ -33,7 +33,7 @@ def parse_args(args_string=None):
     parser.add_argument("--correct-assembly", help="Correct structural errors in the input assembly (time-consuming)", action="store_true")
     parser.add_argument("-t", "--threads", help="Number of threads [1]", default=1, type=int)
     parser.add_argument("-o", "--output", help="Output directory", required=True)
-    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion c of the reads [0.33]", default=0.33, type=float, required=False)
+    parser.add_argument("-u", "--rescue_snps", help="Consider automatically as true all SNPs shared by proportion u of the reads [0.33]", default=0.33, type=float, required=False)
     parser.add_argument("-q", "--min-read-quality", help="If reads have an average quality below this threshold, filter out (fastq input only) [0]", default=0, type=int)
     parser.add_argument("--resume", help="Resume from a previous run", action="store_true")
     parser.add_argument("-s", "--dont_simplify", help="Don't merge the contig", action="store_true")

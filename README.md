@@ -75,19 +75,17 @@ python hairsplitter.py -i test/simple_mock/assembly.gfa -f test/simple_mock/mock
 ```bash
 usage: hairsplitter.py [-h] -i ASSEMBLY -f FASTQ [-c HAPLOID_COVERAGE]
                        [-x USE_CASE] [-p POLISHER] [--correct-assembly]
-                       [-t THREADS] -o OUTPUT [--resume] [-s] [-P] [-F] [-l]
-                       [--clean]
+                       [-t THREADS] -o OUTPUT [-u RESCUE_SNPS]
+                       [-q MIN_READ_QUALITY] [--resume] [-s] [-P] [-F] [-l]
+                       [--no_clean]
                        [--rarest-strain-abundance RAREST_STRAIN_ABUNDANCE]
                        [--minimap2-params MINIMAP2_PARAMS]
-                       [--path_to_minimap2 PATH_TO_MINIMAP2]
                        [--path_to_minigraph PATH_TO_MINIGRAPH]
-                       [--path_to_racon PATH_TO_RACON]
                        [--path_to_medaka PATH_TO_MEDAKA]
-                       [--path_to_samtools PATH_TO_SAMTOOLS]
                        [--path_to_python PATH_TO_PYTHON]
                        [--path_to_raven PATH_TO_RAVEN] [-v] [-d]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -i ASSEMBLY, --assembly ASSEMBLY
                         Original assembly in GFA or FASTA format (required)
@@ -96,16 +94,22 @@ optional arguments:
   -c HAPLOID_COVERAGE, --haploid-coverage HAPLOID_COVERAGE
                         Expected haploid coverage. 0 if does not apply [0]
   -x USE_CASE, --use-case USE_CASE
-                        {ont, pacbio, hifi,amplicon} [ont]
+                        {ont, pacbio, hifi, amplicon} [ont]
   -p POLISHER, --polisher POLISHER
-                        {racon,medaka} medaka is more accurate but much slower
-                        [racon]
+                        {racon, medaka} medaka is more accurate but much
+                        slower [racon]
   --correct-assembly    Correct structural errors in the input assembly (time-
                         consuming)
   -t THREADS, --threads THREADS
                         Number of threads [1]
   -o OUTPUT, --output OUTPUT
                         Output directory
+  -u RESCUE_SNPS, --rescue_snps RESCUE_SNPS
+                        Consider automatically as true all SNPs shared by
+                        proportion u of the reads [0.33]
+  -q MIN_READ_QUALITY, --min-read-quality MIN_READ_QUALITY
+                        If reads have an average quality below this threshold,
+                        filter out (fastq input only) [0]
   --resume              Resume from a previous run
   -s, --dont_simplify   Don't merge the contig
   -P, --polish-everything
@@ -113,29 +117,21 @@ optional arguments:
                         is only one haplotype
   -F, --force           Force overwrite of output folder if it exists
   -l, --low-memory      Turn on the low-memory mode (at the expense of speed)
-  --clean               Clean the temporary files
+  --no_clean            Don't clean the temporary files
   --rarest-strain-abundance RAREST_STRAIN_ABUNDANCE
                         Limit on the relative abundance of the rarest strain
                         to detect (0 might be slow for some datasets) [0.01]
   --minimap2-params MINIMAP2_PARAMS
                         Parameters to pass to minimap2
-  --path_to_minimap2 PATH_TO_MINIMAP2
-                        Path to the executable minimap2 [minimap2]
   --path_to_minigraph PATH_TO_MINIGRAPH
                         Path to the executable minigraph [minigraph]
-  --path_to_racon PATH_TO_RACON
-                        Path to the executable racon [racon]
   --path_to_medaka PATH_TO_MEDAKA
                         Path to the executable medaka [medaka]
-  --path_to_samtools PATH_TO_SAMTOOLS
-                        Path to samtools [samtools]
   --path_to_python PATH_TO_PYTHON
                         Path to python [python]
   --path_to_raven PATH_TO_RAVEN
                         Path to raven [raven]
   -v, --version         Print version and exit
-  -d, --debug           Debug mode
-
 ```
 
 # Issues
